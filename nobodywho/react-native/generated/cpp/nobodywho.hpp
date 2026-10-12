@@ -22,10 +22,13 @@ protected:
   jsi::Value cpp_uniffi_internal_fn_func_ffi__string_to_byte_length(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_internal_fn_func_ffi__string_to_arraybuffer(
+  jsi::Value cpp_uniffi_internal_fn_func_ffi__string_to_buffer(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_internal_fn_func_ffi__arraybuffer_to_string(
+  jsi::Value cpp_uniffi_internal_fn_func_ffi__string_from_buffer(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_internal_fn_func_ffi__read_string_from_buffer(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_rustchat(

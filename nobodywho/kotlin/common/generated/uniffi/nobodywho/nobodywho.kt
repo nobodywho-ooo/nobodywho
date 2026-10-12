@@ -88,7 +88,7 @@ open class RustBuffer : Structure() {
 
     @Suppress("TooGenericExceptionThrown")
     fun asByteBuffer() =
-        this.data?.getByteBuffer(0, this.len.toLong())?.also {
+        this.data?.getByteBuffer(0, this.len)?.also {
             it.order(ByteOrder.BIG_ENDIAN)
         }
 }
@@ -289,8 +289,9 @@ internal inline fun<T> uniffiTraitInterfaceCall(
     try {
         writeReturn(makeCall())
     } catch(e: kotlin.Exception) {
+        val err = try { e.stackTraceToString() } catch(_: Throwable) { "" }
         callStatus.code = UNIFFI_CALL_UNEXPECTED_ERROR
-        callStatus.error_buf = FfiConverterString.lower(e.toString())
+        callStatus.error_buf = FfiConverterString.lower(err)
     }
 }
 
@@ -307,8 +308,9 @@ internal inline fun<T, reified E: Throwable> uniffiTraitInterfaceCallWithError(
             callStatus.code = UNIFFI_CALL_ERROR
             callStatus.error_buf = lowerError(e)
         } else {
+            val err = try { e.stackTraceToString() } catch(_: Throwable) { "" }
             callStatus.code = UNIFFI_CALL_UNEXPECTED_ERROR
-            callStatus.error_buf = FfiConverterString.lower(e.toString())
+            callStatus.error_buf = FfiConverterString.lower(err)
         }
     }
 }
@@ -686,190 +688,190 @@ internal object IntegrityCheckingUniffiLib {
         uniffiCheckApiChecksums(this)
     }
     external fun uniffi_nobodywho_uniffi_checksum_func_cosine_similarity(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_download_model(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_get_cached_models(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_load_model(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_regex(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_dry(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_greedy(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_k(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_ask(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_complete(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_set_context_shift(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_set_tools(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize_with_prompt(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustmodel_source(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_file(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_pcm(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_completed(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_next_token(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize_async(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rusttool_next_pending_call(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_grammar(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_json_schema(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_regex(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_seed(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_temperature(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_k(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_n_sigma(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_p(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_typical_p(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_xtc(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rustvoiceactivitydetection_new(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_download_progress(
-    ): Short
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call(
-    ): Short
+    ): Int
     external fun ffi_nobodywho_uniffi_uniffi_contract_version(
     ): Int
-    
+
         
 }
 
@@ -1132,7 +1134,7 @@ external fun ffi_nobodywho_uniffi_rust_future_cancel_u8(`handle`: Long,
 external fun ffi_nobodywho_uniffi_rust_future_free_u8(`handle`: Long,
 ): Unit
 external fun ffi_nobodywho_uniffi_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-): Byte
+): Int
 external fun ffi_nobodywho_uniffi_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
 external fun ffi_nobodywho_uniffi_rust_future_cancel_i8(`handle`: Long,
@@ -1148,7 +1150,7 @@ external fun ffi_nobodywho_uniffi_rust_future_cancel_u16(`handle`: Long,
 external fun ffi_nobodywho_uniffi_rust_future_free_u16(`handle`: Long,
 ): Unit
 external fun ffi_nobodywho_uniffi_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-): Short
+): Int
 external fun ffi_nobodywho_uniffi_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
 external fun ffi_nobodywho_uniffi_rust_future_cancel_i16(`handle`: Long,
@@ -1236,277 +1238,277 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_cosine_similarity() != 63439.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_cosine_similarity() != 63439) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_download_model() != 31331.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_download_model() != 31331) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_get_cached_models() != 12002.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_get_cached_models() != 12002) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 8315.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 30733) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text() != 3224.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text() != 3224) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech() != 45176.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech() != 45176) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection() != 42331.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection() != 42331) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() != 13698.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() != 13698) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema() != 4691.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema() != 4691) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_regex() != 25543.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_regex() != 25543) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default() != 10834.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default() != 10834) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_dry() != 55378.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_dry() != 55378) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_greedy() != 13219.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_greedy() != 13219) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json() != 42303.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json() != 42303) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature() != 64803.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature() != 64803) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_k() != 56996.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_k() != 56996) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p() != 22588.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p() != 22588) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() != 53575.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() != 53575) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt() != 63877.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt() != 63877) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 46807.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 46807) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 24327.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 24327) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 12722.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 12722) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json() != 33078.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json() != 33078) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats() != 59932.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats() != 59932) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt() != 57727.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt() != 57727) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() != 19616.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() != 19616) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() != 727.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() != 727) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context() != 47191.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context() != 47191) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history() != 12058.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history() != 12058) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history() != 6058.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history() != 6058) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_context_shift() != 58540.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_context_shift() != 58540) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config() != 28012.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config() != 28012) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt() != 31690.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt() != 31690) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable() != 64000.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable() != 64000) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_tools() != 55680.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_tools() != 55680) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation() != 24711.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation() != 24711) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize() != 52520.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize() != 52520) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize_with_prompt() != 15286.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize_with_prompt() != 15286) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank() != 55500.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank() != 55500) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json() != 24587.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json() != 24587) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode() != 52601.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode() != 52601) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch() != 20675.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch() != 20675) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() != 52004.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() != 52004) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustmodel_source() != 39358.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustmodel_source() != 39358) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_file() != 59975.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_file() != 59975) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_pcm() != 9293.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_pcm() != 9293) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_completed() != 15944.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_completed() != 15944) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_next_token() != 8103.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_next_token() != 8103) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize() != 61700.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize() != 61700) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize_async() != 14494.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize_async() != 14494) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed() != 26060.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed() != 26060) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token() != 59210.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token() != 59210) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json() != 4679.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json() != 4679) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttool_next_pending_call() != 52020.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttool_next_pending_call() != 52020) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call() != 10096.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call() != 10096) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish() != 1447.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish() != 1447) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push() != 58012.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push() != 58012) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() != 39967.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() != 39967) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_grammar() != 36786.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_grammar() != 36786) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_json_schema() != 45268.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_json_schema() != 45268) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_regex() != 1166.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_regex() != 1166) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry() != 35315.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry() != 35315) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature() != 5004.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature() != 5004) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() != 32898.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() != 32898) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json() != 18949.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json() != 18949) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias() != 61844.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias() != 61844) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p() != 33705.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p() != 33705) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1() != 58563.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1() != 58563) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2() != 41682.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2() != 41682) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties() != 40767.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties() != 40767) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_seed() != 25129.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_seed() != 25129) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_temperature() != 8456.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_temperature() != 8456) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_k() != 26600.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_k() != 26600) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_n_sigma() != 44336.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_n_sigma() != 44336) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_p() != 54577.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_p() != 54577) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_typical_p() != 28727.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_typical_p() != 28727) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_xtc() != 22853.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_xtc() != 22853) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 4810.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 4810) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 27902.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 27902) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new() != 9249.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new() != 9249) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new() != 55766.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new() != 55766) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() != 9431.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() != 9431) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() != 54521.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() != 54521) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustvoiceactivitydetection_new() != 47351.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustvoiceactivitydetection_new() != 47351) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() != 50214.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() != 50214) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json() != 6867.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_samplerconfig_from_json() != 6867) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_download_progress() != 28617.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustdownloadprogresscallback_on_download_progress() != 28617) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call() != 43958.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttoolcallback_call() != 43958) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -2047,7 +2049,6 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
 //
 
 
-//
 public interface RustChatInterface {
     
     /**
@@ -2198,7 +2199,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     @Suppress("UNUSED_PARAMETER")
     constructor(noHandle: NoHandle) {
         this.handle = 0
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
+        this.cleanable = null
     }
     /**
      * Create a new chat session.
@@ -2226,7 +2227,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     )
 
     protected val handle: Long
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
@@ -2237,7 +2238,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -2265,7 +2266,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -2921,7 +2922,6 @@ public object FfiConverterTypeRustChat: FfiConverter<RustChat, Long> {
 //
 
 
-//
 public interface RustCrossEncoderInterface {
     
     /**
@@ -2961,7 +2961,7 @@ open class RustCrossEncoder: Disposable, AutoCloseable, RustCrossEncoderInterfac
     @Suppress("UNUSED_PARAMETER")
     constructor(noHandle: NoHandle) {
         this.handle = 0
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
+        this.cleanable = null
     }
     /**
      * Create a new cross-encoder for ranking documents by relevance.
@@ -2976,7 +2976,7 @@ open class RustCrossEncoder: Disposable, AutoCloseable, RustCrossEncoderInterfac
     )
 
     protected val handle: Long
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
@@ -2987,7 +2987,7 @@ open class RustCrossEncoder: Disposable, AutoCloseable, RustCrossEncoderInterfac
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -3015,7 +3015,7 @@ open class RustCrossEncoder: Disposable, AutoCloseable, RustCrossEncoderInterfac
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -3230,7 +3230,6 @@ public object FfiConverterTypeRustCrossEncoder: FfiConverter<RustCrossEncoder, L
 //
 
 
-//
 public interface RustEncoderInterface {
     
     /**
@@ -3268,7 +3267,7 @@ open class RustEncoder: Disposable, AutoCloseable, RustEncoderInterface
     @Suppress("UNUSED_PARAMETER")
     constructor(noHandle: NoHandle) {
         this.handle = 0
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
+        this.cleanable = null
     }
     /**
      * Create a new encoder for generating text embeddings.
@@ -3283,7 +3282,7 @@ open class RustEncoder: Disposable, AutoCloseable, RustEncoderInterface
     )
 
     protected val handle: Long
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
@@ -3294,7 +3293,7 @@ open class RustEncoder: Disposable, AutoCloseable, RustEncoderInterface
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -3322,7 +3321,7 @@ open class RustEncoder: Disposable, AutoCloseable, RustEncoderInterface
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -3535,7 +3534,6 @@ public object FfiConverterTypeRustEncoder: FfiConverter<RustEncoder, Long> {
 //
 
 
-//
 public interface RustModelInterface {
     
     fun `maxCtx`(): kotlin.UInt
@@ -3567,11 +3565,11 @@ open class RustModel: Disposable, AutoCloseable, RustModelInterface
     @Suppress("UNUSED_PARAMETER")
     constructor(noHandle: NoHandle) {
         this.handle = 0
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
+        this.cleanable = null
     }
 
     protected val handle: Long
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
@@ -3582,7 +3580,7 @@ open class RustModel: Disposable, AutoCloseable, RustModelInterface
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -3610,7 +3608,7 @@ open class RustModel: Disposable, AutoCloseable, RustModelInterface
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -3801,7 +3799,6 @@ public object FfiConverterTypeRustModel: FfiConverter<RustModel, Long> {
 //
 
 
-//
 /**
  * Speech-to-text handle. Wraps `nobodywho::speech_to_text::SpeechToText`.
  * Use `transcribe_file` or `transcribe_pcm` to get a `RustSpeechToTextStream`.
@@ -3849,7 +3846,7 @@ open class RustSpeechToText: Disposable, AutoCloseable, RustSpeechToTextInterfac
     @Suppress("UNUSED_PARAMETER")
     constructor(noHandle: NoHandle) {
         this.handle = 0
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
+        this.cleanable = null
     }
     /**
      * Create an SpeechToText handle. `source` is a HuggingFace repo (`hf://owner/repo`,
@@ -3869,7 +3866,7 @@ open class RustSpeechToText: Disposable, AutoCloseable, RustSpeechToTextInterfac
     )
 
     protected val handle: Long
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
@@ -3880,7 +3877,7 @@ open class RustSpeechToText: Disposable, AutoCloseable, RustSpeechToTextInterfac
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -3908,7 +3905,7 @@ open class RustSpeechToText: Disposable, AutoCloseable, RustSpeechToTextInterfac
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -4109,7 +4106,6 @@ public object FfiConverterTypeRustSpeechToText: FfiConverter<RustSpeechToText, L
 //
 
 
-//
 /**
  * A stream of transcript tokens from a Whisper SpeechToText run.
  */
@@ -4153,11 +4149,11 @@ open class RustSpeechToTextStream: Disposable, AutoCloseable, RustSpeechToTextSt
     @Suppress("UNUSED_PARAMETER")
     constructor(noHandle: NoHandle) {
         this.handle = 0
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
+        this.cleanable = null
     }
 
     protected val handle: Long
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
@@ -4168,7 +4164,7 @@ open class RustSpeechToTextStream: Disposable, AutoCloseable, RustSpeechToTextSt
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -4196,7 +4192,7 @@ open class RustSpeechToTextStream: Disposable, AutoCloseable, RustSpeechToTextSt
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -4409,7 +4405,6 @@ public object FfiConverterTypeRustSpeechToTextStream: FfiConverter<RustSpeechToT
 //
 
 
-//
 public interface RustTextToSpeechInterface {
     
     /**
@@ -4447,7 +4442,7 @@ open class RustTextToSpeech: Disposable, AutoCloseable, RustTextToSpeechInterfac
     @Suppress("UNUSED_PARAMETER")
     constructor(noHandle: NoHandle) {
         this.handle = 0
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
+        this.cleanable = null
     }
     /**
      * Create a TextToSpeech synthesizer.
@@ -4462,7 +4457,7 @@ open class RustTextToSpeech: Disposable, AutoCloseable, RustTextToSpeechInterfac
     )
 
     protected val handle: Long
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
@@ -4473,7 +4468,7 @@ open class RustTextToSpeech: Disposable, AutoCloseable, RustTextToSpeechInterfac
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -4501,7 +4496,7 @@ open class RustTextToSpeech: Disposable, AutoCloseable, RustTextToSpeechInterfac
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -4707,7 +4702,6 @@ public object FfiConverterTypeRustTextToSpeech: FfiConverter<RustTextToSpeech, L
 //
 
 
-//
 public interface RustTokenStreamInterface {
     
     /**
@@ -4745,11 +4739,11 @@ open class RustTokenStream: Disposable, AutoCloseable, RustTokenStreamInterface
     @Suppress("UNUSED_PARAMETER")
     constructor(noHandle: NoHandle) {
         this.handle = 0
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
+        this.cleanable = null
     }
 
     protected val handle: Long
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
@@ -4760,7 +4754,7 @@ open class RustTokenStream: Disposable, AutoCloseable, RustTokenStreamInterface
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -4788,7 +4782,7 @@ open class RustTokenStream: Disposable, AutoCloseable, RustTokenStreamInterface
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -5001,7 +4995,6 @@ public object FfiConverterTypeRustTokenStream: FfiConverter<RustTokenStream, Lon
 //
 
 
-//
 public interface RustToolInterface {
     
     /**
@@ -5044,7 +5037,7 @@ open class RustTool: Disposable, AutoCloseable, RustToolInterface
     @Suppress("UNUSED_PARAMETER")
     constructor(noHandle: NoHandle) {
         this.handle = 0
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
+        this.cleanable = null
     }
     /**
      * Create a tool with a synchronous callback (for Swift, Kotlin).
@@ -5059,7 +5052,7 @@ open class RustTool: Disposable, AutoCloseable, RustToolInterface
     )
 
     protected val handle: Long
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
@@ -5070,7 +5063,7 @@ open class RustTool: Disposable, AutoCloseable, RustToolInterface
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -5098,7 +5091,7 @@ open class RustTool: Disposable, AutoCloseable, RustToolInterface
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -5333,7 +5326,6 @@ public object FfiConverterTypeRustTool: FfiConverter<RustTool, Long> {
 //
 
 
-//
 /**
  * Voice activity detector. Wraps `nobodywho::voice_activity_detection::VoiceActivityDetection`.
  * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
@@ -5396,7 +5388,7 @@ open class RustVoiceActivityDetection: Disposable, AutoCloseable, RustVoiceActiv
     @Suppress("UNUSED_PARAMETER")
     constructor(noHandle: NoHandle) {
         this.handle = 0
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
+        this.cleanable = null
     }
     /**
      * Create a voice activity detector.
@@ -5419,7 +5411,7 @@ open class RustVoiceActivityDetection: Disposable, AutoCloseable, RustVoiceActiv
     )
 
     protected val handle: Long
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
@@ -5430,7 +5422,7 @@ open class RustVoiceActivityDetection: Disposable, AutoCloseable, RustVoiceActiv
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -5458,7 +5450,7 @@ open class RustVoiceActivityDetection: Disposable, AutoCloseable, RustVoiceActiv
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -5683,7 +5675,6 @@ public object FfiConverterTypeRustVoiceActivityDetection: FfiConverter<RustVoice
 //
 
 
-//
 public interface SamplerBuilderInterface {
     
     /**
@@ -5829,7 +5820,7 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     @Suppress("UNUSED_PARAMETER")
     constructor(noHandle: NoHandle) {
         this.handle = 0
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
+        this.cleanable = null
     }
     /**
      * Create a new SamplerBuilder to construct a custom sampler chain.
@@ -5844,7 +5835,7 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     )
 
     protected val handle: Long
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
@@ -5855,7 +5846,7 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -5883,7 +5874,7 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -6386,7 +6377,6 @@ public object FfiConverterTypeSamplerBuilder: FfiConverter<SamplerBuilder, Long>
 //
 
 
-//
 public interface SamplerConfigInterface {
     
     /**
@@ -6419,11 +6409,11 @@ open class SamplerConfig: Disposable, AutoCloseable, SamplerConfigInterface
     @Suppress("UNUSED_PARAMETER")
     constructor(noHandle: NoHandle) {
         this.handle = 0
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
+        this.cleanable = null
     }
 
     protected val handle: Long
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
@@ -6434,7 +6424,7 @@ open class SamplerConfig: Disposable, AutoCloseable, SamplerConfigInterface
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -6462,7 +6452,7 @@ open class SamplerConfig: Disposable, AutoCloseable, SamplerConfigInterface
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -6575,6 +6565,8 @@ data class CachedModel (
     
 
     
+
+    
     companion object
 }
 
@@ -6608,6 +6600,8 @@ data class ChatStats (
     var `contextUsed`: kotlin.UInt
     
 ){
+    
+
     
 
     
@@ -6667,6 +6661,8 @@ data class ContextShiftOptions (
     
 
     
+
+    
     companion object
 }
 
@@ -6723,6 +6719,8 @@ data class MtpConfig (
     
 
     
+
+    
     companion object
 }
 
@@ -6769,6 +6767,8 @@ data class Options (
     var `tools`: List<RustTool>? = null 
     
 ): Disposable{
+    
+
     
 
     
@@ -6824,6 +6824,8 @@ data class PendingToolCall (
     
 
     
+
+    
     companion object
 }
 
@@ -6857,6 +6859,8 @@ data class ToolCall (
     var `argumentsJson`: kotlin.String
     
 ){
+    
+
     
 
     
@@ -6896,6 +6900,8 @@ data class ToolParameter (
     var `schema`: kotlin.String
     
 ){
+    
+
     
 
     
@@ -6962,6 +6968,11 @@ sealed class ContentPart {
     
 
     
+
+    
+    
+
+
     companion object
 }
 
@@ -7036,7 +7047,7 @@ public object FfiConverterTypeContentPart : FfiConverterRustBuffer<ContentPart>{
 sealed class Message {
     
     data class User(
-        val `content`: MessageContent) : Message()
+        val `content`: uniffi.nobodywho.MessageContent) : Message()
         
     {
         
@@ -7045,8 +7056,8 @@ sealed class Message {
     }
     
     data class Assistant(
-        val `content`: MessageContent, 
-        val `toolCalls`: List<ToolCall>?) : Message()
+        val `content`: uniffi.nobodywho.MessageContent, 
+        val `toolCalls`: List<uniffi.nobodywho.ToolCall>?) : Message()
         
     {
         
@@ -7055,7 +7066,7 @@ sealed class Message {
     }
     
     data class System(
-        val `content`: MessageContent) : Message()
+        val `content`: uniffi.nobodywho.MessageContent) : Message()
         
     {
         
@@ -7065,7 +7076,7 @@ sealed class Message {
     
     data class Tool(
         val `name`: kotlin.String, 
-        val `content`: MessageContent) : Message()
+        val `content`: uniffi.nobodywho.MessageContent) : Message()
         
     {
         
@@ -7075,6 +7086,11 @@ sealed class Message {
     
 
     
+
+    
+    
+
+
     companion object
 }
 
@@ -7179,7 +7195,7 @@ sealed class MessageContent {
     }
     
     data class Parts(
-        val `parts`: List<ContentPart>) : MessageContent()
+        val `parts`: List<uniffi.nobodywho.ContentPart>) : MessageContent()
         
     {
         
@@ -7202,6 +7218,11 @@ sealed class MessageContent {
     
 
     
+
+    
+    
+
+
     companion object
 }
 
@@ -7346,6 +7367,11 @@ sealed class ShiftTarget {
     
 
     
+
+    
+    
+
+
     companion object
 }
 
@@ -7414,6 +7440,10 @@ enum class VoiceActivityDetectionEvent {
     SPEECH_STARTED,
     SPEECH_ENDED,
     SILENCE;
+
+    
+
+
     companion object
 }
 
@@ -8541,10 +8571,6 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
          * loaded once. Whether MTP is
          * actually used is a per-chat decision — pass it through
          * `Chat`-level config on the wrapping binding.
-         *
-         * This is a free function instead of an async constructor because
-         * uniffi-bindgen-react-native generates invalid JS (`async static` instead
-         * of `static async`) for async constructors.
          */
     @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")

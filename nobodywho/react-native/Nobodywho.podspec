@@ -6,34 +6,39 @@ package = JSON.parse(File.read(File.join(__dir__, "package.json")))
 version = package["version"]
 folly_compiler_flags = '-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -Wno-comma -Wno-shorten-64-to-32'
 
-framework_name = "NobodywhoFramework.xcframework"
+framework_name = "NobodyWho.xcframework"
 framework_dir = File.join(__dir__, framework_name)
 zip_name = "#{framework_name}.zip"
 zip_path = File.join(__dir__, zip_name)
 url = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-v#{version}/#{zip_name}"
 
-# Always download a fresh xcframework to ensure it matches the package version.
-FileUtils.rm_rf(framework_dir) if File.exist?(framework_dir)
+# Download the xcframework unless one is already present. When installed from
+# npm, upgrading the package replaces this directory, so an existing framework
+# always matches the package version. For local development, place a locally
+# built xcframework here and it will be used as-is.
+if File.exist?(framework_dir)
+  puts "[NobodyWho] Using existing xcframework at #{framework_dir}"
+else
+  puts "[NobodyWho] Downloading xcframework from #{url}"
 
-puts "[NobodyWho] Downloading xcframework from #{url}"
+  system("curl", "-L", "-f", "-o", zip_path, url) or
+    raise "Failed to download NobodyWho xcframework.\n" \
+          "URL: #{url}\n" \
+          "Check that the release exists: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-react-native-v#{version}\n" \
+          "For local development, manually place the xcframework at: #{framework_dir}"
 
-system("curl", "-L", "-f", "-o", zip_path, url) or
-  raise "Failed to download NobodyWho xcframework.\n" \
-        "URL: #{url}\n" \
-        "Check that the release exists: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-react-native-v#{version}\n" \
-        "For local development, manually place the xcframework at: #{framework_dir}"
+  puts "[NobodyWho] Extracting xcframework..."
+  system("unzip", "-o", "-q", zip_path, "-d", __dir__) or
+    raise "Failed to extract #{zip_name}"
 
-puts "[NobodyWho] Extracting xcframework..."
-system("unzip", "-o", "-q", zip_path, "-d", __dir__) or
-  raise "Failed to extract #{zip_name}"
+  File.delete(zip_path) if File.exist?(zip_path)
 
-File.delete(zip_path) if File.exist?(zip_path)
+  unless File.exist?(framework_dir)
+    raise "xcframework not found after extraction: #{framework_dir}"
+  end
 
-unless File.exist?(framework_dir)
-  raise "xcframework not found after extraction: #{framework_dir}"
+  puts "[NobodyWho] xcframework ready at #{framework_dir}"
 end
-
-puts "[NobodyWho] xcframework ready at #{framework_dir}"
 
 Pod::Spec.new do |s|
   s.name         = "Nobodywho"
@@ -41,7 +46,7 @@ Pod::Spec.new do |s|
   s.summary      = package["description"]
   s.homepage     = package["homepage"]
   s.license      = package["license"]
-  s.authors      = package["author"] || { "NobodyWho" => "info@nobodywho.ooo" }
+  s.authors      = package["author"]
 
   s.platforms    = { :ios => min_ios_version_supported }
   s.source       = { :git => "https://github.com/nobodywho-ooo/nobodywho.git", :tag => "#{s.version}" }
@@ -50,7 +55,7 @@ Pod::Spec.new do |s|
   s.vendored_frameworks = framework_name
   s.libraries = 'c++'
   s.frameworks = 'Accelerate'
-  s.dependency    "uniffi-bindgen-react-native", "0.30.0-1"
+  s.dependency    "uniffi-bindgen-react-native", "0.31.0-6"
 
   # Use install_modules_dependencies helper to install the dependencies if React Native version >=0.71.0.
   # See https://github.com/facebook/react-native/blob/febf6b7f33fdb4904669f99d795eba4c0f95d7bf/scripts/cocoapods/new_architecture.rb#L79.

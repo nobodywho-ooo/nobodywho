@@ -63,7 +63,9 @@ def nobodywhoVersion = packageJson.version
 // Directory for downloaded native shared libraries.
 // These .so files are fully linked at CI time with a known-good NDK, eliminating
 // NDK version coupling for consumers.
-def nativeLibsDir = new File(buildDir, "nobodywho-native/${nobodywhoVersion}")
+// This is AGP's default jniLibs directory, and the path the ubrn-generated
+// CMakeLists.txt links against, so no extra configuration is needed.
+def nativeLibsDir = file("src/main/jniLibs")
 
 // Download native shared libraries from GitHub Releases if not already present.
 task resolveNativeLibraries {
@@ -161,8 +163,7 @@ android {
     }
     externalNativeBuild {
       cmake {
-        arguments '-DANDROID_STL=c++_shared',
-                  "-DNOBODYWHO_NATIVE_LIBS_DIR=${nativeLibsDir.absolutePath}"
+        arguments '-DANDROID_STL=c++_shared'
         abiFilters (*reactNativeArchitectures())
       }
     }
@@ -198,8 +199,6 @@ android {
 
   sourceSets {
     main {
-      // Include downloaded .so files so they get packaged into the APK
-      jniLibs.srcDirs += [nativeLibsDir]
       if (isNewArchitectureEnabled()) {
           java.srcDirs += [
             "generated/java",
