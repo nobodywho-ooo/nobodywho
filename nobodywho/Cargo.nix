@@ -11352,6 +11352,12 @@ rec {
           {
             name = "ureq";
             packageId = "ureq";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "ureq";
+            packageId = "ureq";
+            target = { target, features }: (!("emscripten" == target."os" or null));
             features = [ "rustls" ];
           }
           {
