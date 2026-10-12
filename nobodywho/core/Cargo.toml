@@ -39,7 +39,6 @@ rand = "0.10.2"
 futures = "0.3.31"
 ahash = "0.8.12"
 indexmap = "2.13.0"
-ureq = { version = "3", features = ["rustls"] }
 indicatif = "0.18"
 walkdir = "2.5"
 tempfile = "3"
@@ -96,12 +95,14 @@ windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation"] 
 ort = { version = "=2.0.0-rc.14", default-features = false, features = ["cuda"] }
 
 [target.'cfg(not(target_os = "emscripten"))'.dependencies]
+ureq = { version = "3", features = ["rustls"] }
 tokio = { version = "1.43.0", features = ["rt-multi-thread"] }
 mel_spec = "0.4"
 ort = { version = "=2.0.0-rc.14", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
 
 # TODO: Make TTS, STT and VAD work on WASM.
 [target.'cfg(target_os = "emscripten")'.dependencies]
+ureq = { version = "3", default-features = false, features = [] }
 # ort = { version = "=2.0.0-rc.14", default-features = false, features = ["alternative-backend"] }
 # ort-web = "=0.3.1+1.27"
 # mel_spec = { version = "0.4", features = ["wasm"] }
