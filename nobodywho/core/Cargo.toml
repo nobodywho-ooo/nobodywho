@@ -27,7 +27,6 @@ llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = 
 tokio = { version = "1.43.0", features = [
     "sync",
     "rt",
-    "rt-multi-thread",
     "macros",
 ] }
 tokio-stream = "0.1.17"
@@ -98,6 +97,7 @@ windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation"] 
 ort = { version = "=2.0.0-rc.13", default-features = false, features = ["cuda"] }
 
 [target.'cfg(not(target_os = "emscripten"))'.dependencies]
+tokio = { version = "1.43.0", features = ["rt-multi-thread"] }
 mel_spec = "0.4"
 ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
 
