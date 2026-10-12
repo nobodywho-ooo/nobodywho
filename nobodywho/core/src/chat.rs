@@ -1074,7 +1074,7 @@ struct ChatContext<'model> {
 }
 
 impl Chat {
-    fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Chat, InitWorkerError> {
+    pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Chat, InitWorkerError> {
         if !model.is_generative_model() {
             let architecture = model
                 .language_model
@@ -1894,7 +1894,7 @@ impl TurnGenerator {
     /// Continue generating the turn.
     ///
     /// Has similar semantics and invariants as [`ResponseGenerator::next`].
-    fn next(
+    pub fn next(
         &mut self,
         chat: &mut Chat,
         max_tokens: Option<usize>,
