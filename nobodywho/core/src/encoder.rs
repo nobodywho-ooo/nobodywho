@@ -90,17 +90,17 @@ fn process_worker_msg(worker_state: &mut EncoderWorker<'_>, msg: EncoderMsg) {
             let pooling = worker_state.pooling;
             let embeddings = worker_state
                 .engine
-                .read_strings_batched(texts, |ctx, sequence_id| {
+                .read_strings_batched::<_, EncoderWorkerError>(texts, |ctx, sequence_id| {
                     let embedding = if pooling == LlamaPoolingType::None {
                         ctx.embeddings_ith(-1)?
                     } else {
                         ctx.embeddings_seq_ith(sequence_id)?
                     };
-                    Ok::<_, llama_cpp_2::EmbeddingsError>(embedding.to_vec())
+                    Ok(embedding.to_vec())
                 })
                 .map_err(|error| match error {
                     BatchedReadError::Read(error) => EncoderWorkerError::Read(error),
-                    BatchedReadError::Output(error) => EncoderWorkerError::Embeddings(error),
+                    BatchedReadError::Output(error) => error,
                 });
             let _ = output_tx.blocking_send(embeddings);
         }
@@ -131,7 +131,7 @@ impl<'a> EncoderWorker<'a> {
     }
 
     #[cfg(test)]
-    fn get_embedding(&self) -> Result<Vec<f32>, llama_cpp_2::EmbeddingsError> {
+    fn get_embedding(&self) -> Result<Vec<f32>, llama_cpp_2::EmbeddingsSeqError> {
         Ok(self.engine.ctx.embeddings_seq_ith(0)?.to_vec())
     }
 

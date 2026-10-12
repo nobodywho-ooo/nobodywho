@@ -1973,7 +1973,7 @@ impl MediaStore {
     /// Store `bitmaps` and tag each with its id, returned in the same order.
     fn register(&mut self, bitmaps: Vec<MtmdBitmap>) -> Result<Vec<ChunkId>, MultimodalError> {
         let mut bitmap_ids = Vec::with_capacity(bitmaps.len());
-        for bitmap in bitmaps {
+        for mut bitmap in bitmaps {
             let id = bitmap_id(&bitmap);
             bitmap.set_id(&id)?;
             bitmap_ids.push(id.clone());
@@ -2128,6 +2128,7 @@ struct GeneratedResponse {
 /// A chat session: owns an [`InferenceEngine`] plus all the conversational state
 /// (messages, tools, template, sampler config).
 struct Chat<'a> {
+    model: &'a llm::Model,
     engine: InferenceEngine<'a>,
     should_stop: Arc<AtomicBool>,
     model_output: ModelOutput,
@@ -2209,6 +2210,7 @@ impl<'a> Chat<'a> {
             .transpose()?;
 
         Ok(Chat {
+            model,
             engine,
             should_stop,
             model_output,
@@ -2417,9 +2419,8 @@ impl<'a> Chat<'a> {
             tokens_written_until_now.push(new_token);
 
             let bytes = self
-                .engine
-                .ctx
                 .model
+                .language_model
                 .vocab()
                 .token_to_piece(new_token, true, None);
             let was_in_tool_calls = parser.in_tool_calls();
@@ -2698,7 +2699,7 @@ impl<'a> Chat<'a> {
     ) -> Result<(), SetterError> {
         // Run fallible functions before committing to state.
         let tool_sampler = build_tool_sampler(
-            self.engine.ctx.model,
+            &self.model.language_model,
             &mut self.grammar_factory,
             &tools,
             &self.sampler_config,
@@ -2758,7 +2759,7 @@ impl<'a> Chat<'a> {
             return Ok(());
         }
 
-        let model = self.engine.ctx.model;
+        let model = &self.model.language_model;
         let config = sampler_config.as_ref().unwrap_or(&self.sampler_config);
         let effective_tools = tools.as_deref().unwrap_or(&self.tools);
 

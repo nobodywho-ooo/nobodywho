@@ -50,7 +50,7 @@ const MAX_EMBEDDING_SEQUENCES: u32 = 256;
 pub struct Model {
     source: String,
     pub(crate) language_model: LlamaModel,
-    pub(crate) projection_model: Option<ProjectionModel>,
+    pub(crate) projection_model: Option<Mutex<ProjectionModel>>,
     pub(crate) draft_model: Option<DraftModel>,
 }
 
@@ -259,7 +259,8 @@ pub fn get_model_cancellable(
                 use_gpu && !cfg!(target_os = "android"),
             )
         })
-        .transpose()?;
+        .transpose()?
+        .map(Mutex::new);
 
     let draft_model = match real_draft_model_path.as_ref() {
         None => None,
@@ -473,6 +474,7 @@ impl<'a> InferenceEngine<'a> {
         let tokenizer = Tokenizer::new(&model.language_model, projection_model);
 
         Ok(InferenceEngine::new(
+            &model.language_model,
             engine_ctx,
             projection_model,
             BatchCapacity {
@@ -606,7 +608,14 @@ mod tests {
                 sequences: 1,
             };
             let tokenizer = Tokenizer::new(&model.language_model, None);
-            InferenceEngine::new(EngineContext::Solo(ctx), None, capacity, tokenizer, false)
+            InferenceEngine::new(
+                &model.language_model,
+                EngineContext::Solo(ctx),
+                None,
+                capacity,
+                tokenizer,
+                false,
+            )
         };
         let sync = |engine: &mut InferenceEngine, tokens: &[LlamaToken]| {
             let mut chunks = TokenizerChunks::new();
