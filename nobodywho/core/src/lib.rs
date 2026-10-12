@@ -11,16 +11,20 @@ mod join_on_drop;
 pub mod llm;
 pub mod memory;
 mod model_selection;
+#[cfg(not(target_os = "emscripten"))]
 pub mod onnx;
 pub mod output_format;
 mod response_parser;
 pub mod sampler;
+#[cfg(not(target_os = "emscripten"))]
 pub mod speech_to_text;
 pub mod stream;
 pub mod template;
+#[cfg(not(target_os = "emscripten"))]
 pub mod text_to_speech;
 pub mod tokenizer;
 pub mod tool_calling;
+#[cfg(not(target_os = "emscripten"))]
 pub mod voice_activity_detection;
 
 /// Re-exported so bindings can name `Diagnostic` without depending on miette directly.
