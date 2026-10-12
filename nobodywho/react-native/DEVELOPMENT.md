@@ -78,12 +78,17 @@ There are three layers of generated code. Each layer only needs regeneration for
 **Regenerate when:** Rust API changes — adding/removing/renaming functions, types, errors, or changing their signatures in `uniffi/src/lib.rs`.
 
 ```bash
-# From nobodywho/ (workspace root)
-cargo build -p nobodywho-uniffi
-npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \
-  --library --ts-dir react-native/generated/ts --cpp-dir react-native/generated/cpp \
-  target/debug/libnobodywho_uniffi.so
+cargo build -pnobodywho-uniffi
+# Linux
+npm run generate-bindings -- ../target/debug/libnobodywho_uniffi.so
+# macOS
+npm run generate-bindings -- ../target/debug/libnobodywho_uniffi.dylib
 ```
+
+This builds the UniFFI crate for the host, reads the UniFFI metadata embedded in the compiled `.so`/`.dylib` and generates:
+- `generated/ts/nobodywho.ts` — TypeScript classes, enums, free functions
+- `generated/ts/nobodywho-ffi.ts` — low-level FFI type bridge
+- `generated/cpp/nobodywho.{cpp,hpp}` — C++ JSI bridge implementation
 
 **Do not regenerate for:** TypeScript wrapper changes, build config changes, version bumps.
 
@@ -92,8 +97,7 @@ npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \
 **Regenerate when:** Module name changes, `codegenConfig` in `package.json` changes, or upgrading `uniffi-bindgen-react-native` version.
 
 ```bash
-cd react-native
-npx uniffi-bindgen-react-native generate jsi turbo-module --config ubrn.config.yaml nobodywho
+npm run generate-turbo-module
 ```
 
 **Do not regenerate for:** Rust API changes, adding new functions/types — those only affect the bindings layer above.
@@ -113,26 +117,6 @@ npx uniffi-bindgen-react-native generate jsi turbo-module --config ubrn.config.y
 | `uniffi-bindgen-react-native` version | Yes | Yes| No |
 
 ## Build system overview
-
-### Generate bindings from Rust
-
-Build the UniFFI crate for the host, then run the bindgen to produce TypeScript + C++:
-
-```bash
-# From nobodywho/ (workspace root)
-cargo build -p nobodywho-uniffi
-
-npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \
-  --library \
-  --ts-dir react-native/generated/ts \
-  --cpp-dir react-native/generated/cpp \
-  target/debug/libnobodywho_uniffi.so
-```
-
-This reads the UniFFI metadata embedded in the compiled `.so`/`.dylib` and generates:
-- `generated/ts/nobodywho.ts` — TypeScript classes, enums, free functions
-- `generated/ts/nobodywho-ffi.ts` — low-level FFI type bridge
-- `generated/cpp/nobodywho.{cpp,hpp}` — C++ JSI bridge implementation
 
 ### Build native shared libraries for mobile targets
 

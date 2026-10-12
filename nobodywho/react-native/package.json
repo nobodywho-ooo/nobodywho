@@ -37,6 +37,10 @@
     "!android/.cxx",
     "!android/src/main/jniLibs"
   ],
+  "scripts": {
+    "generate-turbo-module": "uniffi-bindgen-react-native generate jsi turbo-module nobodywho",
+    "generate-bindings": "cd ../uniffi && uniffi-bindgen-react-native generate jsi bindings --library --ts-dir ../react-native/generated/ts --cpp-dir ../react-native/generated/cpp"
+  },
   "codegenConfig": {
     "name": "NobodywhoSpec",
     "type": "modules",
