@@ -91,6 +91,14 @@ godot-test: godot-build
     fi
     {{GODOT}} --headless --path "{{GODOT_PROJECT}}"
 
+# Must match the ONNX Runtime version the `ort` crate expects.
+ORT_WASM_VERSION := "v1.31.0"
+ORT_WASM_DIR := justfile_directory() / "nobodywho/target/ort-wasm" / ORT_WASM_VERSION
+
+# Build ONNX Runtime as an Emscripten static library, for building NobodyWho with ORT_LIB_PATH; slow the first time, a no-op once built.
+ort-wasm:
+    .github/scripts/build-ort-wasm.sh {{ORT_WASM_VERSION}} {{ORT_WASM_DIR}}
+
 [arg("clean", long="require-clean", value="true")]
 regen-uniffi clean="false":
     cd nobodywho && cargo build -p nobodywho-uniffi --locked
