@@ -909,19 +909,12 @@ pub enum InferenceError {
 }
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum GenerateResponseError {
-    #[error("Error removing tokens from context after context shift")]
-    KVCacheUpdate(#[from] KvCacheConversionError),
-
     #[error("Error reading generated tokens back after context shift: {0}")]
     Read(#[from] ReadError),
 
-    #[error("Error rendering chat history with chat template: {0}")]
-    #[diagnostic(transparent)]
-    Render(#[from] RenderError),
-
     #[error("Error syncing context with chat history: {0}")]
     #[diagnostic(transparent)]
-    ReadError(#[from] ContextSyncError),
+    ContextSync(#[from] ContextSyncError),
 
     #[error("Error during context shift: {0}")]
     #[diagnostic(
@@ -935,12 +928,6 @@ pub enum GenerateResponseError {
 
     #[error("Error while decoding next token: {0}")]
     Decoding(#[from] DecodingError),
-
-    #[error("Context size too small to contain generated response!")]
-    ContextSize,
-
-    #[error("Invalid sampler configuration: {0}")]
-    InvalidSamplerConfig(#[from] SamplerError),
 }
 
 #[derive(Debug, thiserror::Error)]

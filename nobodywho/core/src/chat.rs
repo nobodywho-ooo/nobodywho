@@ -49,7 +49,9 @@ use llama_cpp_2::token::LlamaToken;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::hash::Hasher;
+use std::mem;
 use std::num::NonZeroUsize;
+use std::ops::ControlFlow;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
@@ -2116,15 +2118,6 @@ impl ChatSampler {
     }
 }
 
-struct GeneratedResponse {
-    /// What the history keeps of the generation.
-    content: String,
-    tool_calls: Vec<ToolCall>,
-    prompt_tokens: usize,
-    completion_tokens: usize,
-    hit_token_limit: bool,
-}
-
 /// A chat session: owns an [`InferenceEngine`] plus all the conversational state
 /// (messages, tools, template, sampler config).
 struct Chat<'a> {
@@ -2359,84 +2352,24 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
-    /// One generation: brings the context up to date with the history, then
-    /// streams the model's response until the model ends it, `max_tokens`
-    /// runs out or the chat is stopped. The tool calls themselves aren't
-    /// streamed.
     fn generate(
         &mut self,
         max_tokens: Option<usize>,
         on_chunk: &mut impl FnMut(CompletionChunk),
     ) -> Result<GeneratedResponse, GenerateResponseError> {
-        let prompt = self.sync_context_with_render()?;
-        let prompt_tokens = self.engine.kv_mirror().n_tokens();
+        let mut generator = ResponseGenerator::new(self)?;
 
-        info!("Worker writing until done");
-
-        self.engine.reset_mtp_stats();
-        self.sampler.reset();
-
-        // Owned, so the parser doesn't borrow `self` while generating.
-        let mut parser =
-            ResponseParser::new(self.model_output.clone(), self.tools.clone(), &prompt);
-        let mut stream = |text: Vec<String>| {
-            for text in text.into_iter().filter(|text| !text.is_empty()) {
-                trace!(text, "Sending out token:");
-                on_chunk(CompletionChunk::Token(text));
-            }
-        };
-
-        let mut tokens_written_until_now = Vec::new();
-        let mut generated_tokens = 0;
-        while !self.should_stop()
-            && max_tokens.is_none_or(|max_tokens| generated_tokens < max_tokens)
-        {
-            // Check if the context is full
-            if self.engine.is_context_full() {
-                // Leave room for the partial response, which is read back in below.
-                self.context_shift(tokens_written_until_now.len())?;
-                self.sync_context_with_render()?;
-                if !tokens_written_until_now.is_empty() {
-                    let mut generated_chunks = TokenizerChunks::new();
-                    generated_chunks
-                        .append(TokenizerChunk::new_text(tokens_written_until_now.clone()));
-                    self.engine.read_chunks(generated_chunks)?;
+        loop {
+            match generator.next(self, max_tokens)? {
+                ControlFlow::Continue(text) => {
+                    for text in text.into_iter().filter(|t| !t.is_empty()) {
+                        trace!(text, "Sending out token:");
+                        on_chunk(CompletionChunk::Token(text));
+                    }
                 }
-                // do not update tokens_in_context as this is done later by ask
+                ControlFlow::Break(response) => return Ok(response),
             }
-
-            let new_token = self.engine.next_token(&mut self.sampler)?;
-            assert_ne!(new_token.0, -1, "invalid token generated");
-
-            tokens_written_until_now.push(new_token);
-
-            let bytes = self
-                .model
-                .language_model
-                .vocab()
-                .token_to_piece(new_token, true, None);
-            let was_in_tool_calls = parser.in_tool_calls();
-            let text = parser.push(new_token, &bytes);
-            if !was_in_tool_calls && parser.in_tool_calls() {
-                self.sampler.activate_tool_grammar(new_token);
-            }
-            stream(text);
-            if parser.ended() {
-                break;
-            }
-            generated_tokens += 1;
         }
-        let (text, generation) = parser.finish();
-        stream(text);
-
-        debug!(written = %generation.written, calls = ?generation.calls, "Generated response");
-        Ok(GeneratedResponse {
-            content: generation.written,
-            tool_calls: generation.calls,
-            prompt_tokens,
-            completion_tokens: generated_tokens,
-            hit_token_limit: max_tokens.is_some_and(|max_tokens| generated_tokens >= max_tokens),
-        })
     }
 
     pub fn ask(
@@ -2860,6 +2793,148 @@ impl<'a> Chat<'a> {
         let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
         let chunks = self.engine.tokenize(prompt.to_string(), bitmap_refs)?;
         Ok(chunks.to_token_ids())
+    }
+}
+
+/// One generation: brings the context up to date with the history, then
+/// streams the model's response until the model ends it, `max_tokens`
+/// runs out or the chat is stopped. The tool calls themselves aren't
+/// streamed.
+///
+/// This is effectively an iterator over parsed tokens.
+#[derive(Debug)]
+struct ResponseGenerator {
+    /// The tokens that was produced in this generation round.
+    produced_tokens: Vec<LlamaToken>,
+    /// The number of tokens in the input prompt.
+    prompt_tokens: usize,
+    state: ResponseGeneratorState,
+}
+
+#[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
+enum ResponseGeneratorState {
+    Generating(ResponseParser),
+    Finished(GeneratedResponse),
+    Invalid,
+}
+
+#[derive(Debug)]
+struct GeneratedResponse {
+    /// What the history keeps of the generation.
+    content: String,
+    tool_calls: Vec<ToolCall>,
+    prompt_tokens: usize,
+    completion_tokens: usize,
+    hit_token_limit: bool,
+}
+
+impl ResponseGenerator {
+    fn new(chat: &mut Chat) -> Result<Self, ContextSyncError> {
+        let prompt = chat.sync_context_with_render()?;
+        let prompt_tokens = chat.engine.kv_mirror().n_tokens();
+
+        chat.engine.reset_mtp_stats();
+        chat.sampler.reset();
+
+        let parser = ResponseParser::new(chat.model_output.clone(), chat.tools.clone(), &prompt);
+
+        Ok(Self {
+            produced_tokens: Vec::new(),
+            prompt_tokens,
+            state: ResponseGeneratorState::Generating(parser),
+        })
+    }
+
+    /// Continue generating the response.
+    ///
+    /// This returns a single [`ControlFlow::Continue`] per sampled and
+    /// decoded token, and will end with a [`ControlFlow::Break`] once no more
+    /// tokens should be generated.
+    ///
+    /// This means that work in between calls to this will leave you with an
+    /// in-progress decoding, which is important for performance.
+    ///
+    /// Invariants:
+    /// - Must be passed the same `Chat` as it was constructed with.
+    /// - The chat's state shouldn't have been modified in the meantime.
+    /// - After `ControlFlow::Break` has been returned, don't call this again.
+    fn next(
+        &mut self,
+        chat: &mut Chat,
+        max_tokens: Option<usize>,
+    ) -> Result<ControlFlow<GeneratedResponse, Vec<String>>, GenerateResponseError> {
+        match mem::replace(&mut self.state, ResponseGeneratorState::Invalid) {
+            ResponseGeneratorState::Generating(mut parser) => {
+                let hit_token_limit =
+                    max_tokens.is_some_and(|max_tokens| max_tokens <= self.produced_tokens.len());
+
+                if chat.should_stop() || hit_token_limit || parser.ended() {
+                    // FIXME: Should we include EOG tokens in the statistics?
+                    let eog_tokens = if parser.ended() { 1 } else { 0 };
+                    let completion_tokens = self.produced_tokens.len() - eog_tokens;
+
+                    // The parser is still in progress here, so finish it and
+                    // transition to the final state.
+                    let (text, generation) = parser.finish();
+
+                    let response = GeneratedResponse {
+                        content: generation.written,
+                        tool_calls: generation.calls,
+                        prompt_tokens: self.prompt_tokens,
+                        completion_tokens,
+                        hit_token_limit,
+                    };
+
+                    // We still need to return the final `text` generated
+                    // above and from `.finish`, so we defer returning
+                    // `ControlFlow::Break(response)` to the next iteration.
+                    self.state = ResponseGeneratorState::Finished(response);
+                    return Ok(ControlFlow::Continue(text));
+                }
+
+                // Do a context shift if the context is full.
+                if chat.engine.is_context_full() {
+                    // Leave room for the partial response, which is read back
+                    // in below.
+                    chat.context_shift(self.produced_tokens.len())?;
+                    chat.sync_context_with_render()?;
+                    if !self.produced_tokens.is_empty() {
+                        let mut generated_chunks = TokenizerChunks::new();
+                        generated_chunks
+                            .append(TokenizerChunk::new_text(self.produced_tokens.clone()));
+                        chat.engine.read_chunks(generated_chunks)?;
+                    }
+                }
+
+                let new_token = chat.engine.next_token(&mut chat.sampler)?;
+                assert_ne!(new_token.0, -1, "invalid token generated");
+
+                self.produced_tokens.push(new_token);
+
+                let bytes = chat
+                    .model
+                    .language_model
+                    .vocab()
+                    .token_to_piece(new_token, true, None);
+                let was_in_tool_calls = parser.in_tool_calls();
+                let text = parser.push(new_token, &bytes);
+                if !was_in_tool_calls && parser.in_tool_calls() {
+                    chat.sampler.activate_tool_grammar(new_token);
+                }
+
+                // Put back the state that we consumed in `mem::replace`
+                // above. This is needed becase `parser.finish` consumes
+                // the parser.
+                self.state = ResponseGeneratorState::Generating(parser);
+                Ok(ControlFlow::Continue(text))
+            }
+            // We don't do a state-transition back here, so the state will end
+            // up as `Invalid`, which is fine because the user shouldn't call
+            // `.next` again after this.
+            ResponseGeneratorState::Finished(response) => Ok(ControlFlow::Break(response)),
+            ResponseGeneratorState::Invalid => unreachable!("invalid state: {self:#?}"),
+        }
     }
 }
 
