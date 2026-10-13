@@ -8,6 +8,7 @@ use llama_cpp_2::token::LlamaToken;
 use tracing::{debug, warn};
 
 /// Reads one generation.
+#[derive(Debug)]
 pub(crate) struct ResponseParser {
     splitter: Splitter,
     ended: bool,
@@ -23,6 +24,7 @@ pub(crate) struct ResponseParser {
 }
 
 /// A finished generation.
+#[derive(Debug)]
 pub(crate) struct Generation {
     /// What the history keeps of it, as [`Splitter::written`] says.
     pub written: String,

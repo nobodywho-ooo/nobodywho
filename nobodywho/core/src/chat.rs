@@ -49,7 +49,9 @@ use llama_cpp_2::token::LlamaToken;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::hash::Hasher;
+use std::mem;
 use std::num::NonZeroUsize;
+use std::ops::ControlFlow;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
@@ -1842,28 +1844,48 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
     info!(?msg, "Worker processing:");
     match msg {
         ChatMsg::Turn { input, output } => {
-            let should_stop = Arc::clone(&worker_state.should_stop);
-            let on_chunk = |chunk| {
-                if !output.send(chunk) {
-                    // Nobody is receiving any more, so stop generating.
-                    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
-                }
-            };
-            let result = match input {
-                TurnInput::Ask(prompt) => worker_state
-                    .ask(prompt, on_chunk)
-                    .map_err(|error| Box::new(error) as _),
+            let (mut generator, max_tokens, execute_tools) = match input {
+                TurnInput::Ask(prompt) => match worker_state.ask(prompt) {
+                    Ok(generator) => (generator, None, true),
+                    Err(e) => {
+                        output.fail(Box::new(e));
+                        return;
+                    }
+                },
                 TurnInput::Complete {
                     messages,
                     options,
                     max_tokens,
                     execute_tools,
-                } => worker_state
-                    .complete(messages, options, max_tokens, execute_tools, on_chunk)
-                    .map_err(|error| Box::new(error) as _),
+                } => match worker_state.complete(messages, options) {
+                    Ok(generator) => (generator, max_tokens, execute_tools),
+                    Err(e) => {
+                        output.fail(Box::new(e));
+                        return;
+                    }
+                },
             };
-            if let Err(error) = result {
-                output.fail(error);
+
+            loop {
+                match generator.next(worker_state, max_tokens, execute_tools) {
+                    Ok(ControlFlow::Continue(text)) => {
+                        for text in text.into_iter().filter(|t| !t.is_empty()) {
+                            trace!(text, "Sending out token:");
+                            if !output.send(CompletionChunk::Token(text)) {
+                                // Nobody is receiving any more, so stop generating.
+                                return;
+                            }
+                        }
+                    }
+                    Ok(ControlFlow::Break(response)) => {
+                        let _ = output.send(CompletionChunk::Done(response));
+                        return;
+                    }
+                    Err(e) => {
+                        output.fail(Box::new(e));
+                        return;
+                    }
+                }
             }
         }
         ChatMsg::ResetChat {
@@ -2116,15 +2138,6 @@ impl ChatSampler {
     }
 }
 
-struct GeneratedResponse {
-    /// What the history keeps of the generation.
-    content: String,
-    tool_calls: Vec<ToolCall>,
-    prompt_tokens: usize,
-    completion_tokens: usize,
-    hit_token_limit: bool,
-}
-
 /// A chat session: owns an [`InferenceEngine`] plus all the conversational state
 /// (messages, tools, template, sampler config).
 struct Chat<'a> {
@@ -2359,91 +2372,7 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
-    /// One generation: brings the context up to date with the history, then
-    /// streams the model's response until the model ends it, `max_tokens`
-    /// runs out or the chat is stopped. The tool calls themselves aren't
-    /// streamed.
-    fn generate(
-        &mut self,
-        max_tokens: Option<usize>,
-        on_chunk: &mut impl FnMut(CompletionChunk),
-    ) -> Result<GeneratedResponse, GenerateResponseError> {
-        let prompt = self.sync_context_with_render()?;
-        let prompt_tokens = self.engine.kv_mirror().n_tokens();
-
-        info!("Worker writing until done");
-
-        self.engine.reset_mtp_stats();
-        self.sampler.reset();
-
-        // Owned, so the parser doesn't borrow `self` while generating.
-        let mut parser =
-            ResponseParser::new(self.model_output.clone(), self.tools.clone(), &prompt);
-        let mut stream = |text: Vec<String>| {
-            for text in text.into_iter().filter(|text| !text.is_empty()) {
-                trace!(text, "Sending out token:");
-                on_chunk(CompletionChunk::Token(text));
-            }
-        };
-
-        let mut tokens_written_until_now = Vec::new();
-        let mut generated_tokens = 0;
-        while !self.should_stop()
-            && max_tokens.is_none_or(|max_tokens| generated_tokens < max_tokens)
-        {
-            // Check if the context is full
-            if self.engine.is_context_full() {
-                // Leave room for the partial response, which is read back in below.
-                self.context_shift(tokens_written_until_now.len())?;
-                self.sync_context_with_render()?;
-                if !tokens_written_until_now.is_empty() {
-                    let mut generated_chunks = TokenizerChunks::new();
-                    generated_chunks
-                        .append(TokenizerChunk::new_text(tokens_written_until_now.clone()));
-                    self.engine.read_chunks(generated_chunks)?;
-                }
-                // do not update tokens_in_context as this is done later by ask
-            }
-
-            let new_token = self.engine.next_token(&mut self.sampler)?;
-            assert_ne!(new_token.0, -1, "invalid token generated");
-
-            tokens_written_until_now.push(new_token);
-
-            let bytes = self
-                .model
-                .language_model
-                .vocab()
-                .token_to_piece(new_token, true, None);
-            let was_in_tool_calls = parser.in_tool_calls();
-            let text = parser.push(new_token, &bytes);
-            if !was_in_tool_calls && parser.in_tool_calls() {
-                self.sampler.activate_tool_grammar(new_token);
-            }
-            stream(text);
-            if parser.ended() {
-                break;
-            }
-            generated_tokens += 1;
-        }
-        let (text, generation) = parser.finish();
-        stream(text);
-
-        debug!(written = %generation.written, calls = ?generation.calls, "Generated response");
-        Ok(GeneratedResponse {
-            content: generation.written,
-            tool_calls: generation.calls,
-            prompt_tokens,
-            completion_tokens: generated_tokens,
-            hit_token_limit: max_tokens.is_some_and(|max_tokens| generated_tokens >= max_tokens),
-        })
-    }
-
-    pub fn ask(
-        &mut self,
-        prompt: Prompt,
-        on_chunk: impl FnMut(CompletionChunk),
-    ) -> Result<(), SayError> {
+    pub fn ask(&mut self, prompt: Prompt) -> Result<TurnGenerator, SayError> {
         // reset the stop flag
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
@@ -2455,9 +2384,7 @@ impl<'a> Chat<'a> {
         self.register_media(&mut content)?;
         self.add_user_message(content);
 
-        self.run_turn(None, true, on_chunk)?;
-
-        Ok(())
+        Ok(TurnGenerator::new(self)?)
     }
 
     /// Load each media part's file, register its bitmap and write the bitmap id
@@ -2505,73 +2432,6 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
-    /// Answers the history, streaming the response to `on_chunk` and ending
-    /// with the whole turn. The tools the model calls run until it stops
-    /// calling them, unless `execute_tools` is false, in which case its first
-    /// calls end the turn for the caller to run.
-    fn run_turn(
-        &mut self,
-        max_tokens: Option<usize>,
-        execute_tools: bool,
-        mut on_chunk: impl FnMut(CompletionChunk),
-    ) -> Result<(), SayError> {
-        // The tool-call grammar is NOT pre-injected into the chain. Lark/
-        // llguidance has no "trigger word" mechanism, so an always-on grammar
-        // would block EOS when the model just wants to chat. Instead `generate`
-        // switches to it the moment the response enters a block of tool calls.
-
-        let mut generated = self.generate(max_tokens, &mut on_chunk)?;
-        let mut usage = CompletionUsage {
-            prompt_tokens: generated.prompt_tokens,
-            completion_tokens: generated.completion_tokens,
-        };
-        let mut hit_token_limit = generated.hit_token_limit;
-
-        while !generated.tool_calls.is_empty() {
-            let tool_calls = generated.tool_calls;
-            debug!(?tool_calls, "Got tool calls:");
-
-            // Whatever the model said before the call is part of the turn,
-            // so it goes into the history message alongside the calls.
-            self.add_tool_calls(generated.content.clone(), tool_calls.clone());
-
-            if !execute_tools {
-                on_chunk(CompletionChunk::Done(CompletionResponse {
-                    content: generated.content,
-                    tool_calls,
-                    finish_reason: FinishReason::ToolCalls,
-                    usage,
-                }));
-                return Ok(());
-            }
-
-            for call in tool_calls {
-                self.run_tool(call);
-            }
-
-            let remaining_tokens =
-                max_tokens.map(|limit| limit.saturating_sub(usage.completion_tokens));
-            generated = self.generate(remaining_tokens, &mut on_chunk)?;
-            usage.prompt_tokens += generated.prompt_tokens;
-            usage.completion_tokens += generated.completion_tokens;
-            hit_token_limit = generated.hit_token_limit;
-        }
-
-        self.add_assistant_message(generated.content.clone());
-
-        on_chunk(CompletionChunk::Done(CompletionResponse {
-            content: generated.content,
-            tool_calls: Vec::new(),
-            finish_reason: if hit_token_limit {
-                FinishReason::Length
-            } else {
-                FinishReason::Stop
-            },
-            usage,
-        }));
-        Ok(())
-    }
-
     /// Runs `call` and records its result in the history.
     fn run_tool(&mut self, call: ToolCall) {
         // find the tool
@@ -2610,10 +2470,7 @@ impl<'a> Chat<'a> {
         &mut self,
         mut messages: History,
         options: Options,
-        max_tokens: Option<usize>,
-        execute_tools: bool,
-        on_chunk: impl FnMut(CompletionChunk),
-    ) -> Result<(), CompleteError> {
+    ) -> Result<TurnGenerator, CompleteError> {
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
         let hoisted = messages.take_system_prompt();
@@ -2625,8 +2482,8 @@ impl<'a> Chat<'a> {
             self.system_prompt = Some(system_prompt);
         }
         self.messages = messages;
-        self.run_turn(max_tokens, execute_tools, on_chunk)?;
-        Ok(())
+
+        Ok(TurnGenerator::new(self)?)
     }
 
     /// Re-read the media files referenced by `messages` and relink the parts to
@@ -2863,6 +2720,255 @@ impl<'a> Chat<'a> {
     }
 }
 
+/// One generation: brings the context up to date with the history, then
+/// streams the model's response until the model ends it, `max_tokens`
+/// runs out or the chat is stopped. The tool calls themselves aren't
+/// streamed.
+///
+/// This is effectively an iterator over parsed tokens.
+#[derive(Debug)]
+struct ResponseGenerator {
+    /// The tokens that was produced in this generation round.
+    produced_tokens: Vec<LlamaToken>,
+    /// The number of tokens in the input prompt.
+    prompt_tokens: usize,
+    state: ResponseGeneratorState,
+}
+
+#[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
+enum ResponseGeneratorState {
+    Generating(ResponseParser),
+    Finished(GeneratedResponse),
+    Invalid,
+}
+
+#[derive(Debug)]
+struct GeneratedResponse {
+    /// What the history keeps of the generation.
+    content: String,
+    tool_calls: Vec<ToolCall>,
+    prompt_tokens: usize,
+    completion_tokens: usize,
+    hit_token_limit: bool,
+}
+
+impl ResponseGenerator {
+    fn new(chat: &mut Chat) -> Result<Self, ContextSyncError> {
+        let prompt = chat.sync_context_with_render()?;
+        let prompt_tokens = chat.engine.kv_mirror().n_tokens();
+
+        chat.engine.reset_mtp_stats();
+        chat.sampler.reset();
+
+        let parser = ResponseParser::new(chat.model_output.clone(), chat.tools.clone(), &prompt);
+
+        Ok(Self {
+            produced_tokens: Vec::new(),
+            prompt_tokens,
+            state: ResponseGeneratorState::Generating(parser),
+        })
+    }
+
+    /// Continue generating the response.
+    ///
+    /// This returns a single [`ControlFlow::Continue`] per sampled and
+    /// decoded token, and will end with a [`ControlFlow::Break`] once no more
+    /// tokens should be generated.
+    ///
+    /// This means that work in between calls to this will leave you with an
+    /// in-progress decoding, which is important for performance.
+    ///
+    /// Invariants:
+    /// - Must be passed the same `Chat` as it was constructed with.
+    /// - The chat's state shouldn't have been modified in the meantime.
+    /// - After `ControlFlow::Break` has been returned, don't call this again.
+    fn next(
+        &mut self,
+        chat: &mut Chat,
+        max_tokens: Option<usize>,
+    ) -> Result<ControlFlow<GeneratedResponse, Vec<String>>, GenerateResponseError> {
+        match mem::replace(&mut self.state, ResponseGeneratorState::Invalid) {
+            ResponseGeneratorState::Generating(mut parser) => {
+                let hit_token_limit =
+                    max_tokens.is_some_and(|max_tokens| max_tokens <= self.produced_tokens.len());
+
+                if chat.should_stop() || hit_token_limit || parser.ended() {
+                    // FIXME: Should we include EOG tokens in the statistics?
+                    let eog_tokens = if parser.ended() { 1 } else { 0 };
+                    let completion_tokens = self.produced_tokens.len() - eog_tokens;
+
+                    // The parser is still in progress here, so finish it and
+                    // transition to the final state.
+                    let (text, generation) = parser.finish();
+
+                    let response = GeneratedResponse {
+                        content: generation.written,
+                        tool_calls: generation.calls,
+                        prompt_tokens: self.prompt_tokens,
+                        completion_tokens,
+                        hit_token_limit,
+                    };
+
+                    // We still need to return the final `text` generated
+                    // above and from `.finish`, so we defer returning
+                    // `ControlFlow::Break(response)` to the next iteration.
+                    self.state = ResponseGeneratorState::Finished(response);
+                    return Ok(ControlFlow::Continue(text));
+                }
+
+                // Do a context shift if the context is full.
+                if chat.engine.is_context_full() {
+                    // Leave room for the partial response, which is read back
+                    // in below.
+                    chat.context_shift(self.produced_tokens.len())?;
+                    chat.sync_context_with_render()?;
+                    if !self.produced_tokens.is_empty() {
+                        let mut generated_chunks = TokenizerChunks::new();
+                        generated_chunks
+                            .append(TokenizerChunk::new_text(self.produced_tokens.clone()));
+                        chat.engine.read_chunks(generated_chunks)?;
+                    }
+                }
+
+                let new_token = chat.engine.next_token(&mut chat.sampler)?;
+                assert_ne!(new_token.0, -1, "invalid token generated");
+
+                self.produced_tokens.push(new_token);
+
+                let bytes = chat
+                    .model
+                    .language_model
+                    .vocab()
+                    .token_to_piece(new_token, true, None);
+                let was_in_tool_calls = parser.in_tool_calls();
+                let text = parser.push(new_token, &bytes);
+                if !was_in_tool_calls && parser.in_tool_calls() {
+                    chat.sampler.activate_tool_grammar(new_token);
+                }
+
+                // Put back the state that we consumed in `mem::replace`
+                // above. This is needed becase `parser.finish` consumes
+                // the parser.
+                self.state = ResponseGeneratorState::Generating(parser);
+                Ok(ControlFlow::Continue(text))
+            }
+            // We don't do a state-transition back here, so the state will end
+            // up as `Invalid`, which is fine because the user shouldn't call
+            // `.next` again after this.
+            ResponseGeneratorState::Finished(response) => Ok(ControlFlow::Break(response)),
+            ResponseGeneratorState::Invalid => unreachable!("invalid state: {self:#?}"),
+        }
+    }
+}
+
+/// Answers the history, streaming the response to `on_chunk` and ending
+/// with the whole turn. The tools the model calls run until it stops
+/// calling them, unless `execute_tools` is false, in which case its first
+/// calls end the turn for the caller to run.
+#[derive(Debug)]
+struct TurnGenerator {
+    generator: ResponseGenerator,
+    usage: CompletionUsage,
+}
+
+impl TurnGenerator {
+    fn new(chat: &mut Chat) -> Result<Self, ContextSyncError> {
+        let generator = ResponseGenerator::new(chat)?;
+
+        Ok(TurnGenerator {
+            generator,
+            usage: CompletionUsage {
+                prompt_tokens: 0,
+                completion_tokens: 0,
+            },
+        })
+    }
+
+    /// Continue generating the turn.
+    ///
+    /// Has similar semantics and invariants as [`ResponseGenerator::next`].
+    fn next(
+        &mut self,
+        chat: &mut Chat,
+        max_tokens: Option<usize>,
+        execute_tools: bool,
+    ) -> Result<ControlFlow<CompletionResponse, Vec<String>>, GenerateResponseError> {
+        let remaining =
+            max_tokens.map(|max_tokens| max_tokens.saturating_sub(self.usage.completion_tokens));
+
+        // Forward from the current generator if possible.
+        let response = match self.generator.next(chat, remaining)? {
+            ControlFlow::Continue(text) => return Ok(ControlFlow::Continue(text)),
+            ControlFlow::Break(response) => response,
+        };
+
+        self.usage.prompt_tokens += response.prompt_tokens;
+        self.usage.completion_tokens += response.completion_tokens;
+
+        if response.tool_calls.is_empty() {
+            chat.add_assistant_message(response.content.clone());
+
+            return Ok(ControlFlow::Break(CompletionResponse {
+                content: response.content,
+                tool_calls: Vec::new(),
+                finish_reason: if response.hit_token_limit {
+                    FinishReason::Length
+                } else {
+                    FinishReason::Stop
+                },
+                usage: self.usage,
+            }));
+        }
+
+        let tool_calls = response.tool_calls;
+        debug!(?tool_calls, "Got tool calls:");
+
+        // Whatever the model said before the call is part of the turn,
+        // so it goes into the history message alongside the calls.
+        chat.add_tool_calls(response.content.clone(), tool_calls.clone());
+
+        if !execute_tools {
+            return Ok(ControlFlow::Break(CompletionResponse {
+                content: response.content,
+                tool_calls,
+                finish_reason: FinishReason::ToolCalls,
+                usage: self.usage,
+            }));
+        }
+
+        for call in tool_calls {
+            chat.run_tool(call);
+        }
+
+        self.generator = ResponseGenerator::new(chat)?;
+
+        // Recurse with the new generator.
+        //
+        // This should not be able to stack overflow, if the generator returns
+        // `ControlFlow::Break` immediately, then we'd hit the
+        // `response.tool_calls.is_empty()` branch above and return (assuming
+        //  that the model cannot generate a tool call in a single token).
+        self.next(chat, max_tokens, execute_tools)
+    }
+
+    /// Run generation in a loop, and return the final response once it's done.
+    #[cfg(test)]
+    fn response(
+        mut self,
+        chat: &mut Chat,
+        max_tokens: Option<usize>,
+        execute_tools: bool,
+    ) -> Result<CompletionResponse, GenerateResponseError> {
+        loop {
+            match self.next(chat, max_tokens, execute_tools)? {
+                ControlFlow::Continue(_) => continue,
+                ControlFlow::Break(response) => return Ok(response),
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3004,24 +3110,18 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| {
-            if let llm::WriteOutput::Done(resp) = x {
-                sender.send(resp).unwrap();
-            }
-        };
-
-        worker.ask("What is the capital of Denmark?".into(), text(f.clone()))?;
-
-        let resp = receiver.recv()?;
+        let resp = worker
+            .ask("What is the capital of Denmark?".into())?
+            .response(&mut worker, None, true)?
+            .content;
         println!("{}", resp);
-
         assert!(resp.contains("Copenhagen"));
 
-        worker.ask("What language do they speak there?".into(), text(f))?;
-        let resp = receiver.recv()?;
+        let resp = worker
+            .ask("What language do they speak there?".into())?
+            .response(&mut worker, None, true)?
+            .content;
         println!("{}", resp);
-
         assert!(resp.contains("Danish"));
 
         Ok(())
@@ -3051,25 +3151,17 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| {
-            if let llm::WriteOutput::Done(resp) = x {
-                sender.send(resp).unwrap();
-            }
-        };
-        worker.ask("What is the capital of Denmark?".into(), text(f))?;
-        let resp = receiver.recv()?;
+        let resp = worker
+            .ask("What is the capital of Denmark?".into())?
+            .response(&mut worker, None, true)?
+            .content;
         println!("MTP response: {}", resp);
         assert!(resp.contains("Copenhagen"));
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| {
-            if let llm::WriteOutput::Done(resp) = x {
-                sender.send(resp).unwrap();
-            }
-        };
-        worker.ask("Are you sure?".into(), text(f))?;
-        let resp = receiver.recv()?;
+        let resp = worker
+            .ask("Are you sure?".into())?
+            .response(&mut worker, None, true)?
+            .content;
         println!("MTP response: {}", resp);
         assert!(resp.contains("Yes"));
 
@@ -3088,17 +3180,11 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
 
-        // just a hack to get a channel back
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| {
-            if let llm::WriteOutput::Done(resp) = x {
-                sender.send(resp).unwrap();
-            }
-        };
-
         // do it once
-        worker.ask("What is the capital of Denmark?".into(), text(f.clone()))?;
-        let resp1 = receiver.recv()?;
+        let resp1 = worker
+            .ask("What is the capital of Denmark?".into())?
+            .response(&mut worker, None, true)?
+            .content;
         println!("{}", resp1);
         assert!(resp1.to_lowercase().contains("woof"));
 
@@ -3109,8 +3195,10 @@ mod tests {
         );
 
         // do it again
-        worker.ask("What is the capital of Denmark?".into(), text(f.clone()))?;
-        let resp2 = receiver.recv()?;
+        let resp2 = worker
+            .ask("What is the capital of Denmark?".into())?
+            .response(&mut worker, None, true)?
+            .content;
         println!("{}", resp2);
         assert!(resp2.to_lowercase().contains("meow"));
 
@@ -3134,22 +3222,21 @@ mod tests {
         // ensure that the generationworker resets the flag when creating a new response.
         should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Token(resp) => {
-                if resp.contains("5") {
-                    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        let mut generator = worker.ask("Count from 0 to 9".into())?;
+
+        let response = loop {
+            match generator.next(&mut worker, None, true)? {
+                ControlFlow::Continue(text) => {
+                    for text in text {
+                        if text.contains("5") {
+                            should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                    }
                 }
+                ControlFlow::Break(response) => break response.content,
             }
-            llm::WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-            llm::WriteOutput::Error(_) => (),
         };
 
-        worker.ask("Count from 0 to 9".into(), text(f.clone()))?;
-
-        let response = receiver.recv()?;
         println!("{}", response);
 
         assert!(response.contains("5"));
@@ -3247,18 +3334,11 @@ mod tests {
         eprintln!("[bench] worker setup: {setup_ms} ms");
 
         // Warmup: one discarded turn to put GPU pipeline in steady state.
-        let (warmup_tx, warmup_rx) = std::sync::mpsc::channel::<String>();
-        worker
-            .ask(
-                "Hello.".into(),
-                text(move |x| {
-                    if let llm::WriteOutput::Done(r) = x {
-                        let _ = warmup_tx.send(r);
-                    }
-                }),
-            )
+        let _ = worker
+            .ask("Hello.".into())
+            .expect("warmup failed")
+            .response(&mut worker, None, true)
             .expect("warmup failed");
-        let _ = warmup_rx.recv();
 
         // Three distinct prompts that should each elicit a tool call.
         let prompts = [
@@ -3268,15 +3348,12 @@ mod tests {
         ];
 
         for (i, prompt) in prompts.iter().enumerate() {
-            let (sender, receiver) = std::sync::mpsc::channel();
-            let f = move |x| {
-                if let llm::WriteOutput::Done(resp) = x {
-                    sender.send(resp).unwrap();
-                }
-            };
             let turn_start = std::time::Instant::now();
-            worker.ask((*prompt).into(), text(f)).expect("ask failed");
-            let _ = receiver.recv().unwrap();
+            let _ = worker
+                .ask((*prompt).into())
+                .expect("ask failed")
+                .response(&mut worker, None, true)
+                .expect("failed generating");
             eprintln!(
                 "[bench] turn {} ({} chars): {} ms",
                 i + 1,
@@ -3340,22 +3417,12 @@ mod tests {
         )
         .expect("Failed making worker");
 
-        let ask = |worker: &mut Chat, prompt: &str| {
-            let (sender, receiver) = std::sync::mpsc::channel();
-            worker
-                .ask(
-                    prompt.into(),
-                    text(move |x| {
-                        if let llm::WriteOutput::Done(resp) = x {
-                            sender.send(resp).unwrap();
-                        }
-                    }),
-                )
-                .expect("generation failed");
-            receiver.recv().unwrap()
-        };
-
-        let before = ask(&mut worker, "What is the temperature in Copenhagen?");
+        let before = worker
+            .ask("What is the temperature in Copenhagen?".into())
+            .unwrap()
+            .response(&mut worker, None, true)
+            .unwrap()
+            .content;
         assert!(
             before.contains("13.37"),
             "the tool was not called before the config change: {before}"
@@ -3366,7 +3433,12 @@ mod tests {
             .set_sampler_config(SamplerPresets::dry())
             .expect("setting a sampler config");
 
-        let after = ask(&mut worker, "And what is the temperature in Beijing?");
+        let after = worker
+            .ask("And what is the temperature in Beijing?".into())
+            .unwrap()
+            .response(&mut worker, None, true)
+            .unwrap()
+            .content;
         assert!(
             after.contains("42.69"),
             "the tool was not called after the config change: {after}"
@@ -3388,23 +3460,17 @@ mod tests {
         )
         .expect("Failed making worker");
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| {
-            if let llm::WriteOutput::Done(resp) = x {
-                sender.send(resp).unwrap();
-            }
-        };
-
-        worker
+        let result = worker
             .ask(
                 "I would like to know the temperature in two cities: Copenhagen and Beijing."
                     .into(),
-                text(f),
             )
-            .expect("fuck");
+            .expect("fuck")
+            .response(&mut worker, None, true)
+            .expect("argh")
+            .content;
 
-        let result = receiver.recv().unwrap();
-        println!("{}", result);
+        println!("{result}");
         assert!(result.contains("13.37"));
         assert!(result.contains("42.69"));
 
@@ -3446,13 +3512,10 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
         let messages = History::new(vec![user("What's the temperature in Copenhagen?")])?;
-        let mut finished = None;
-        worker.complete(messages, Options::new(), Some(8), true, |chunk| {
-            if let CompletionChunk::Done(response) = chunk {
-                finished = Some(response);
-            }
-        })?;
-        let response = finished.expect("a turn ends with its response");
+        let response =
+            worker
+                .complete(messages, Options::new())?
+                .response(&mut worker, Some(8), true)?;
         assert_eq!(response.finish_reason, FinishReason::Length);
         assert_eq!(response.usage.completion_tokens, 8);
         Ok(())
@@ -3471,22 +3534,14 @@ mod tests {
         )
         .expect("Failed making worker");
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| {
-            if let llm::WriteOutput::Done(resp) = x {
-                sender.send(resp).unwrap();
-            }
-        };
+        let result = worker
+            .ask("I would like to know the temperature in Copenhagen and the DKK to USD exchange rate.".into())
+            .expect("dammit")
+            .response(&mut worker, None, true)
+            .unwrap()
+            .content;
 
-        worker.ask(
-            "I would like to know the temperature in Copenhagen and the DKK to USD exchange rate."
-                .into(),
-            text(f),
-        )
-        .expect("dammit");
-
-        let result = receiver.recv().unwrap();
-        println!("{}", result);
+        println!("{result}");
         assert!(result.contains("13.37"));
         assert!(result.contains("0.15"));
     }
@@ -3952,20 +4007,14 @@ mod tests {
         let messages_before_shift = worker.messages.len();
         println!("Messages before shift: {}", messages_before_shift);
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| {
-            if let llm::WriteOutput::Done(resp) = x {
-                sender.send(resp).unwrap();
-            }
-        };
-
         // This should trigger context shift internally because there's not enough space
-        worker.ask(
-            "This is a new question that will not fit in the context! What is 10 * 10?".into(),
-            text(f),
-        )?;
+        let _response = worker
+            .ask(
+                "This is a new question that will not fit in the context! What is 10 * 10?".into(),
+            )?
+            .response(&mut worker, None, true)?
+            .content;
 
-        let _response = receiver.recv()?;
         let messages_after = worker.messages.clone();
 
         println!("Messages after operation: {}", messages_after.len());
@@ -4031,17 +4080,12 @@ mod tests {
         let messages_before_shift = worker.messages.len();
         println!("Messages before shift: {}", messages_before_shift);
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| {
-            if let llm::WriteOutput::Done(resp) = x {
-                sender.send(resp).unwrap();
-            }
-        };
-
         // This should trigger context shift internally because there's not enough space
-        worker.ask("What is 10 * 10?".into(), text(f))?;
+        let _response = worker
+            .ask("What is 10 * 10?".into())?
+            .response(&mut worker, None, true)?
+            .content;
 
-        let _response = receiver.recv()?;
         let messages_after = worker.messages.clone();
 
         println!("Messages after operation: {}", messages_after.len());
@@ -4200,16 +4244,6 @@ mod tests {
             resp.contains("Copenhagen"),
             "Model failed to answer after reset"
         );
-    }
-
-    /// A turn's chunks as `ask` and `complete` stream them to `respond`.
-    fn text(respond: impl Fn(llm::WriteOutput)) -> impl FnMut(CompletionChunk) {
-        move |chunk| {
-            respond(match chunk {
-                CompletionChunk::Token(token) => llm::WriteOutput::Token(token),
-                CompletionChunk::Done(response) => llm::WriteOutput::Done(response.content),
-            })
-        }
     }
 
     fn user(content: &str) -> Message {
@@ -4591,9 +4625,7 @@ mod tests {
             user("How are you?"),
         ])?;
 
-        let err = worker
-            .complete(unrenderable, Options::new(), None, true, |_| {})
-            .unwrap_err();
+        let err = worker.complete(unrenderable, Options::new()).unwrap_err();
 
         // The help has to survive every wrapper between the template and the
         // binding that renders it.
@@ -4798,19 +4830,11 @@ mod tests {
             ],
         }]))?;
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        worker.complete(
-            History::new(messages)?,
-            Options::new(),
-            None,
-            true,
-            text(move |out| {
-                if let llm::WriteOutput::Done(resp) = out {
-                    sender.send(resp).unwrap();
-                }
-            }),
-        )?;
-        let resp = receiver.recv()?.to_lowercase();
+        let resp = worker
+            .complete(History::new(messages)?, Options::new())?
+            .response(&mut worker, None, true)?
+            .content
+            .to_lowercase();
 
         assert!(
             ["dog", "retriever", "puppy"]
@@ -4867,13 +4891,12 @@ mod tests {
         )?;
 
         let image = std::path::PathBuf::from(test_utils::test_image());
-        worker.ask(
-            Prompt::parts([
+        worker
+            .ask(Prompt::parts([
                 ContentPart::text("What is in this image?"),
                 ContentPart::image(image),
-            ]),
-            |_| {},
-        )?;
+            ]))?
+            .response(&mut worker, None, true)?;
         assert_eq!(
             worker.media.bitmaps.len(),
             1,
@@ -4895,13 +4918,12 @@ mod tests {
         );
         assert_eq!(worker.media.bitmaps.len(), 1);
 
-        worker.complete(
-            History::new(vec![user("Say the word 'banana'.")])?,
-            Options::new(),
-            None,
-            true,
-            |_| {},
-        )?;
+        worker
+            .complete(
+                History::new(vec![user("Say the word 'banana'.")])?,
+                Options::new(),
+            )?
+            .response(&mut worker, None, true)?;
         assert_eq!(
             worker.media.bitmaps.len(),
             0,
@@ -4919,19 +4941,11 @@ mod tests {
         }
         let replayed = Message::User { content };
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        worker.complete(
-            History::new(vec![replayed])?,
-            Options::new(),
-            None,
-            true,
-            text(move |out| {
-                if let llm::WriteOutput::Done(resp) = out {
-                    sender.send(resp).unwrap();
-                }
-            }),
-        )?;
-        let resp = receiver.recv()?.to_lowercase();
+        let resp = worker
+            .complete(History::new(vec![replayed])?, Options::new())?
+            .response(&mut worker, None, true)?
+            .content
+            .to_lowercase();
 
         assert!(
             ["dog", "retriever", "puppy"]
@@ -5107,7 +5121,10 @@ mod tests {
                 );
             }
             // MTP verifies its drafts in batches, which llama.cpp counts as prompt tokens.
-            chat.run_turn(Some(64), true, |_| {}).unwrap();
+            let _response = TurnGenerator::new(&mut chat)
+                .unwrap()
+                .response(&mut chat, Some(64), true)
+                .unwrap();
         }
     }
 
@@ -5196,12 +5213,12 @@ mod tests {
             let cached = chat.engine.kv_mirror().n_tokens() as i32;
             let mut answer = String::new();
             let decoded = prompt_tokens_decoded(&mut chat, |chat| {
-                chat.ask(prompt.into(), |chunk| {
-                    if let CompletionChunk::Done(response) = chunk {
-                        answer = response.content;
-                    }
-                })
-                .unwrap();
+                answer = chat
+                    .ask(prompt.into())
+                    .unwrap()
+                    .response(chat, None, true)
+                    .unwrap()
+                    .content;
             });
             assert!(answer.contains(expected), "expected {expected} in {answer}");
             if cached > 0 {

@@ -72,6 +72,7 @@ pub enum Warning {
     Malformed(ParseError),
 }
 
+#[derive(Debug)]
 pub struct SplitterContext {
     /// `None` when the model's output format isn't known, so that everything
     /// but the end of generation is text.
@@ -81,6 +82,7 @@ pub struct SplitterContext {
 }
 
 /// Splits a response into text, reasoning, and tool calls as it's generated.
+#[derive(Debug)]
 pub struct Splitter {
     /// Context for interpreting the token stream.
     context: SplitterContext,

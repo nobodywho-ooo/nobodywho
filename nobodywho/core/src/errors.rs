@@ -909,19 +909,12 @@ pub enum InferenceError {
 }
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum GenerateResponseError {
-    #[error("Error removing tokens from context after context shift")]
-    KVCacheUpdate(#[from] KvCacheConversionError),
-
     #[error("Error reading generated tokens back after context shift: {0}")]
     Read(#[from] ReadError),
 
-    #[error("Error rendering chat history with chat template: {0}")]
-    #[diagnostic(transparent)]
-    Render(#[from] RenderError),
-
     #[error("Error syncing context with chat history: {0}")]
     #[diagnostic(transparent)]
-    ReadError(#[from] ContextSyncError),
+    ContextSync(#[from] ContextSyncError),
 
     #[error("Error during context shift: {0}")]
     #[diagnostic(
@@ -935,12 +928,6 @@ pub enum GenerateResponseError {
 
     #[error("Error while decoding next token: {0}")]
     Decoding(#[from] DecodingError),
-
-    #[error("Context size too small to contain generated response!")]
-    ContextSize,
-
-    #[error("Invalid sampler configuration: {0}")]
-    InvalidSamplerConfig(#[from] SamplerError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -997,19 +984,16 @@ pub enum SayError {
     #[error("Error getting response: {0}")]
     Response(#[from] std::sync::mpsc::RecvError),
 
-    #[error("Error finding token difference: {0}")]
-    #[diagnostic(transparent)]
-    Render(#[from] RenderError),
-
-    #[error("Tokenization error: {0}")]
-    Tokenization(#[from] TokenizationError),
-
     #[error("Multimodal error: {0}")]
     Multimodal(#[from] MultimodalError),
 
     #[error("Error generating response: {0}")]
     #[diagnostic(transparent)]
     GenerateResponse(#[from] GenerateResponseError),
+
+    #[error("Error syncing context with chat history: {0}")]
+    #[diagnostic(transparent)]
+    ContextSync(#[from] ContextSyncError),
 }
 
 /// A message list handed to `complete` does not describe a conversation the
@@ -1056,9 +1040,13 @@ pub enum CompleteError {
     #[error("Could not apply the turn's options: {0}")]
     Options(String),
 
-    #[error("Error creating completion: {0}")]
+    #[error("Error syncing context with chat history: {0}")]
     #[diagnostic(transparent)]
-    Say(#[from] SayError),
+    ContextSync(#[from] ContextSyncError),
+
+    #[error("Error while generating response: {0}")]
+    #[diagnostic(transparent)]
+    GenerateResponse(#[from] GenerateResponseError),
 }
 
 #[derive(Debug, thiserror::Error)]
