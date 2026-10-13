@@ -984,19 +984,16 @@ pub enum SayError {
     #[error("Error getting response: {0}")]
     Response(#[from] std::sync::mpsc::RecvError),
 
-    #[error("Error finding token difference: {0}")]
-    #[diagnostic(transparent)]
-    Render(#[from] RenderError),
-
-    #[error("Tokenization error: {0}")]
-    Tokenization(#[from] TokenizationError),
-
     #[error("Multimodal error: {0}")]
     Multimodal(#[from] MultimodalError),
 
     #[error("Error generating response: {0}")]
     #[diagnostic(transparent)]
     GenerateResponse(#[from] GenerateResponseError),
+
+    #[error("Error syncing context with chat history: {0}")]
+    #[diagnostic(transparent)]
+    ContextSync(#[from] ContextSyncError),
 }
 
 /// A message list handed to `complete` does not describe a conversation the
@@ -1043,9 +1040,13 @@ pub enum CompleteError {
     #[error("Could not apply the turn's options: {0}")]
     Options(String),
 
-    #[error("Error creating completion: {0}")]
+    #[error("Error syncing context with chat history: {0}")]
     #[diagnostic(transparent)]
-    Say(#[from] SayError),
+    ContextSync(#[from] ContextSyncError),
+
+    #[error("Error while generating response: {0}")]
+    #[diagnostic(transparent)]
+    GenerateResponse(#[from] GenerateResponseError),
 }
 
 #[derive(Debug, thiserror::Error)]

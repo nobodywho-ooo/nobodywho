@@ -2352,30 +2352,10 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
-    fn generate(
-        &mut self,
-        max_tokens: Option<usize>,
-        on_chunk: &mut impl FnMut(CompletionChunk),
-    ) -> Result<GeneratedResponse, GenerateResponseError> {
-        let mut generator = ResponseGenerator::new(self)?;
-
-        loop {
-            match generator.next(self, max_tokens)? {
-                ControlFlow::Continue(text) => {
-                    for text in text.into_iter().filter(|t| !t.is_empty()) {
-                        trace!(text, "Sending out token:");
-                        on_chunk(CompletionChunk::Token(text));
-                    }
-                }
-                ControlFlow::Break(response) => return Ok(response),
-            }
-        }
-    }
-
     pub fn ask(
         &mut self,
         prompt: Prompt,
-        on_chunk: impl FnMut(CompletionChunk),
+        mut on_chunk: impl FnMut(CompletionChunk),
     ) -> Result<(), SayError> {
         // reset the stop flag
         self.should_stop
@@ -2388,9 +2368,22 @@ impl<'a> Chat<'a> {
         self.register_media(&mut content)?;
         self.add_user_message(content);
 
-        self.run_turn(None, true, on_chunk)?;
+        let mut generator = TurnGenerator::new(self)?;
 
-        Ok(())
+        loop {
+            match generator.next(self, None, true)? {
+                ControlFlow::Continue(text) => {
+                    for text in text.into_iter().filter(|t| !t.is_empty()) {
+                        trace!(text, "Sending out token:");
+                        on_chunk(CompletionChunk::Token(text));
+                    }
+                }
+                ControlFlow::Break(response) => {
+                    on_chunk(CompletionChunk::Done(response));
+                    return Ok(());
+                }
+            }
+        }
     }
 
     /// Load each media part's file, register its bitmap and write the bitmap id
@@ -2438,73 +2431,6 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
-    /// Answers the history, streaming the response to `on_chunk` and ending
-    /// with the whole turn. The tools the model calls run until it stops
-    /// calling them, unless `execute_tools` is false, in which case its first
-    /// calls end the turn for the caller to run.
-    fn run_turn(
-        &mut self,
-        max_tokens: Option<usize>,
-        execute_tools: bool,
-        mut on_chunk: impl FnMut(CompletionChunk),
-    ) -> Result<(), SayError> {
-        // The tool-call grammar is NOT pre-injected into the chain. Lark/
-        // llguidance has no "trigger word" mechanism, so an always-on grammar
-        // would block EOS when the model just wants to chat. Instead `generate`
-        // switches to it the moment the response enters a block of tool calls.
-
-        let mut generated = self.generate(max_tokens, &mut on_chunk)?;
-        let mut usage = CompletionUsage {
-            prompt_tokens: generated.prompt_tokens,
-            completion_tokens: generated.completion_tokens,
-        };
-        let mut hit_token_limit = generated.hit_token_limit;
-
-        while !generated.tool_calls.is_empty() {
-            let tool_calls = generated.tool_calls;
-            debug!(?tool_calls, "Got tool calls:");
-
-            // Whatever the model said before the call is part of the turn,
-            // so it goes into the history message alongside the calls.
-            self.add_tool_calls(generated.content.clone(), tool_calls.clone());
-
-            if !execute_tools {
-                on_chunk(CompletionChunk::Done(CompletionResponse {
-                    content: generated.content,
-                    tool_calls,
-                    finish_reason: FinishReason::ToolCalls,
-                    usage,
-                }));
-                return Ok(());
-            }
-
-            for call in tool_calls {
-                self.run_tool(call);
-            }
-
-            let remaining_tokens =
-                max_tokens.map(|limit| limit.saturating_sub(usage.completion_tokens));
-            generated = self.generate(remaining_tokens, &mut on_chunk)?;
-            usage.prompt_tokens += generated.prompt_tokens;
-            usage.completion_tokens += generated.completion_tokens;
-            hit_token_limit = generated.hit_token_limit;
-        }
-
-        self.add_assistant_message(generated.content.clone());
-
-        on_chunk(CompletionChunk::Done(CompletionResponse {
-            content: generated.content,
-            tool_calls: Vec::new(),
-            finish_reason: if hit_token_limit {
-                FinishReason::Length
-            } else {
-                FinishReason::Stop
-            },
-            usage,
-        }));
-        Ok(())
-    }
-
     /// Runs `call` and records its result in the history.
     fn run_tool(&mut self, call: ToolCall) {
         // find the tool
@@ -2545,7 +2471,7 @@ impl<'a> Chat<'a> {
         options: Options,
         max_tokens: Option<usize>,
         execute_tools: bool,
-        on_chunk: impl FnMut(CompletionChunk),
+        mut on_chunk: impl FnMut(CompletionChunk),
     ) -> Result<(), CompleteError> {
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
@@ -2558,8 +2484,23 @@ impl<'a> Chat<'a> {
             self.system_prompt = Some(system_prompt);
         }
         self.messages = messages;
-        self.run_turn(max_tokens, execute_tools, on_chunk)?;
-        Ok(())
+
+        let mut generator = TurnGenerator::new(self)?;
+
+        loop {
+            match generator.next(self, max_tokens, execute_tools)? {
+                ControlFlow::Continue(text) => {
+                    for text in text.into_iter().filter(|t| !t.is_empty()) {
+                        trace!(text, "Sending out token:");
+                        on_chunk(CompletionChunk::Token(text));
+                    }
+                }
+                ControlFlow::Break(response) => {
+                    on_chunk(CompletionChunk::Done(response));
+                    return Ok(());
+                }
+            }
+        }
     }
 
     /// Re-read the media files referenced by `messages` and relink the parts to
@@ -2934,6 +2875,113 @@ impl ResponseGenerator {
             // `.next` again after this.
             ResponseGeneratorState::Finished(response) => Ok(ControlFlow::Break(response)),
             ResponseGeneratorState::Invalid => unreachable!("invalid state: {self:#?}"),
+        }
+    }
+}
+
+/// Answers the history, streaming the response to `on_chunk` and ending
+/// with the whole turn. The tools the model calls run until it stops
+/// calling them, unless `execute_tools` is false, in which case its first
+/// calls end the turn for the caller to run.
+#[derive(Debug)]
+struct TurnGenerator {
+    generator: ResponseGenerator,
+    usage: CompletionUsage,
+}
+
+impl TurnGenerator {
+    fn new(chat: &mut Chat) -> Result<Self, ContextSyncError> {
+        let generator = ResponseGenerator::new(chat)?;
+
+        Ok(TurnGenerator {
+            generator,
+            usage: CompletionUsage {
+                prompt_tokens: 0,
+                completion_tokens: 0,
+            },
+        })
+    }
+
+    /// Continue generating the turn.
+    ///
+    /// Has similar semantics and invariants as [`ResponseGenerator::next`].
+    fn next(
+        &mut self,
+        chat: &mut Chat,
+        max_tokens: Option<usize>,
+        execute_tools: bool,
+    ) -> Result<ControlFlow<CompletionResponse, Vec<String>>, GenerateResponseError> {
+        let remaining =
+            max_tokens.map(|max_tokens| max_tokens.saturating_sub(self.usage.completion_tokens));
+
+        // Forward from the current generator if possible.
+        let response = match self.generator.next(chat, remaining)? {
+            ControlFlow::Continue(text) => return Ok(ControlFlow::Continue(text)),
+            ControlFlow::Break(response) => response,
+        };
+
+        self.usage.prompt_tokens += response.prompt_tokens;
+        self.usage.completion_tokens += response.completion_tokens;
+
+        if response.tool_calls.is_empty() {
+            chat.add_assistant_message(response.content.clone());
+
+            return Ok(ControlFlow::Break(CompletionResponse {
+                content: response.content,
+                tool_calls: Vec::new(),
+                finish_reason: if response.hit_token_limit {
+                    FinishReason::Length
+                } else {
+                    FinishReason::Stop
+                },
+                usage: self.usage,
+            }));
+        }
+
+        let tool_calls = response.tool_calls;
+        debug!(?tool_calls, "Got tool calls:");
+
+        // Whatever the model said before the call is part of the turn,
+        // so it goes into the history message alongside the calls.
+        chat.add_tool_calls(response.content.clone(), tool_calls.clone());
+
+        if !execute_tools {
+            return Ok(ControlFlow::Break(CompletionResponse {
+                content: response.content,
+                tool_calls,
+                finish_reason: FinishReason::ToolCalls,
+                usage: self.usage,
+            }));
+        }
+
+        for call in tool_calls {
+            chat.run_tool(call);
+        }
+
+        self.generator = ResponseGenerator::new(chat)?;
+
+        // Recurse with the new generator.
+        //
+        // This should not be able to stack overflow, if the generator returns
+        // `ControlFlow::Break` immediately, then we'd hit the
+        // `response.tool_calls.is_empty()` branch above and return (assuming
+        //  that the model cannot generate a tool call in a single token).
+        self.next(chat, max_tokens, execute_tools)
+    }
+
+    /// Run generation in a loop, and return the final response once it's done.
+    #[cfg(test)]
+    fn response(
+        mut self,
+        chat: &mut Chat,
+        max_tokens: Option<usize>,
+        execute_tools: bool,
+    ) -> Result<CompletionResponse, GenerateResponseError> {
+        loop {
+            match self.next(chat, max_tokens, execute_tools)? {
+                ControlFlow::Continue(_) => continue,
+                ControlFlow::Break(response) => return Ok(response),
+            }
         }
     }
 }
@@ -5182,7 +5230,10 @@ mod tests {
                 );
             }
             // MTP verifies its drafts in batches, which llama.cpp counts as prompt tokens.
-            chat.run_turn(Some(64), true, |_| {}).unwrap();
+            let _response = TurnGenerator::new(&mut chat)
+                .unwrap()
+                .response(&mut chat, Some(64), true)
+                .unwrap();
         }
     }
 
