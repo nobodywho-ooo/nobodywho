@@ -1844,28 +1844,48 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
     info!(?msg, "Worker processing:");
     match msg {
         ChatMsg::Turn { input, output } => {
-            let should_stop = Arc::clone(&worker_state.should_stop);
-            let on_chunk = |chunk| {
-                if !output.send(chunk) {
-                    // Nobody is receiving any more, so stop generating.
-                    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
-                }
-            };
-            let result = match input {
-                TurnInput::Ask(prompt) => worker_state
-                    .ask(prompt, on_chunk)
-                    .map_err(|error| Box::new(error) as _),
+            let (mut generator, max_tokens, execute_tools) = match input {
+                TurnInput::Ask(prompt) => match worker_state.ask(prompt) {
+                    Ok(generator) => (generator, None, true),
+                    Err(e) => {
+                        output.fail(Box::new(e));
+                        return;
+                    }
+                },
                 TurnInput::Complete {
                     messages,
                     options,
                     max_tokens,
                     execute_tools,
-                } => worker_state
-                    .complete(messages, options, max_tokens, execute_tools, on_chunk)
-                    .map_err(|error| Box::new(error) as _),
+                } => match worker_state.complete(messages, options) {
+                    Ok(generator) => (generator, max_tokens, execute_tools),
+                    Err(e) => {
+                        output.fail(Box::new(e));
+                        return;
+                    }
+                },
             };
-            if let Err(error) = result {
-                output.fail(error);
+
+            loop {
+                match generator.next(worker_state, max_tokens, execute_tools) {
+                    Ok(ControlFlow::Continue(text)) => {
+                        for text in text.into_iter().filter(|t| !t.is_empty()) {
+                            trace!(text, "Sending out token:");
+                            if !output.send(CompletionChunk::Token(text)) {
+                                // Nobody is receiving any more, so stop generating.
+                                return;
+                            }
+                        }
+                    }
+                    Ok(ControlFlow::Break(response)) => {
+                        let _ = output.send(CompletionChunk::Done(response));
+                        return;
+                    }
+                    Err(e) => {
+                        output.fail(Box::new(e));
+                        return;
+                    }
+                }
             }
         }
         ChatMsg::ResetChat {
@@ -2352,11 +2372,7 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
-    pub fn ask(
-        &mut self,
-        prompt: Prompt,
-        mut on_chunk: impl FnMut(CompletionChunk),
-    ) -> Result<(), SayError> {
+    pub fn ask(&mut self, prompt: Prompt) -> Result<TurnGenerator, SayError> {
         // reset the stop flag
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
@@ -2368,22 +2384,7 @@ impl<'a> Chat<'a> {
         self.register_media(&mut content)?;
         self.add_user_message(content);
 
-        let mut generator = TurnGenerator::new(self)?;
-
-        loop {
-            match generator.next(self, None, true)? {
-                ControlFlow::Continue(text) => {
-                    for text in text.into_iter().filter(|t| !t.is_empty()) {
-                        trace!(text, "Sending out token:");
-                        on_chunk(CompletionChunk::Token(text));
-                    }
-                }
-                ControlFlow::Break(response) => {
-                    on_chunk(CompletionChunk::Done(response));
-                    return Ok(());
-                }
-            }
-        }
+        Ok(TurnGenerator::new(self)?)
     }
 
     /// Load each media part's file, register its bitmap and write the bitmap id
@@ -2469,10 +2470,7 @@ impl<'a> Chat<'a> {
         &mut self,
         mut messages: History,
         options: Options,
-        max_tokens: Option<usize>,
-        execute_tools: bool,
-        mut on_chunk: impl FnMut(CompletionChunk),
-    ) -> Result<(), CompleteError> {
+    ) -> Result<TurnGenerator, CompleteError> {
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
         let hoisted = messages.take_system_prompt();
@@ -2485,22 +2483,7 @@ impl<'a> Chat<'a> {
         }
         self.messages = messages;
 
-        let mut generator = TurnGenerator::new(self)?;
-
-        loop {
-            match generator.next(self, max_tokens, execute_tools)? {
-                ControlFlow::Continue(text) => {
-                    for text in text.into_iter().filter(|t| !t.is_empty()) {
-                        trace!(text, "Sending out token:");
-                        on_chunk(CompletionChunk::Token(text));
-                    }
-                }
-                ControlFlow::Break(response) => {
-                    on_chunk(CompletionChunk::Done(response));
-                    return Ok(());
-                }
-            }
-        }
+        Ok(TurnGenerator::new(self)?)
     }
 
     /// Re-read the media files referenced by `messages` and relink the parts to
@@ -3127,24 +3110,18 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| {
-            if let llm::WriteOutput::Done(resp) = x {
-                sender.send(resp).unwrap();
-            }
-        };
-
-        worker.ask("What is the capital of Denmark?".into(), text(f.clone()))?;
-
-        let resp = receiver.recv()?;
+        let resp = worker
+            .ask("What is the capital of Denmark?".into())?
+            .response(&mut worker, None, true)?
+            .content;
         println!("{}", resp);
-
         assert!(resp.contains("Copenhagen"));
 
-        worker.ask("What language do they speak there?".into(), text(f))?;
-        let resp = receiver.recv()?;
+        let resp = worker
+            .ask("What language do they speak there?".into())?
+            .response(&mut worker, None, true)?
+            .content;
         println!("{}", resp);
-
         assert!(resp.contains("Danish"));
 
         Ok(())
@@ -3174,25 +3151,17 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| {
-            if let llm::WriteOutput::Done(resp) = x {
-                sender.send(resp).unwrap();
-            }
-        };
-        worker.ask("What is the capital of Denmark?".into(), text(f))?;
-        let resp = receiver.recv()?;
+        let resp = worker
+            .ask("What is the capital of Denmark?".into())?
+            .response(&mut worker, None, true)?
+            .content;
         println!("MTP response: {}", resp);
         assert!(resp.contains("Copenhagen"));
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| {
-            if let llm::WriteOutput::Done(resp) = x {
-                sender.send(resp).unwrap();
-            }
-        };
-        worker.ask("Are you sure?".into(), text(f))?;
-        let resp = receiver.recv()?;
+        let resp = worker
+            .ask("Are you sure?".into())?
+            .response(&mut worker, None, true)?
+            .content;
         println!("MTP response: {}", resp);
         assert!(resp.contains("Yes"));
 
@@ -3211,17 +3180,11 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
 
-        // just a hack to get a channel back
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| {
-            if let llm::WriteOutput::Done(resp) = x {
-                sender.send(resp).unwrap();
-            }
-        };
-
         // do it once
-        worker.ask("What is the capital of Denmark?".into(), text(f.clone()))?;
-        let resp1 = receiver.recv()?;
+        let resp1 = worker
+            .ask("What is the capital of Denmark?".into())?
+            .response(&mut worker, None, true)?
+            .content;
         println!("{}", resp1);
         assert!(resp1.to_lowercase().contains("woof"));
 
@@ -3232,8 +3195,10 @@ mod tests {
         );
 
         // do it again
-        worker.ask("What is the capital of Denmark?".into(), text(f.clone()))?;
-        let resp2 = receiver.recv()?;
+        let resp2 = worker
+            .ask("What is the capital of Denmark?".into())?
+            .response(&mut worker, None, true)?
+            .content;
         println!("{}", resp2);
         assert!(resp2.to_lowercase().contains("meow"));
 
@@ -3257,22 +3222,21 @@ mod tests {
         // ensure that the generationworker resets the flag when creating a new response.
         should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| match x {
-            llm::WriteOutput::Token(resp) => {
-                if resp.contains("5") {
-                    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        let mut generator = worker.ask("Count from 0 to 9".into())?;
+
+        let response = loop {
+            match generator.next(&mut worker, None, true)? {
+                ControlFlow::Continue(text) => {
+                    for text in text {
+                        if text.contains("5") {
+                            should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                    }
                 }
+                ControlFlow::Break(response) => break response.content,
             }
-            llm::WriteOutput::Done(resp) => {
-                sender.send(resp).unwrap();
-            }
-            llm::WriteOutput::Error(_) => (),
         };
 
-        worker.ask("Count from 0 to 9".into(), text(f.clone()))?;
-
-        let response = receiver.recv()?;
         println!("{}", response);
 
         assert!(response.contains("5"));
@@ -3370,18 +3334,11 @@ mod tests {
         eprintln!("[bench] worker setup: {setup_ms} ms");
 
         // Warmup: one discarded turn to put GPU pipeline in steady state.
-        let (warmup_tx, warmup_rx) = std::sync::mpsc::channel::<String>();
-        worker
-            .ask(
-                "Hello.".into(),
-                text(move |x| {
-                    if let llm::WriteOutput::Done(r) = x {
-                        let _ = warmup_tx.send(r);
-                    }
-                }),
-            )
+        let _ = worker
+            .ask("Hello.".into())
+            .expect("warmup failed")
+            .response(&mut worker, None, true)
             .expect("warmup failed");
-        let _ = warmup_rx.recv();
 
         // Three distinct prompts that should each elicit a tool call.
         let prompts = [
@@ -3391,15 +3348,12 @@ mod tests {
         ];
 
         for (i, prompt) in prompts.iter().enumerate() {
-            let (sender, receiver) = std::sync::mpsc::channel();
-            let f = move |x| {
-                if let llm::WriteOutput::Done(resp) = x {
-                    sender.send(resp).unwrap();
-                }
-            };
             let turn_start = std::time::Instant::now();
-            worker.ask((*prompt).into(), text(f)).expect("ask failed");
-            let _ = receiver.recv().unwrap();
+            let _ = worker
+                .ask((*prompt).into())
+                .expect("ask failed")
+                .response(&mut worker, None, true)
+                .expect("failed generating");
             eprintln!(
                 "[bench] turn {} ({} chars): {} ms",
                 i + 1,
@@ -3463,22 +3417,12 @@ mod tests {
         )
         .expect("Failed making worker");
 
-        let ask = |worker: &mut Chat, prompt: &str| {
-            let (sender, receiver) = std::sync::mpsc::channel();
-            worker
-                .ask(
-                    prompt.into(),
-                    text(move |x| {
-                        if let llm::WriteOutput::Done(resp) = x {
-                            sender.send(resp).unwrap();
-                        }
-                    }),
-                )
-                .expect("generation failed");
-            receiver.recv().unwrap()
-        };
-
-        let before = ask(&mut worker, "What is the temperature in Copenhagen?");
+        let before = worker
+            .ask("What is the temperature in Copenhagen?".into())
+            .unwrap()
+            .response(&mut worker, None, true)
+            .unwrap()
+            .content;
         assert!(
             before.contains("13.37"),
             "the tool was not called before the config change: {before}"
@@ -3489,7 +3433,12 @@ mod tests {
             .set_sampler_config(SamplerPresets::dry())
             .expect("setting a sampler config");
 
-        let after = ask(&mut worker, "And what is the temperature in Beijing?");
+        let after = worker
+            .ask("And what is the temperature in Beijing?".into())
+            .unwrap()
+            .response(&mut worker, None, true)
+            .unwrap()
+            .content;
         assert!(
             after.contains("42.69"),
             "the tool was not called after the config change: {after}"
@@ -3511,23 +3460,17 @@ mod tests {
         )
         .expect("Failed making worker");
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| {
-            if let llm::WriteOutput::Done(resp) = x {
-                sender.send(resp).unwrap();
-            }
-        };
-
-        worker
+        let result = worker
             .ask(
                 "I would like to know the temperature in two cities: Copenhagen and Beijing."
                     .into(),
-                text(f),
             )
-            .expect("fuck");
+            .expect("fuck")
+            .response(&mut worker, None, true)
+            .expect("argh")
+            .content;
 
-        let result = receiver.recv().unwrap();
-        println!("{}", result);
+        println!("{result}");
         assert!(result.contains("13.37"));
         assert!(result.contains("42.69"));
 
@@ -3569,13 +3512,10 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
         let messages = History::new(vec![user("What's the temperature in Copenhagen?")])?;
-        let mut finished = None;
-        worker.complete(messages, Options::new(), Some(8), true, |chunk| {
-            if let CompletionChunk::Done(response) = chunk {
-                finished = Some(response);
-            }
-        })?;
-        let response = finished.expect("a turn ends with its response");
+        let response =
+            worker
+                .complete(messages, Options::new())?
+                .response(&mut worker, Some(8), true)?;
         assert_eq!(response.finish_reason, FinishReason::Length);
         assert_eq!(response.usage.completion_tokens, 8);
         Ok(())
@@ -3594,22 +3534,14 @@ mod tests {
         )
         .expect("Failed making worker");
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| {
-            if let llm::WriteOutput::Done(resp) = x {
-                sender.send(resp).unwrap();
-            }
-        };
+        let result = worker
+            .ask("I would like to know the temperature in Copenhagen and the DKK to USD exchange rate.".into())
+            .expect("dammit")
+            .response(&mut worker, None, true)
+            .unwrap()
+            .content;
 
-        worker.ask(
-            "I would like to know the temperature in Copenhagen and the DKK to USD exchange rate."
-                .into(),
-            text(f),
-        )
-        .expect("dammit");
-
-        let result = receiver.recv().unwrap();
-        println!("{}", result);
+        println!("{result}");
         assert!(result.contains("13.37"));
         assert!(result.contains("0.15"));
     }
@@ -4075,20 +4007,14 @@ mod tests {
         let messages_before_shift = worker.messages.len();
         println!("Messages before shift: {}", messages_before_shift);
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| {
-            if let llm::WriteOutput::Done(resp) = x {
-                sender.send(resp).unwrap();
-            }
-        };
-
         // This should trigger context shift internally because there's not enough space
-        worker.ask(
-            "This is a new question that will not fit in the context! What is 10 * 10?".into(),
-            text(f),
-        )?;
+        let _response = worker
+            .ask(
+                "This is a new question that will not fit in the context! What is 10 * 10?".into(),
+            )?
+            .response(&mut worker, None, true)?
+            .content;
 
-        let _response = receiver.recv()?;
         let messages_after = worker.messages.clone();
 
         println!("Messages after operation: {}", messages_after.len());
@@ -4154,17 +4080,12 @@ mod tests {
         let messages_before_shift = worker.messages.len();
         println!("Messages before shift: {}", messages_before_shift);
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let f = move |x| {
-            if let llm::WriteOutput::Done(resp) = x {
-                sender.send(resp).unwrap();
-            }
-        };
-
         // This should trigger context shift internally because there's not enough space
-        worker.ask("What is 10 * 10?".into(), text(f))?;
+        let _response = worker
+            .ask("What is 10 * 10?".into())?
+            .response(&mut worker, None, true)?
+            .content;
 
-        let _response = receiver.recv()?;
         let messages_after = worker.messages.clone();
 
         println!("Messages after operation: {}", messages_after.len());
@@ -4323,16 +4244,6 @@ mod tests {
             resp.contains("Copenhagen"),
             "Model failed to answer after reset"
         );
-    }
-
-    /// A turn's chunks as `ask` and `complete` stream them to `respond`.
-    fn text(respond: impl Fn(llm::WriteOutput)) -> impl FnMut(CompletionChunk) {
-        move |chunk| {
-            respond(match chunk {
-                CompletionChunk::Token(token) => llm::WriteOutput::Token(token),
-                CompletionChunk::Done(response) => llm::WriteOutput::Done(response.content),
-            })
-        }
     }
 
     fn user(content: &str) -> Message {
@@ -4714,9 +4625,7 @@ mod tests {
             user("How are you?"),
         ])?;
 
-        let err = worker
-            .complete(unrenderable, Options::new(), None, true, |_| {})
-            .unwrap_err();
+        let err = worker.complete(unrenderable, Options::new()).unwrap_err();
 
         // The help has to survive every wrapper between the template and the
         // binding that renders it.
@@ -4921,19 +4830,11 @@ mod tests {
             ],
         }]))?;
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        worker.complete(
-            History::new(messages)?,
-            Options::new(),
-            None,
-            true,
-            text(move |out| {
-                if let llm::WriteOutput::Done(resp) = out {
-                    sender.send(resp).unwrap();
-                }
-            }),
-        )?;
-        let resp = receiver.recv()?.to_lowercase();
+        let resp = worker
+            .complete(History::new(messages)?, Options::new())?
+            .response(&mut worker, None, true)?
+            .content
+            .to_lowercase();
 
         assert!(
             ["dog", "retriever", "puppy"]
@@ -4990,13 +4891,12 @@ mod tests {
         )?;
 
         let image = std::path::PathBuf::from(test_utils::test_image());
-        worker.ask(
-            Prompt::parts([
+        worker
+            .ask(Prompt::parts([
                 ContentPart::text("What is in this image?"),
                 ContentPart::image(image),
-            ]),
-            |_| {},
-        )?;
+            ]))?
+            .response(&mut worker, None, true)?;
         assert_eq!(
             worker.media.bitmaps.len(),
             1,
@@ -5018,13 +4918,12 @@ mod tests {
         );
         assert_eq!(worker.media.bitmaps.len(), 1);
 
-        worker.complete(
-            History::new(vec![user("Say the word 'banana'.")])?,
-            Options::new(),
-            None,
-            true,
-            |_| {},
-        )?;
+        worker
+            .complete(
+                History::new(vec![user("Say the word 'banana'.")])?,
+                Options::new(),
+            )?
+            .response(&mut worker, None, true)?;
         assert_eq!(
             worker.media.bitmaps.len(),
             0,
@@ -5042,19 +4941,11 @@ mod tests {
         }
         let replayed = Message::User { content };
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        worker.complete(
-            History::new(vec![replayed])?,
-            Options::new(),
-            None,
-            true,
-            text(move |out| {
-                if let llm::WriteOutput::Done(resp) = out {
-                    sender.send(resp).unwrap();
-                }
-            }),
-        )?;
-        let resp = receiver.recv()?.to_lowercase();
+        let resp = worker
+            .complete(History::new(vec![replayed])?, Options::new())?
+            .response(&mut worker, None, true)?
+            .content
+            .to_lowercase();
 
         assert!(
             ["dog", "retriever", "puppy"]
@@ -5322,12 +5213,12 @@ mod tests {
             let cached = chat.engine.kv_mirror().n_tokens() as i32;
             let mut answer = String::new();
             let decoded = prompt_tokens_decoded(&mut chat, |chat| {
-                chat.ask(prompt.into(), |chunk| {
-                    if let CompletionChunk::Done(response) = chunk {
-                        answer = response.content;
-                    }
-                })
-                .unwrap();
+                answer = chat
+                    .ask(prompt.into())
+                    .unwrap()
+                    .response(chat, None, true)
+                    .unwrap()
+                    .content;
             });
             assert!(answer.contains(expected), "expected {expected} in {answer}");
             if cached > 0 {
