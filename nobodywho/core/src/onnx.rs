@@ -12,11 +12,41 @@ use std::sync::LazyLock;
 
 /// The process-wide ONNX Runtime environment.
 static ENVIRONMENT: LazyLock<Result<Environment, ort::Error>> = LazyLock::new(|| {
+    #[cfg(target_os = "emscripten")]
+    set_emscripten_ort_api()?;
     ort::init()
         .with_name("nobodywho")
         .with_telemetry(false)
         .build()
 });
+
+/// ort uses `alternative-backend` on Emscripten, so give it the ONNX Runtime that build.rs linked from `ORT_LIB_PATH`.
+///
+/// Without one, ort gets its stub API, since even creating an `ort::Error` panics with no API set.
+#[cfg(target_os = "emscripten")]
+fn set_emscripten_ort_api() -> Result<(), ort::Error> {
+    #[cfg(nobodywho_static_ort)]
+    {
+        // SAFETY: build.rs linked ONNX Runtime, which defines `OrtGetApiBase`.
+        let api = unsafe { ((*ort::sys::OrtGetApiBase()).GetApi)(ort::sys::ORT_API_VERSION) };
+        // SAFETY: a non-null `GetApi` result points to a static `OrtApi`.
+        if let Some(api) = unsafe { api.as_ref() } {
+            ort::set_api(api.clone());
+            return Ok(());
+        }
+        ort::set_api(ort::sys::stub::api());
+        Err(ort::Error::new(
+            "the linked ONNX Runtime doesn't support the API version ort needs",
+        ))
+    }
+    #[cfg(not(nobodywho_static_ort))]
+    {
+        ort::set_api(ort::sys::stub::api());
+        Err(ort::Error::new(
+            "built without ONNX Runtime; build it for Emscripten and set ORT_LIB_PATH when building NobodyWho",
+        ))
+    }
+}
 
 /// Hardware target for ONNX Runtime execution.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
