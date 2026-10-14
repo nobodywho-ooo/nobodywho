@@ -1,5 +1,5 @@
 use std::path::Path;
-use std::rc::Rc;
+use std::sync::Arc;
 use std::{ffi::CString, sync::Mutex};
 
 use ahash::AHasher;
@@ -50,8 +50,8 @@ pub type ChunkId = String;
 #[derive(Clone, Debug)]
 pub enum TokenizerChunk {
     Text(Vec<LlamaToken>, ChunkId),
-    Image(Rc<MtmdInputChunks>, ChunkId),
-    Audio(Rc<MtmdInputChunks>, ChunkId),
+    Image(Arc<MtmdInputChunks>, ChunkId),
+    Audio(Arc<MtmdInputChunks>, ChunkId),
 }
 
 impl TokenizerChunk {
@@ -72,7 +72,7 @@ impl TokenizerChunk {
 
         // We use unwrap or default here, as everything should always exist
         // & returning Result here would be the opposite of ergonomical
-        Self::Image(Rc::new(chunks), id.unwrap_or_default())
+        Self::Image(Arc::new(chunks), id.unwrap_or_default())
     }
 
     pub fn new_audio(chunks: MtmdInputChunks) -> Self {
@@ -83,7 +83,7 @@ impl TokenizerChunk {
                 .map(|c| c.id().unwrap_or_default())
         });
 
-        Self::Audio(Rc::new(chunks), id.unwrap_or_default())
+        Self::Audio(Arc::new(chunks), id.unwrap_or_default())
     }
 
     /// KV positions the chunk takes; fewer than its tokens for M-RoPE media.
@@ -560,7 +560,7 @@ mod tests {
         // Create an empty MtmdInputChunks as a placeholder
         let chunks = MtmdInputChunks::new();
         // Manually construct with an ID for testing purposes
-        TokenizerChunk::Image(Rc::new(chunks), id.to_string())
+        TokenizerChunk::Image(Arc::new(chunks), id.to_string())
     }
 
     // ===== A. Text-Only Tests =====
