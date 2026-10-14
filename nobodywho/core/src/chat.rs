@@ -17,7 +17,7 @@
 //!     .with_system_prompt(Some("You are a helpful assistant"))
 //!     .build()?;
 //!
-//! let response = chat.ask("Hello!").completed()?;
+//! let response = chat.ask("Hello!").blocking_completed()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -36,7 +36,7 @@ use crate::response_parser::ResponseParser;
 use crate::sampler::{read_sampler_from_metadata, GrammarFactory, SamplerConfig};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tokenizer::{
-    find_chunks_prefix_difference, ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChunks,
+    find_chunks_prefix_difference, ChunkId, Promptable, TokenizerChunk, TokenizerChunks,
 };
 use crate::tool_calling::{Tool, ToolCall};
 use ahash::AHasher;
@@ -625,22 +625,13 @@ impl ChatBuilder {
         self
     }
 
-    /// Build a blocking chat handle and start the background worker.
+    /// Build the chat handle.
     pub fn build(self) -> Result<ChatHandle, InitWorkerError> {
         ChatHandle::new(self.model, self.config)
     }
-
-    /// Build an async chat handle and start the background worker.
-    ///
-    /// Ideally this would be `async`, and would run `Chat::new` on a
-    /// different thread, but most constructors such as Python's `__new__` are
-    /// not async-able anyhow, so the effort is not really worth it.
-    pub fn build_async(self) -> Result<ChatHandleAsync, InitWorkerError> {
-        Ok(self.build()?.into_async())
-    }
 }
 
-/// Interact with a ChatWorker in a blocking manner.
+/// Interact with [`Chat`] behind a `Send` + `Sync` mutex.
 ///
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
 #[derive(Clone)]
@@ -650,8 +641,11 @@ pub struct ChatHandle {
 }
 
 impl ChatHandle {
-    /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
     pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Self, InitWorkerError> {
+        // TODO: Allow building the chat asynchronously in a thread?
+        //
+        // Difficult to do, because most language constructors such as
+        // Python's `__new__` are not async-able.
         let chat = Chat::new(model, config)?;
         let should_stop = Arc::clone(&chat.should_stop);
         Ok(Self {
@@ -660,24 +654,39 @@ impl ChatHandle {
         })
     }
 
-    pub fn into_async(self) -> ChatHandleAsync {
-        ChatHandleAsync { sync: self }
+    /// Lock the chat synchronously.
+    pub fn blocking_lock(&self) -> tokio::sync::MutexGuard<'_, Chat> {
+        self.chat.blocking_lock()
     }
 
-    fn blocking_lock(&self) -> tokio::sync::MutexGuard<'_, Chat> {
-        self.chat.blocking_lock()
+    /// Lock the chat asynchronously.
+    pub async fn lock(&self) -> tokio::sync::MutexGuard<'_, Chat> {
+        self.chat.lock().await
     }
 
     /// Send a message and collect tokens as they arrive.
     ///
     /// # Example
     /// ```
-    /// # use nobodywho::chat::ChatHandleAsync;
-    /// # async fn example(chat: &ChatHandleAsync) -> Result<(), nobodywho::errors::CompletionError> {
+    /// # use nobodywho::chat::ChatHandle;
+    /// # fn example(chat: &ChatHandle) -> Result<(), nobodywho::errors::CompletionError> {
+    /// let mut stream = chat.ask("Tell me a story");
+    /// while let Some(token) = stream.blocking_next_token()? {
+    ///     print!("{}", token);
+    /// }
+    /// print!("{}", stream.blocking_completed()?);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ```
+    /// # use nobodywho::chat::ChatHandle;
+    /// # async fn example(chat: &ChatHandle) -> Result<(), nobodywho::errors::CompletionError> {
     /// let mut stream = chat.ask("Tell me a story");
     /// while let Some(token) = stream.next_token().await? {
     ///     print!("{}", token);
     /// }
+    /// print!("{}", stream.completed().await?);
     /// # Ok(())
     /// # }
     /// ```
@@ -734,6 +743,7 @@ impl ChatHandle {
     /// [`Options`] follows the same rule for the chat's other settings.
     ///
     /// # Example
+    ///
     /// ```
     /// # use nobodywho::chat::{ChatHandle, Message, Options};
     /// # fn example(chat: &ChatHandle) -> Result<(), Box<dyn std::error::Error>> {
@@ -746,7 +756,19 @@ impl ChatHandle {
     ///         [("enable_thinking".to_string(), false)].into(),
     ///     ),
     /// )?;
-    /// println!("{}", stream.completed()?);
+    /// println!("{}", stream.blocking_completed()?);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ```
+    /// # use nobodywho::chat::{ChatHandle, Message, Options};
+    /// # async fn example(chat: &ChatHandle) -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut stream = chat.complete(
+    ///     vec![Message::new_user("Who first walked on the moon?".to_string())],
+    ///     Options::new(),
+    /// )?;
+    /// println!("{}", stream.completed().await?);
     /// # Ok(())
     /// # }
     /// ```
@@ -759,6 +781,10 @@ impl ChatHandle {
         Ok(TokenStream::new(stream.worker))
     }
 
+    /// Generate one assistant response.
+    ///
+    /// If `execute_tools` is `false`, this returns return tool calls for the
+    /// caller to execute and submit in a following request.
     pub fn completion_stream(
         &self,
         messages: Vec<Message>,
@@ -807,372 +833,9 @@ impl ChatHandle {
         Ok(CompletionStream::new(worker))
     }
 
-    /// Reset the chat conversation with a new system prompt and tools.
-    pub fn reset_chat(
-        &self,
-        system_prompt: Option<String>,
-        tools: Vec<Tool>,
-    ) -> Result<(), crate::errors::SetterError> {
-        self.blocking_lock().reset_chat(system_prompt, tools)
-    }
-
-    /// Reset the chat conversation history.
-    pub fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
-        self.blocking_lock().set_chat_history(Vec::new())
-    }
-
-    /// Update the available tools for the model to use.
-    pub fn set_tools(&self, tools: Vec<Tool>) -> Result<(), crate::errors::SetterError> {
-        self.blocking_lock().set_tools(tools)
-    }
-
-    /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
-    #[deprecated(note = "Use set_template_variable(\"enable_thinking\", value) instead")]
-    pub fn set_allow_thinking(&self, allow_thinking: bool) {
-        self.set_template_variable("enable_thinking".to_string(), allow_thinking);
-    }
-
-    /// Set a single template variable.
-    pub fn set_template_variable(&self, name: String, value: bool) {
-        self.blocking_lock().set_template_variable(name, value);
-    }
-
-    /// Set all template variables, replacing any existing ones.
-    pub fn set_template_variables(&self, variables: std::collections::HashMap<String, bool>) {
-        self.blocking_lock().set_template_variables(variables);
-    }
-
-    /// Get all template variables.
-    pub fn get_template_variables(&self) -> std::collections::HashMap<String, bool> {
-        self.blocking_lock().get_template_variables()
-    }
-
-    /// Update the sampler configuration for inference.
-    pub fn set_sampler_config(
-        &self,
-        sampler_config: SamplerConfig,
-    ) -> Result<(), crate::errors::SetterError> {
-        self.blocking_lock().set_sampler_config(sampler_config)
-    }
-
     /// Stop the current generation if one is in progress.
     pub fn stop_generation(&self) {
         self.should_stop.store(true, Ordering::Relaxed);
-    }
-
-    /// Get the chat history (lower-level API).
-    ///
-    /// The system prompt is a separate setting, so it is never part of this list
-    /// — see [`get_system_prompt`](Self::get_system_prompt). A system message
-    /// placed mid-conversation is part of the history, and does show up here.
-    pub fn get_chat_history(&self) -> Vec<Message> {
-        self.blocking_lock().get_chat_history()
-    }
-
-    /// Set the chat history (lower-level API).
-    ///
-    /// A leading system message becomes the chat's system prompt. A later one
-    /// stays in the history, for the chat template to render in place.
-    pub fn set_chat_history(
-        &self,
-        messages: Vec<Message>,
-    ) -> Result<(), crate::errors::SetterError> {
-        self.blocking_lock().set_chat_history(messages)
-    }
-
-    /// Get the sampler config
-    pub fn get_sampler_config(&self) -> SamplerConfig {
-        self.blocking_lock().get_sampler_config()
-    }
-
-    /// Get context usage statistics.
-    pub fn get_stats(&self) -> ChatStats {
-        self.blocking_lock().get_stats()
-    }
-
-    /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
-    ///
-    /// The counters reset at the start of each generation.
-    /// Returns `None` when no drafts were proposed in the last generation.
-    pub fn mtp_acceptance_rate(&self) -> Option<f32> {
-        self.blocking_lock().mtp_acceptance_rate()
-    }
-
-    /// Update the system prompt without resetting chat history.
-    ///
-    /// Replaces the prompt while preserving the conversation history. The model
-    /// context is re-synchronized after the change, reusing the KV cache where
-    /// possible.
-    ///
-    /// # Arguments
-    ///
-    /// * `system_prompt` - New system message to guide the model's behavior
-    ///
-    /// # Errors
-    ///
-    /// Returns `SetterError` if the system prompt cannot be changed or if context
-    /// synchronization fails.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use nobodywho::chat::ChatBuilder;
-    /// # use nobodywho::llm::get_model;
-    /// # use std::sync::Arc;
-    /// # let model = Arc::new(get_model("model.gguf", true, None, None, None).unwrap());
-    /// # let chat = ChatBuilder::new(model).build().unwrap();
-    /// chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string()));
-    /// # Ok::<(), nobodywho::errors::SetterError>(())
-    /// ```
-    pub fn set_system_prompt(&self, system_prompt: Option<String>) {
-        self.blocking_lock().set_system_prompt(system_prompt);
-    }
-
-    /// Set how old turns are forgotten when the context is full; `None` disables it.
-    pub fn set_context_shift(
-        &self,
-        options: Option<ContextShiftOptions>,
-    ) -> Result<(), crate::errors::SetterError> {
-        self.blocking_lock().set_context_shift(options)
-    }
-
-    /// Get the system prompt
-    pub fn get_system_prompt(&self) -> Option<String> {
-        self.blocking_lock().get_system_prompt()
-    }
-
-    /// Tokenize a prompt and return token IDs. Text tokens are `Some(id)`, media embedding
-    /// slots are `None` (one per slot consumed in the context window).
-    pub fn tokenize(&self, prompt: impl Promptable) -> Result<Vec<Option<i32>>, TokenizeError> {
-        self.blocking_lock().tokenize(prompt.to_prompt())
-    }
-}
-
-/// Interact with a ChatWorker in an asynchronous manner.
-///
-/// Use [`ChatBuilder`] to create a new instance with a fluent API.
-#[derive(Clone)]
-pub struct ChatHandleAsync {
-    sync: ChatHandle,
-}
-
-impl ChatHandleAsync {
-    async fn lock(&self) -> tokio::sync::MutexGuard<'_, Chat> {
-        self.sync.chat.lock().await
-    }
-
-    /// Send a message and collect tokens as they arrive.
-    ///
-    /// # Example
-    /// ```
-    /// # use nobodywho::chat::ChatHandleAsync;
-    /// # async fn example(chat: &ChatHandleAsync) -> Result<(), nobodywho::errors::CompletionError> {
-    /// let mut stream = chat.ask("Tell me a story");
-    /// while let Some(token) = stream.next_token().await? {
-    ///     print!("{}", token);
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn ask(&self, prompt: impl Promptable) -> TokenStreamAsync {
-        let stream = self.sync.ask(prompt);
-        TokenStreamAsync::new(stream.worker)
-    }
-
-    /// Answer a full message list, which replaces the chat history.
-    ///
-    /// The list is the whole conversation: it must be non-empty and end in a user
-    /// or tool message. A leading system message becomes the chat's system
-    /// prompt; a list without one keeps the prompt the chat already had. A system
-    /// message further in stays in the history as a turn of its own, which works
-    /// with the chat templates that render the system role mid-conversation. The
-    /// response is appended, and a following `ask` continues from there.
-    ///
-    /// [`Options`] follows the same rule for the chat's other settings.
-    ///
-    /// # Example
-    /// ```
-    /// # use nobodywho::chat::{ChatHandleAsync, Message, Options};
-    /// # async fn example(chat: &ChatHandleAsync) -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut stream = chat.complete(
-    ///     vec![Message::new_user("Who first walked on the moon?".to_string())],
-    ///     Options::new(),
-    /// )?;
-    /// println!("{}", stream.completed().await?);
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn complete(
-        &self,
-        messages: Vec<Message>,
-        options: Options,
-    ) -> Result<TokenStreamAsync, InvalidHistoryError> {
-        let stream = self.completion_stream(messages, options, None, true)?;
-        Ok(TokenStreamAsync::new(stream.worker))
-    }
-
-    /// Generate one assistant response.
-    ///
-    /// If `execute_tools` is `false`, this returns return tool calls for the
-    /// caller to execute and submit in a following request.
-    pub fn completion_stream(
-        &self,
-        messages: Vec<Message>,
-        options: Options,
-        max_tokens: Option<usize>,
-        execute_tools: bool,
-    ) -> Result<CompletionStreamAsync, InvalidHistoryError> {
-        let stream = self
-            .sync
-            .completion_stream(messages, options, max_tokens, execute_tools)?;
-        Ok(CompletionStreamAsync::new(stream.worker))
-    }
-
-    /// Reset the chat conversation with a new system prompt and tools.
-    ///
-    /// This is a potentially blocking operation, so you should use this from
-    /// a thread pool or similar.
-    pub async fn reset_chat(
-        &self,
-        system_prompt: Option<String>,
-        tools: Vec<Tool>,
-    ) -> Result<(), crate::errors::SetterError> {
-        self.lock().await.reset_chat(system_prompt, tools)
-    }
-
-    /// Reset the chat conversation history.
-    pub async fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
-        self.lock().await.set_chat_history(Vec::new())
-    }
-
-    /// Update the available tools for the model to use.
-    pub async fn set_tools(&self, tools: Vec<Tool>) -> Result<(), crate::errors::SetterError> {
-        self.lock().await.set_tools(tools)
-    }
-
-    /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
-    #[deprecated(note = "Use set_template_variable(\"enable_thinking\", value) instead")]
-    pub async fn set_allow_thinking(&self, allow_thinking: bool) {
-        self.set_template_variable("enable_thinking".to_string(), allow_thinking)
-            .await
-    }
-
-    /// Set a single template variable.
-    pub async fn set_template_variable(&self, name: String, value: bool) {
-        self.lock().await.set_template_variable(name, value)
-    }
-
-    /// Set all template variables, replacing any existing ones.
-    pub async fn set_template_variables(&self, variables: std::collections::HashMap<String, bool>) {
-        self.lock().await.set_template_variables(variables)
-    }
-
-    /// Get all template variables.
-    pub async fn get_template_variables(&self) -> std::collections::HashMap<String, bool> {
-        self.lock().await.get_template_variables()
-    }
-
-    /// Update the sampler configuration for inference.
-    pub async fn set_sampler_config(
-        &self,
-        sampler_config: SamplerConfig,
-    ) -> Result<(), crate::errors::SetterError> {
-        self.lock().await.set_sampler_config(sampler_config)
-    }
-
-    /// Stop the current generation if one is in progress.
-    pub fn stop_generation(&self) {
-        self.sync.should_stop.store(true, Ordering::Relaxed);
-    }
-
-    /// Get the chat history (lower-level API).
-    ///
-    /// The system prompt is a separate setting, so it is never part of this list
-    /// — see [`get_system_prompt`](Self::get_system_prompt). A system message
-    /// placed mid-conversation is part of the history, and does show up here.
-    pub async fn get_chat_history(&self) -> Vec<Message> {
-        self.lock().await.get_chat_history()
-    }
-
-    /// Set the chat history (lower-level API).
-    ///
-    /// A leading system message becomes the chat's system prompt. A later one
-    /// stays in the history, for the chat template to render in place.
-    pub async fn set_chat_history(
-        &self,
-        messages: Vec<Message>,
-    ) -> Result<(), crate::errors::SetterError> {
-        self.lock().await.set_chat_history(messages)
-    }
-
-    /// Get the sampler config.
-    pub async fn get_sampler_config(&self) -> SamplerConfig {
-        self.lock().await.get_sampler_config()
-    }
-
-    /// Get context usage statistics.
-    pub async fn get_stats(&self) -> ChatStats {
-        self.lock().await.get_stats()
-    }
-
-    /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
-    ///
-    /// The counters reset at the start of each generation.
-    /// Returns `None` when no drafts were proposed in the last generation.
-    pub async fn mtp_acceptance_rate(&self) -> Option<f32> {
-        self.lock().await.mtp_acceptance_rate()
-    }
-
-    /// Update the system prompt without resetting chat history.
-    ///
-    /// Replaces the prompt while preserving the conversation history. The model
-    /// context is re-synchronized after the change, reusing the KV cache where
-    /// possible.
-    ///
-    /// # Arguments
-    ///
-    /// * `system_prompt` - New system message to guide the model's behavior
-    ///
-    /// # Errors
-    ///
-    /// Returns `SetterError` if the system prompt cannot be changed or if context
-    /// synchronization fails.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// # use nobodywho::chat::ChatBuilder;
-    /// # use nobodywho::llm::get_model;
-    /// # use std::sync::Arc;
-    /// # let model = Arc::new(get_model("model.gguf", true, None, None, None).unwrap());
-    /// # let chat = ChatBuilder::new(model).build_async();
-    /// # chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string())).await?;
-    /// # Ok::<(), nobodywho::errors::SetterError>(())
-    /// ```
-    pub async fn set_system_prompt(&self, system_prompt: Option<String>) {
-        self.lock().await.set_system_prompt(system_prompt)
-    }
-
-    /// Set how old turns are forgotten when the context is full; `None` disables it.
-    pub async fn set_context_shift(
-        &self,
-        options: Option<ContextShiftOptions>,
-    ) -> Result<(), crate::errors::SetterError> {
-        self.lock().await.set_context_shift(options)
-    }
-
-    /// Get the system prompt
-    pub async fn get_system_prompt(&self) -> Option<String> {
-        self.lock().await.get_system_prompt()
-    }
-
-    /// Tokenize a prompt and return token IDs. Text tokens are `Some(id)`, media embedding
-    /// slots are `None` (one per slot consumed in the context window).
-    pub async fn tokenize(
-        &self,
-        prompt: impl Promptable,
-    ) -> Result<Vec<Option<i32>>, TokenizeError> {
-        self.lock().await.tokenize(prompt.to_prompt())
     }
 }
 
@@ -1386,7 +1049,7 @@ impl ChatSampler {
 
 /// A chat session: owns an [`InferenceEngine`] plus all the conversational state
 /// (messages, tools, template, sampler config).
-struct Chat {
+pub struct Chat {
     context: Yoke<ChatContext<'static>, Arc<llm::Model>>,
     should_stop: Arc<AtomicBool>,
     model_output: ModelOutput,
@@ -1512,23 +1175,19 @@ impl Chat {
         self.context.with_mut_return(|c| f(&mut c.sampler))
     }
 
-    pub fn add_assistant_message(&mut self, content: String) {
+    fn add_assistant_message(&mut self, content: String) {
         self.messages.push_assistant(content);
     }
 
-    pub fn add_user_message(&mut self, content: impl Into<MessageContent>) {
+    fn add_user_message(&mut self, content: impl Into<MessageContent>) {
         self.messages.push_user(content);
     }
 
-    pub fn add_tool_calls(
-        &mut self,
-        content: impl Into<MessageContent>,
-        tool_calls: Vec<ToolCall>,
-    ) {
+    fn add_tool_calls(&mut self, content: impl Into<MessageContent>, tool_calls: Vec<ToolCall>) {
         self.messages.push_tool_calls(content, tool_calls);
     }
 
-    pub fn add_tool_resp(&mut self, name: String, content: String) {
+    fn add_tool_resp(&mut self, name: String, content: String) {
         self.messages.push_tool_response(name, content);
     }
 
@@ -1641,14 +1300,14 @@ impl Chat {
         Ok(())
     }
 
-    pub fn ask(&mut self, prompt: Prompt) -> Result<TurnGenerator, SayError> {
+    pub fn ask(&mut self, prompt: impl Promptable) -> Result<TurnGenerator, SayError> {
         // reset the stop flag
         self.should_stop.store(false, Ordering::Relaxed);
 
         // A prompt is message content, so it becomes the user turn as-is —
         // interleaving and all. Flattening to `<__media__>` markers happens at
         // render time.
-        let mut content = prompt;
+        let mut content = prompt.to_prompt();
         self.register_media(&mut content)?;
         self.add_user_message(content);
 
@@ -1808,6 +1467,10 @@ impl Chat {
             .render(messages, &template_context, allow_generation_prompt)
     }
 
+    /// Reset the chat conversation with a new system prompt and tools.
+    ///
+    /// This is a potentially blocking operation, so you should use this from
+    /// a thread pool or similar.
     pub fn reset_chat(
         &mut self,
         system_prompt: Option<String>,
@@ -1841,15 +1504,28 @@ impl Chat {
         self.template_variables = variables;
     }
 
+    /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
+    #[deprecated(note = "Use set_template_variable(\"enable_thinking\", value) instead")]
+    pub fn set_allow_thinking(&mut self, allow_thinking: bool) {
+        self.set_template_variable("enable_thinking".to_string(), allow_thinking);
+    }
+
     /// Get all template variables.
     pub fn get_template_variables(&self) -> std::collections::HashMap<String, bool> {
         self.template_variables.clone()
     }
 
+    /// Update the sampler configuration for inference.
     pub fn set_sampler_config(&mut self, sampler_config: SamplerConfig) -> Result<(), SetterError> {
         self.apply_sampler_and_tools(Some(sampler_config), None)
     }
 
+    /// Get the sampler config
+    pub fn get_sampler_config(&self) -> SamplerConfig {
+        self.sampler_config.clone()
+    }
+
+    /// Get context usage statistics.
     pub fn get_stats(&self) -> ChatStats {
         ChatStats {
             context_size: self.engine().ctx.n_ctx(),
@@ -1857,6 +1533,10 @@ impl Chat {
         }
     }
 
+    /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+    ///
+    /// The counters reset at the start of each generation.
+    /// Returns `None` when no drafts were proposed in the last generation.
     pub fn mtp_acceptance_rate(&self) -> Option<f32> {
         self.engine().mtp_acceptance_rate()
     }
@@ -1928,6 +1608,7 @@ impl Chat {
         Ok(())
     }
 
+    /// Set how old turns are forgotten when the context is full; `None` disables it.
     pub fn set_context_shift(
         &mut self,
         options: Option<ContextShiftOptions>,
@@ -1938,18 +1619,51 @@ impl Chat {
         Ok(())
     }
 
+    /// Update the system prompt without resetting chat history.
+    ///
+    /// Replaces the prompt while preserving the conversation history. The model
+    /// context is re-synchronized after the change, reusing the KV cache where
+    /// possible.
+    ///
+    /// # Arguments
+    ///
+    /// * `system_prompt` - New system message to guide the model's behavior
+    ///
+    /// # Errors
+    ///
+    /// Returns `SetterError` if the system prompt cannot be changed or if context
+    /// synchronization fails.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use nobodywho::chat::ChatBuilder;
+    /// # use nobodywho::llm::get_model;
+    /// # use std::sync::Arc;
+    /// # let model = Arc::new(get_model("model.gguf", true, None, None, None).unwrap());
+    /// # let chat = ChatBuilder::new(model).build().unwrap();
+    /// # let mut chat = chat.blocking_lock();
+    /// chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string()));
+    /// ```
     pub fn set_system_prompt(&mut self, system_prompt: Option<String>) {
         self.system_prompt = system_prompt;
     }
 
+    /// Get the system prompt.
     pub fn get_system_prompt(&self) -> Option<String> {
         self.system_prompt.clone()
     }
 
+    /// Update the available tools for the model to use.
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetterError> {
         self.apply_sampler_and_tools(None, Some(tools))
     }
 
+    /// Set the chat history (lower-level API).
+    ///
+    /// A leading system message becomes the chat's system prompt. A later one
+    /// stays in the history, for the chat template to render in place.
+    ///
     /// Media is re-registered from the part paths, since bitmap ids issued by
     /// another worker mean nothing here. Nothing is committed unless that
     /// succeeds.
@@ -1975,15 +1689,24 @@ impl Chat {
         Ok(())
     }
 
+    /// Reset the chat conversation history.
+    pub fn reset_history(&mut self) -> Result<(), SetterError> {
+        self.set_chat_history(Vec::new())
+    }
+
+    /// Get the chat history (lower-level API).
+    ///
+    /// The system prompt is a separate setting, so it is never part of this list
+    /// — see [`get_system_prompt`](Self::get_system_prompt). A system message
+    /// placed mid-conversation is part of the history, and does show up here.
     pub fn get_chat_history(&self) -> Vec<Message> {
         self.messages.to_vec()
     }
 
-    pub fn get_sampler_config(&self) -> SamplerConfig {
-        self.sampler_config.clone()
-    }
-
-    pub fn tokenize(&mut self, prompt: Prompt) -> Result<Vec<Option<i32>>, TokenizeError> {
+    /// Tokenize a prompt and return token IDs. Text tokens are `Some(id)`, media embedding
+    /// slots are `None` (one per slot consumed in the context window).
+    pub fn tokenize(&self, prompt: impl Promptable) -> Result<Vec<Option<i32>>, TokenizeError> {
+        let prompt = prompt.to_prompt();
         let bitmaps = prompt
             .media_parts()
             .into_iter()
@@ -2150,7 +1873,7 @@ impl ResponseGenerator {
 /// calling them, unless `execute_tools` is false, in which case its first
 /// calls end the turn for the caller to run.
 #[derive(Debug)]
-struct TurnGenerator {
+pub struct TurnGenerator {
     generator: ResponseGenerator,
     usage: CompletionUsage,
 }
@@ -2318,23 +2041,12 @@ impl CompletionStream {
         Self { worker }
     }
 
-    pub fn next(&mut self) -> Result<Option<CompletionChunk>, CompletionError> {
+    pub fn blocking_next(&mut self) -> Result<Option<CompletionChunk>, CompletionError> {
         match self.worker.msg_rx().blocking_recv() {
             Some(Ok(chunk)) => Ok(Some(chunk)),
             Some(Err(e)) => Err(e),
             None => Ok(None),
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct CompletionStreamAsync {
-    worker: CompletionWorker,
-}
-
-impl CompletionStreamAsync {
-    fn new(worker: CompletionWorker) -> Self {
-        Self { worker }
     }
 
     pub async fn next(&mut self) -> Result<Option<CompletionChunk>, CompletionError> {
@@ -2346,8 +2058,10 @@ impl CompletionStreamAsync {
     }
 }
 
-/// Blocking token stream. Call [`next_token`](Self::next_token) to drive
-/// token-by-token, or [`completed`](Self::completed) to collect the full text.
+/// Token stream.
+///
+/// Call [`next_token`](Self::next_token) to drive token-by-token, or
+/// [`completed`](Self::completed) to collect the full text.
 #[derive(Debug)]
 pub struct TokenStream {
     worker: CompletionWorker,
@@ -2360,7 +2074,7 @@ impl TokenStream {
     }
 
     /// Return the next token piece, or `None` when generation is finished.
-    pub fn next_token(&mut self) -> Result<Option<String>, CompletionError> {
+    pub fn blocking_next_token(&mut self) -> Result<Option<String>, CompletionError> {
         match self.worker.msg_rx().blocking_recv() {
             Some(Ok(CompletionChunk::Token(text))) => Ok(Some(text)),
             Some(Ok(CompletionChunk::Done(response))) => {
@@ -2372,27 +2086,7 @@ impl TokenStream {
         }
     }
 
-    /// Drain all tokens and return the full output text.
-    pub fn completed(&mut self) -> Result<String, CompletionError> {
-        loop {
-            match self.next_token()? {
-                Some(_) => continue,
-                None => return Ok(self.done.clone().expect("done should be set here")),
-            }
-        }
-    }
-}
-
-pub struct TokenStreamAsync {
-    worker: CompletionWorker,
-    done: Option<String>,
-}
-
-impl TokenStreamAsync {
-    fn new(worker: CompletionWorker) -> Self {
-        Self { worker, done: None }
-    }
-
+    /// Return the next token piece, or `None` when generation is finished.
     pub async fn next_token(&mut self) -> Result<Option<String>, CompletionError> {
         match self.worker.msg_rx().recv().await {
             Some(Ok(CompletionChunk::Token(text))) => Ok(Some(text)),
@@ -2405,6 +2099,17 @@ impl TokenStreamAsync {
         }
     }
 
+    /// Drain all tokens and return the full output text.
+    pub fn blocking_completed(&mut self) -> Result<String, CompletionError> {
+        loop {
+            match self.blocking_next_token()? {
+                Some(_) => continue,
+                None => return Ok(self.done.clone().expect("done should be set here")),
+            }
+        }
+    }
+
+    /// Drain all tokens and return the full output text.
     pub async fn completed(&mut self) -> Result<String, CompletionError> {
         loop {
             match self.next_token().await? {
@@ -2422,6 +2127,7 @@ mod tests {
     use super::*;
     use crate::sampler::SamplerPresets;
     use crate::test_utils;
+    use crate::tokenizer::Prompt;
 
     #[test]
     fn send_sync() {
@@ -2433,16 +2139,16 @@ mod tests {
         // assert_sync::<Chat>();
         assert_send::<ChatHandle>();
         assert_sync::<ChatHandle>();
-        assert_send::<ChatHandleAsync>();
-        assert_sync::<ChatHandleAsync>();
+        assert_send::<ChatHandle>();
+        assert_sync::<ChatHandle>();
         assert_send::<CompletionStream>();
         assert_sync::<CompletionStream>();
-        assert_send::<CompletionStreamAsync>();
-        assert_sync::<CompletionStreamAsync>();
+        assert_send::<CompletionStream>();
+        assert_sync::<CompletionStream>();
         assert_send::<TokenStream>();
         assert_sync::<TokenStream>();
-        assert_send::<TokenStreamAsync>();
-        assert_sync::<TokenStreamAsync>();
+        assert_send::<TokenStream>();
+        assert_sync::<TokenStream>();
     }
 
     /// The render the model answers from, generation prompt included.
@@ -2580,14 +2286,14 @@ mod tests {
         )?;
 
         let resp = worker
-            .ask("What is the capital of Denmark?".into())?
+            .ask("What is the capital of Denmark?")?
             .response(&mut worker, None, true)?
             .content;
         println!("{}", resp);
         assert!(resp.contains("Copenhagen"));
 
         let resp = worker
-            .ask("What language do they speak there?".into())?
+            .ask("What language do they speak there?")?
             .response(&mut worker, None, true)?
             .content;
         println!("{}", resp);
@@ -2620,14 +2326,14 @@ mod tests {
         )?;
 
         let resp = worker
-            .ask("What is the capital of Denmark?".into())?
+            .ask("What is the capital of Denmark?")?
             .response(&mut worker, None, true)?
             .content;
         println!("MTP response: {}", resp);
         assert!(resp.contains("Copenhagen"));
 
         let resp = worker
-            .ask("Are you sure?".into())?
+            .ask("Are you sure?")?
             .response(&mut worker, None, true)?
             .content;
         println!("MTP response: {}", resp);
@@ -2649,7 +2355,7 @@ mod tests {
 
         // do it once
         let resp1 = worker
-            .ask("What is the capital of Denmark?".into())?
+            .ask("What is the capital of Denmark?")?
             .response(&mut worker, None, true)?
             .content;
         println!("{}", resp1);
@@ -2663,7 +2369,7 @@ mod tests {
 
         // do it again
         let resp2 = worker
-            .ask("What is the capital of Denmark?".into())?
+            .ask("What is the capital of Denmark?")?
             .response(&mut worker, None, true)?
             .content;
         println!("{}", resp2);
@@ -2688,7 +2394,7 @@ mod tests {
         // ensure that the generationworker resets the flag when creating a new response.
         should_stop.store(true, Ordering::Relaxed);
 
-        let mut generator = worker.ask("Count from 0 to 9".into())?;
+        let mut generator = worker.ask("Count from 0 to 9")?;
 
         let response = loop {
             match generator.next(&mut worker, None, true)? {
@@ -2800,7 +2506,7 @@ mod tests {
 
         // Warmup: one discarded turn to put GPU pipeline in steady state.
         let _ = worker
-            .ask("Hello.".into())
+            .ask("Hello.")
             .expect("warmup failed")
             .response(&mut worker, None, true)
             .expect("warmup failed");
@@ -2815,7 +2521,7 @@ mod tests {
         for (i, prompt) in prompts.iter().enumerate() {
             let turn_start = std::time::Instant::now();
             let _ = worker
-                .ask((*prompt).into())
+                .ask(*prompt)
                 .expect("ask failed")
                 .response(&mut worker, None, true)
                 .expect("failed generating");
@@ -2881,7 +2587,7 @@ mod tests {
         .expect("Failed making worker");
 
         let before = worker
-            .ask("What is the temperature in Copenhagen?".into())
+            .ask("What is the temperature in Copenhagen?")
             .unwrap()
             .response(&mut worker, None, true)
             .unwrap()
@@ -2897,7 +2603,7 @@ mod tests {
             .expect("setting a sampler config");
 
         let after = worker
-            .ask("And what is the temperature in Beijing?".into())
+            .ask("And what is the temperature in Beijing?")
             .unwrap()
             .response(&mut worker, None, true)
             .unwrap()
@@ -2923,10 +2629,7 @@ mod tests {
         .expect("Failed making worker");
 
         let result = worker
-            .ask(
-                "I would like to know the temperature in two cities: Copenhagen and Beijing."
-                    .into(),
-            )
+            .ask("I would like to know the temperature in two cities: Copenhagen and Beijing.")
             .expect("fuck")
             .response(&mut worker, None, true)
             .expect("argh")
@@ -2995,7 +2698,7 @@ mod tests {
         .expect("Failed making worker");
 
         let result = worker
-            .ask("I would like to know the temperature in Copenhagen and the DKK to USD exchange rate.".into())
+            .ask("I would like to know the temperature in Copenhagen and the DKK to USD exchange rate.")
             .expect("dammit")
             .response(&mut worker, None, true)
             .unwrap()
@@ -3073,14 +2776,15 @@ mod tests {
             .build()
             .expect("chat build failed in test");
 
-        let dog_response = chat.ask("Hello!").completed().unwrap();
+        let dog_response = chat.ask("Hello!").blocking_completed().unwrap();
 
         assert!(dog_response.to_lowercase().contains("woof"));
 
-        chat.set_system_prompt(Some("You are a cat. End all responses with meow.".into()));
+        chat.blocking_lock()
+            .set_system_prompt(Some("You are a cat. End all responses with meow.".into()));
         let cat_response = chat
             .ask("Now say the correct animal sound!")
-            .completed()
+            .blocking_completed()
             .unwrap();
         assert!(cat_response.to_lowercase().contains("meow"));
     }
@@ -3095,6 +2799,7 @@ mod tests {
             .with_context_size(512)
             .build()
             .expect("chat build failed in test");
+        let mut chat = chat.blocking_lock();
 
         chat.set_system_prompt(None);
         assert_eq!(chat.get_system_prompt(), None);
@@ -3461,9 +3166,7 @@ mod tests {
 
         // This should trigger context shift internally because there's not enough space
         let _response = worker
-            .ask(
-                "This is a new question that will not fit in the context! What is 10 * 10?".into(),
-            )?
+            .ask("This is a new question that will not fit in the context! What is 10 * 10?")?
             .response(&mut worker, None, true)?
             .content;
 
@@ -3533,7 +3236,7 @@ mod tests {
 
         // This should trigger context shift internally because there's not enough space
         let _response = worker
-            .ask("What is 10 * 10?".into())?
+            .ask("What is 10 * 10?")?
             .response(&mut worker, None, true)?
             .content;
 
@@ -3586,7 +3289,8 @@ mod tests {
                 .build()
                 .expect("chat build failed in test");
 
-            chat.ask("What is the capital of Denmark?").completed()
+            chat.ask("What is the capital of Denmark?")
+                .blocking_completed()
         });
 
         // Start Germany chat thread
@@ -3597,7 +3301,8 @@ mod tests {
                 .build()
                 .expect("chat build failed in test");
 
-            chat.ask("What is the capital of Germany?").completed()
+            chat.ask("What is the capital of Germany?")
+                .blocking_completed()
         });
 
         // Wait for both threads to complete and get responses
@@ -3623,7 +3328,7 @@ mod tests {
     async fn test_enable_thinking() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
-            .build_async()
+            .build()
             .expect("chat build_async failed in test");
 
         let res1: String = chat
@@ -3636,8 +3341,9 @@ mod tests {
             "Expected the model to initialize with thinking mode, but it did not"
         );
 
-        chat.set_template_variable("enable_thinking".to_string(), false)
-            .await;
+        chat.lock()
+            .await
+            .set_template_variable("enable_thinking".to_string(), false);
 
         let res2: String = chat
             .ask("What is the capital of the Czech Republic?".to_string())
@@ -3662,14 +3368,25 @@ mod tests {
             .build()
             .expect("chat build failed in test");
 
-        chat.set_sampler_config(SamplerPresets::greedy()).unwrap();
+        chat.blocking_lock()
+            .set_sampler_config(SamplerPresets::greedy())
+            .unwrap();
 
         // Also test if get_sampler followed by set_sampler is no op
-        chat.set_sampler_config(chat.get_sampler_config()).unwrap();
+        let sampler_config = chat.blocking_lock().get_sampler_config();
+        chat.blocking_lock()
+            .set_sampler_config(sampler_config)
+            .unwrap();
 
-        let response1 = chat.ask("Say exactly: 'Hello'").completed().unwrap();
-        chat.reset_history().unwrap();
-        let response2 = chat.ask("Say exactly: 'Hello'").completed().unwrap();
+        let response1 = chat
+            .ask("Say exactly: 'Hello'")
+            .blocking_completed()
+            .unwrap();
+        chat.blocking_lock().reset_history().unwrap();
+        let response2 = chat
+            .ask("Say exactly: 'Hello'")
+            .blocking_completed()
+            .unwrap();
 
         assert_eq!(
             response1, response2,
@@ -3685,10 +3402,10 @@ mod tests {
             .with_template_variable("enable_thinking".to_string(), false)
             .build()
             .expect("chat build failed in test");
-        let _ = chat.reset_history();
+        let _ = chat.blocking_lock().reset_history();
         let resp = chat
             .ask("What is the capital of Denmark?")
-            .completed()
+            .blocking_completed()
             .unwrap();
         assert!(
             resp.contains("Copenhagen"),
@@ -3714,7 +3431,9 @@ mod tests {
             .build()
             .expect("chat build failed in test");
 
-        chat.ask("My favorite color is teal.").completed().unwrap();
+        chat.ask("My favorite color is teal.")
+            .blocking_completed()
+            .unwrap();
 
         let messages = vec![
             user("Who was the first person to walk on the moon?"),
@@ -3724,14 +3443,14 @@ mod tests {
         let resp = chat
             .complete(messages.clone(), Options::new())
             .unwrap()
-            .completed()
+            .blocking_completed()
             .unwrap();
         assert!(
             resp.contains("1969"),
             "Model did not read the supplied history: {resp}"
         );
 
-        let history = chat.get_chat_history();
+        let history = chat.blocking_lock().get_chat_history();
         assert_eq!(
             serde_json::to_value(&history[..messages.len()]).unwrap(),
             serde_json::to_value(&messages).unwrap(),
@@ -3761,28 +3480,28 @@ mod tests {
                 .with_template_variables([("enable_thinking".to_string(), false)].into()),
         )
         .unwrap()
-        .completed()
+        .blocking_completed()
         .unwrap();
 
         // Observable through the ordinary getters, like any other setter.
         assert_eq!(
-            chat.get_template_variables(),
+            chat.blocking_lock().get_template_variables(),
             [("enable_thinking".to_string(), false)].into()
         );
-        let after_first = chat.get_sampler_config();
+        let after_first = chat.blocking_lock().get_sampler_config();
 
         // A turn that carries no options changes neither of them.
         chat.complete(vec![user("Say hi again.")], Options::new())
             .unwrap()
-            .completed()
+            .blocking_completed()
             .unwrap();
         assert_eq!(
-            chat.get_template_variables(),
+            chat.blocking_lock().get_template_variables(),
             [("enable_thinking".to_string(), false)].into(),
             "an empty Options should leave the template variables alone"
         );
         assert_eq!(
-            serde_json::to_value(chat.get_sampler_config()).unwrap(),
+            serde_json::to_value(chat.blocking_lock().get_sampler_config()).unwrap(),
             serde_json::to_value(&after_first).unwrap(),
             "an empty Options should leave the sampler alone"
         );
@@ -3800,7 +3519,7 @@ mod tests {
             .build()
             .expect("chat build failed in test");
 
-        let dog = chat.ask("Hello!").completed().unwrap();
+        let dog = chat.ask("Hello!").blocking_completed().unwrap();
         assert!(dog.to_lowercase().contains("woof"), "{dog}");
 
         let cat = chat
@@ -3812,24 +3531,24 @@ mod tests {
                 Options::new(),
             )
             .unwrap()
-            .completed()
+            .blocking_completed()
             .unwrap();
         assert!(cat.to_lowercase().contains("meow"), "{cat}");
         assert_eq!(
-            chat.get_system_prompt().as_deref(),
+            chat.blocking_lock().get_system_prompt().as_deref(),
             Some("You are a cat. End all responses with meow.")
         );
 
-        let cat_again = chat.ask("Hello again!").completed().unwrap();
+        let cat_again = chat.ask("Hello again!").blocking_completed().unwrap();
         assert!(cat_again.to_lowercase().contains("meow"), "{cat_again}");
 
         let still_cat = chat
             .complete(vec![user("Hello!")], Options::new())
             .unwrap()
-            .completed()
+            .blocking_completed()
             .unwrap();
         assert_eq!(
-            chat.get_system_prompt().as_deref(),
+            chat.blocking_lock().get_system_prompt().as_deref(),
             Some("You are a cat. End all responses with meow."),
             "a complete() without a system message should keep the current one"
         );
@@ -3861,17 +3580,17 @@ mod tests {
         let response = chat
             .complete(messages.clone(), Options::new())
             .unwrap()
-            .completed()
+            .blocking_completed()
             .unwrap();
         assert!(response.to_lowercase().contains("meow"), "{response}");
 
         // The leading one became the prompt; the later one is history, followed
         // by the turn that was just generated.
         assert_eq!(
-            chat.get_system_prompt().as_deref(),
+            chat.blocking_lock().get_system_prompt().as_deref(),
             Some("You are a dog. End all responses with woof.")
         );
-        let history = chat.get_chat_history();
+        let history = chat.blocking_lock().get_chat_history();
         assert_eq!(
             serde_json::to_value(&history[..messages.len() - 1]).unwrap(),
             serde_json::to_value(&messages[1..]).unwrap(),
@@ -3888,7 +3607,7 @@ mod tests {
             .expect("chat build failed in test");
 
         chat.ask("My favorite color is teal. Remember it.")
-            .completed()
+            .blocking_completed()
             .unwrap();
 
         chat.complete(
@@ -3900,12 +3619,12 @@ mod tests {
             Options::new(),
         )
         .unwrap()
-        .completed()
+        .blocking_completed()
         .unwrap();
 
         let resp = chat
             .ask("Who are we talking about? Answer with only the name.")
-            .completed()
+            .blocking_completed()
             .unwrap();
         assert!(
             resp.contains("Armstrong"),
@@ -3933,12 +3652,12 @@ mod tests {
                 Options::new(),
             )
             .unwrap()
-            .completed()
+            .blocking_completed()
             .unwrap();
 
         assert!(resp.contains("13.37"), "Tool was not called: {resp}");
 
-        let history = chat.get_chat_history();
+        let history = chat.blocking_lock().get_chat_history();
         assert!(
             history.iter().any(Message::has_tool_calls) && history.iter().any(Message::is_tool),
             "the tool exchange should be part of the history: {history:?}"
@@ -3955,7 +3674,7 @@ mod tests {
             .build()
             .expect("chat build failed in test");
 
-        let before = chat.get_sampler_config();
+        let before = chat.blocking_lock().get_sampler_config();
 
         // An unresolvable `$ref`: the lark is generated fine and then fails to
         // compile, after the base sampler was already built. (A bogus `type` or a
@@ -3976,14 +3695,14 @@ mod tests {
                     .with_tools(vec![bad_tool]),
             )
             .expect("the history itself is fine")
-            .completed()
+            .blocking_completed()
             .expect_err("an uncompilable tool schema should be rejected");
         eprintln!("rejected as expected: {err}");
 
         // The sampler config is the observable half: it is applied first, so
         // before the coalescing it survived a later tool failure.
         assert_eq!(
-            serde_json::to_value(chat.get_sampler_config()).unwrap(),
+            serde_json::to_value(chat.blocking_lock().get_sampler_config()).unwrap(),
             serde_json::to_value(&before).unwrap(),
             "a failed Options should leave the sampler config alone"
         );
@@ -4099,6 +3818,7 @@ mod tests {
             .with_context_size(512)
             .build()
             .expect("chat build failed in test");
+        let mut chat = chat.blocking_lock();
 
         let err = chat
             .set_chat_history(vec![
@@ -4173,9 +3893,10 @@ mod tests {
             .build()
             .expect("chat build failed in test");
 
-        let before = chat.get_sampler_config();
+        let before = chat.blocking_lock().get_sampler_config();
 
         let err = chat
+            .blocking_lock()
             .set_sampler_config(SamplerPresets::constrain_with_json_schema(
                 "this is not a json schema".to_string(),
             ))
@@ -4187,16 +3908,17 @@ mod tests {
 
         // The worker survived, and the rejected config was not committed.
         assert_eq!(
-            format!("{:?}", chat.get_sampler_config()),
+            format!("{:?}", chat.blocking_lock().get_sampler_config()),
             format!("{before:?}"),
             "a failed set_sampler_config should leave the sampler alone"
         );
 
         // A valid config still goes through, and generation still works.
-        chat.set_sampler_config(SamplerPresets::greedy())
+        chat.blocking_lock()
+            .set_sampler_config(SamplerPresets::greedy())
             .expect("a valid sampler config is fine");
         chat.ask("Say hi")
-            .completed()
+            .blocking_completed()
             .expect("worker still answers");
     }
 
@@ -4454,7 +4176,7 @@ mod tests {
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
             .with_template_variable("enable_thinking".to_string(), false)
-            .build_async()
+            .build()
             .expect("chat build_async failed in test");
 
         let resp = chat
@@ -4466,7 +4188,7 @@ mod tests {
             .await?;
 
         assert!(resp.contains("Copenhagen"), "{resp}");
-        assert_eq!(chat.get_chat_history().await.len(), 2);
+        assert_eq!(chat.lock().await.get_chat_history().len(), 2);
 
         Ok(())
     }
@@ -4618,7 +4340,7 @@ mod tests {
             let mut answer = String::new();
             let decoded = prompt_tokens_decoded(&mut chat, |chat| {
                 answer = chat
-                    .ask(prompt.into())
+                    .ask(prompt)
                     .unwrap()
                     .response(chat, None, true)
                     .unwrap()

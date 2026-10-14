@@ -441,7 +441,7 @@ pub struct ChatStats {
 
 #[flutter_rust_bridge::frb(opaque)]
 pub struct RustChat {
-    chat: nobodywho::chat::ChatHandleAsync,
+    chat: nobodywho::chat::ChatHandle,
 }
 
 impl RustChat {
@@ -509,9 +509,7 @@ impl RustChat {
         if let Some(context_shift) = context_shift {
             builder = builder.with_context_shift(context_shift.into());
         }
-        let chat = builder
-            .build_async()
-            .map_err(|e| nobodywho::render_miette(&e))?;
+        let chat = builder.build().map_err(|e| nobodywho::render_miette(&e))?;
 
         Ok(Self { chat })
     }
@@ -591,9 +589,7 @@ impl RustChat {
         if let Some(context_shift) = context_shift {
             builder = builder.with_context_shift(context_shift.into());
         }
-        let chat = builder
-            .build_async()
-            .map_err(|e| nobodywho::render_miette(&e))?;
+        let chat = builder.build().map_err(|e| nobodywho::render_miette(&e))?;
         Ok(Self { chat })
     }
 
@@ -669,8 +665,9 @@ impl RustChat {
 
     pub async fn get_chat_history(&self) -> Vec<Message> {
         self.chat
-            .get_chat_history()
+            .lock()
             .await
+            .get_chat_history()
             .into_iter()
             .map(Message::from)
             .collect()
@@ -682,20 +679,22 @@ impl RustChat {
             .map(message_to_core)
             .collect::<Result<Vec<_>, String>>()?;
         self.chat
-            .set_chat_history(messages)
+            .lock()
             .await
+            .set_chat_history(messages)
             .map_err(|e| nobodywho::render_miette(&e))
     }
 
     pub async fn set_sampler_config(&self, sampler_config: SamplerConfig) -> Result<(), String> {
         self.chat
-            .set_sampler_config(sampler_config.sampler_config)
+            .lock()
             .await
+            .set_sampler_config(sampler_config.sampler_config)
             .map_err(|e| nobodywho::render_miette(&e))
     }
 
     pub async fn get_sampler_config(&self) -> SamplerConfig {
-        let sampler_config = self.chat.get_sampler_config().await;
+        let sampler_config = self.chat.lock().await.get_sampler_config();
         SamplerConfig { sampler_config }
     }
 
@@ -706,45 +705,49 @@ impl RustChat {
     ) -> Result<(), String> {
         // TODO: spawn_blocking
         self.chat
-            .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
+            .lock()
             .await
+            .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
             .map_err(|e| nobodywho::render_miette(&e))
     }
 
     pub async fn reset_history(&self) -> Result<(), String> {
         self.chat
-            .reset_history()
+            .lock()
             .await
+            .reset_history()
             .map_err(|e| nobodywho::render_miette(&e))
     }
 
     #[deprecated(note = "Use setTemplateVariable(\"enable_thinking\", value) instead")]
     pub async fn set_allow_thinking(&self, allow_thinking: bool) {
         self.chat
-            .set_template_variable("enable_thinking".to_string(), allow_thinking)
+            .lock()
             .await
+            .set_template_variable("enable_thinking".to_string(), allow_thinking)
     }
 
     pub async fn set_system_prompt(&self, system_prompt: Option<String>) {
-        self.chat.set_system_prompt(system_prompt).await
+        self.chat.lock().await.set_system_prompt(system_prompt)
     }
 
     pub async fn set_context_shift(&self, options: ContextShiftOptions) -> Result<(), String> {
         self.chat
-            .set_context_shift(options.into())
+            .lock()
             .await
+            .set_context_shift(options.into())
             .map_err(|e| nobodywho::render_miette(&e))
     }
 
     pub async fn get_system_prompt(&self) -> Option<String> {
-        self.chat.get_system_prompt().await
+        self.chat.lock().await.get_system_prompt()
     }
 
     pub async fn tokenize(
         &self,
         message: String,
     ) -> Result<Vec<Option<i32>>, nobodywho::errors::TokenizeError> {
-        self.chat.tokenize(message).await
+        self.chat.lock().await.tokenize(message)
     }
 
     pub async fn tokenize_with_prompt(
@@ -754,11 +757,11 @@ impl RustChat {
         let prompt = nobodywho::tokenizer::Prompt::parts(
             parts.into_iter().map(Into::into).collect::<Vec<_>>(),
         );
-        self.chat.tokenize(prompt).await
+        self.chat.lock().await.tokenize(prompt)
     }
 
     pub async fn get_stats(&self) -> ChatStats {
-        let s = self.chat.get_stats().await;
+        let s = self.chat.lock().await.get_stats();
         ChatStats {
             context_size: s.context_size,
             context_used: s.context_used,
@@ -769,26 +772,27 @@ impl RustChat {
     /// Resets each generation (per-response, not cumulative). Null when MTP is
     /// disabled or no drafts were proposed in the last generation.
     pub async fn mtp_acceptance_rate(&self) -> Option<f32> {
-        self.chat.mtp_acceptance_rate().await
+        self.chat.lock().await.mtp_acceptance_rate()
     }
 
     pub async fn set_tools(&self, tools: Vec<RustTool>) -> Result<(), String> {
         self.chat
-            .set_tools(tools.into_iter().map(|t| t.tool).collect())
+            .lock()
             .await
+            .set_tools(tools.into_iter().map(|t| t.tool).collect())
             .map_err(|e| nobodywho::render_miette(&e))
     }
 
     pub async fn set_template_variable(&self, name: String, value: bool) {
-        self.chat.set_template_variable(name, value).await
+        self.chat.lock().await.set_template_variable(name, value)
     }
 
     pub async fn set_template_variables(&self, variables: HashMap<String, bool>) {
-        self.chat.set_template_variables(variables).await
+        self.chat.lock().await.set_template_variables(variables)
     }
 
     pub async fn get_template_variables(&self) -> HashMap<String, bool> {
-        self.chat.get_template_variables().await
+        self.chat.lock().await.get_template_variables()
     }
 
     #[flutter_rust_bridge::frb(sync)]
@@ -799,7 +803,7 @@ impl RustChat {
 
 #[flutter_rust_bridge::frb(opaque)]
 pub struct RustTokenStream {
-    stream: nobodywho::chat::TokenStreamAsync,
+    stream: nobodywho::chat::TokenStream,
 }
 
 impl RustTokenStream {
