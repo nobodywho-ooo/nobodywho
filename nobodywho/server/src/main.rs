@@ -394,7 +394,7 @@ async fn start_completion(
             .map_err(internal_error)?;
         state
             .chat
-            .complete_with_external_tools(messages, options, Some(max_tokens))
+            .completion_stream(messages, options, Some(max_tokens), false)
             .map_err(|error| (StatusCode::BAD_REQUEST, error.to_string()))?
     };
 

@@ -482,7 +482,7 @@ fn request_completion_stream(
     let chat = py.detach(|| builder.build()).map_err(err)?;
     let max_tokens = validate_output_limit(&chat, max_tokens, py)?;
     let stream = chat
-        .complete_with_metadata(messages, completion_options, max_tokens)
+        .completion_stream(messages, completion_options, max_tokens, true)
         .map_err(|error| pyo3::exceptions::PyValueError::new_err(render_miette(&error)))?;
     Ok((chat, stream))
 }
