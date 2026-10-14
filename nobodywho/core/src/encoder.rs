@@ -5,6 +5,7 @@ use crate::llm::WorkerGuard;
 use llama_cpp_2::context::params::LlamaPoolingType;
 use std::sync::Arc;
 use tracing::error;
+use yoke::Yoke;
 
 #[derive(Clone)]
 pub struct Encoder {
@@ -36,7 +37,7 @@ impl EncoderAsync {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let join_handle = std::thread::spawn(move || {
-            let worker = EncoderWorker::new(&model, n_ctx);
+            let worker = EncoderWorker::new(model, n_ctx);
             let mut worker_state = match worker {
                 Ok(worker_state) => worker_state,
                 Err(errmsg) => {
@@ -84,19 +85,21 @@ enum EncoderMsg {
 }
 
 /// Handle one message, reporting success or failure on its reply channel.
-fn process_worker_msg(worker_state: &mut EncoderWorker<'_>, msg: EncoderMsg) {
+fn process_worker_msg(worker_state: &mut EncoderWorker, msg: EncoderMsg) {
     match msg {
         EncoderMsg::EncodeBatch { texts, output_tx } => {
             let pooling = worker_state.pooling;
             let embeddings = worker_state
                 .engine
-                .read_strings_batched::<_, EncoderWorkerError>(texts, |ctx, sequence_id| {
-                    let embedding = if pooling == LlamaPoolingType::None {
-                        ctx.embeddings_ith(-1)?
-                    } else {
-                        ctx.embeddings_seq_ith(sequence_id)?
-                    };
-                    Ok(embedding.to_vec())
+                .with_mut_return(move |e| {
+                    e.read_strings_batched::<_, EncoderWorkerError>(texts, |ctx, sequence_id| {
+                        let embedding = if pooling == LlamaPoolingType::None {
+                            ctx.embeddings_ith(-1)?
+                        } else {
+                            ctx.embeddings_seq_ith(sequence_id)?
+                        };
+                        Ok(embedding.to_vec())
+                    })
                 })
                 .map_err(|error| match error {
                     BatchedReadError::Read(error) => EncoderWorkerError::Read(error),
@@ -107,13 +110,13 @@ fn process_worker_msg(worker_state: &mut EncoderWorker<'_>, msg: EncoderMsg) {
     }
 }
 
-struct EncoderWorker<'a> {
-    engine: InferenceEngine<'a>,
+struct EncoderWorker {
+    engine: Yoke<InferenceEngine<'static>, Arc<llm::Model>>,
     pooling: LlamaPoolingType,
 }
 
-impl<'a> EncoderWorker<'a> {
-    fn new(model: &'a llm::Model, n_ctx: u32) -> Result<Self, InitWorkerError> {
+impl EncoderWorker {
+    fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
         let arch = model
             .language_model
             .meta_val_str("general.architecture")
@@ -126,21 +129,23 @@ impl<'a> EncoderWorker<'a> {
             .and_then(|val| val.parse::<i32>().ok())
             .map(LlamaPoolingType::from)
             .unwrap_or(LlamaPoolingType::Unspecified);
-        let engine = InferenceEngine::new_with_type(model, n_ctx, true, None, None, pooling)?;
+        let engine = Yoke::try_attach_to_cart(model, |model| {
+            InferenceEngine::new_with_type(model, n_ctx, true, None, None, pooling)
+        })?;
         Ok(Self { engine, pooling })
     }
 
     #[cfg(test)]
     fn get_embedding(&self) -> Result<Vec<f32>, llama_cpp_2::EmbeddingsSeqError> {
-        Ok(self.engine.ctx.embeddings_seq_ith(0)?.to_vec())
+        Ok(self.engine.get().ctx.embeddings_seq_ith(0)?.to_vec())
     }
 
     /// Tokenize `text` and read it into the context.
     #[cfg(test)]
     #[tracing::instrument(level = "trace", skip(self))]
     fn read_string(&mut self, text: String) -> Result<&mut Self, crate::errors::ReadError> {
-        let chunks = self.engine.tokenize(text, vec![])?;
-        self.engine.read_chunks(chunks)?;
+        let chunks = self.engine.get().tokenize(text, vec![])?;
+        self.engine.with_mut_return(|e| e.read_chunks(chunks))?;
         Ok(self)
     }
 }
@@ -207,7 +212,7 @@ mod tests {
     fn test_encoder_worker_direct() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_embeddings_model();
 
-        let mut worker = EncoderWorker::new(&model, 1024)?;
+        let mut worker = EncoderWorker::new(model, 1024)?;
 
         let copenhagen_embedding = worker
             .read_string("Copenhagen is the capital of Denmark.".to_string())?

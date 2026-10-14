@@ -55,6 +55,7 @@ use std::ops::ControlFlow;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
+use yoke::{Yoke, Yokeable};
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(tag = "role", rename_all = "lowercase")]
@@ -652,7 +653,7 @@ impl ChatHandle {
         let should_stop_clone = Arc::clone(&should_stop);
 
         let join_handle = std::thread::spawn(move || {
-            let worker = Chat::new_chat_worker(&model, config, should_stop_clone);
+            let worker = Chat::new_chat_worker(model, config, should_stop_clone);
             let mut worker_state = match worker {
                 Ok(w) => {
                     let _ = init_tx.send(Ok(()));
@@ -1070,7 +1071,7 @@ impl ChatHandleAsync {
         let should_stop_clone = Arc::clone(&should_stop);
 
         let join_handle = std::thread::spawn(move || {
-            let worker = Chat::new_chat_worker(&model, config, should_stop_clone);
+            let worker = Chat::new_chat_worker(model, config, should_stop_clone);
             let mut worker_state = match worker {
                 Ok(w) => {
                     let _ = init_tx.send(Ok(()));
@@ -1840,7 +1841,7 @@ impl std::fmt::Debug for ChatMsg {
 /// Handle one message. Nothing here propagates: a failure is answered on the
 /// message's own reply channel, so no argument a caller passes can end the
 /// worker thread.
-fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
+fn process_worker_msg(worker_state: &mut Chat, msg: ChatMsg) {
     info!(?msg, "Worker processing:");
     match msg {
         ChatMsg::Turn { input, output } => {
@@ -1964,13 +1965,13 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
         }
         ChatMsg::GetStats { output_tx } => {
             let stats = ChatStats {
-                context_size: worker_state.engine.ctx.n_ctx(),
-                context_used: worker_state.engine.actual_context_size() as u32,
+                context_size: worker_state.engine().ctx.n_ctx(),
+                context_used: worker_state.engine().actual_context_size() as u32,
             };
             let _ = output_tx.blocking_send(stats);
         }
         ChatMsg::GetMtpAcceptanceRate { output_tx } => {
-            let _ = output_tx.blocking_send(worker_state.engine.mtp_acceptance_rate());
+            let _ = output_tx.blocking_send(worker_state.engine().mtp_acceptance_rate());
         }
         ChatMsg::Tokenize { prompt, output_tx } => {
             let result = worker_state.tokenize(prompt);
@@ -2073,6 +2074,7 @@ fn build_tool_sampler(
 
 /// The samplers a chat response can draw from: `base` for free generation,
 /// `tool` (grammar-constrained) once the response enters a block of tool calls.
+#[derive(Clone, Debug)]
 pub(crate) struct ChatSampler {
     base_sampler: LlamaSampler,
     tool_call_sampler: Option<LlamaSampler>,
@@ -2140,12 +2142,10 @@ impl ChatSampler {
 
 /// A chat session: owns an [`InferenceEngine`] plus all the conversational state
 /// (messages, tools, template, sampler config).
-struct Chat<'a> {
-    model: &'a llm::Model,
-    engine: InferenceEngine<'a>,
+struct Chat {
+    context: Yoke<ChatContext<'static>, Arc<llm::Model>>,
     should_stop: Arc<AtomicBool>,
     model_output: ModelOutput,
-    sampler: ChatSampler,
     grammar_factory: Option<GrammarFactory>,
     sampler_config: SamplerConfig,
     messages: History,
@@ -2157,12 +2157,21 @@ struct Chat<'a> {
     shift: Option<ContextShift>,
 }
 
-impl<'a> Chat<'a> {
+/// Chat state that references the model.
+#[derive(Debug, Yokeable)]
+struct ChatContext<'model> {
+    engine: InferenceEngine<'model>,
+    /// This actually holds a reference to the model, and should have a
+    /// lifetime too: <https://github.com/utilityai/llama-cpp-rs/issues/1126>.
+    sampler: ChatSampler,
+}
+
+impl Chat {
     fn new_chat_worker(
-        model: &'a llm::Model,
+        model: Arc<llm::Model>,
         config: ChatConfig,
         should_stop: Arc<AtomicBool>,
-    ) -> Result<Chat<'a>, InitWorkerError> {
+    ) -> Result<Chat, InitWorkerError> {
         if !model.is_generative_model() {
             let architecture = model
                 .language_model
@@ -2177,10 +2186,6 @@ impl<'a> Chat<'a> {
             Some(sc) => sc,
             None => read_sampler_from_metadata(&model.language_model).unwrap_or_default(),
         };
-
-        // Pre-build the base sampler for `sampler_config`, reused (via
-        // `ChatSampler`) for every response.
-        let base_sampler = sampler_config.build_sampler(&model.language_model)?;
 
         // Depends only on the model, not on `config.tools`, so detect it once
         // here regardless. Only a hard error if tools were actually requested.
@@ -2199,35 +2204,47 @@ impl<'a> Chat<'a> {
         };
 
         let mut grammar_factory = None;
-        let tool_sampler = build_tool_sampler(
-            &model.language_model,
-            &mut grammar_factory,
-            &config.tools,
-            &sampler_config,
-            model_output.resolved_format(),
-        )?;
 
-        let engine = InferenceEngine::new_with_type(
-            model,
-            config.n_ctx,
-            false,
-            config.mtp,
-            config.n_threads,
-            LlamaPoolingType::None,
-        )?;
+        // Build the low-level inference engine via the shared Worker constructor,
+        // then take ownership of just the engine for the chat session.
+        let context = Yoke::<ChatContext<'_>, _>::try_attach_to_cart(model, |model| {
+            // Pre-build the base sampler for `sampler_config`, reused (via
+            // `ChatSampler`) for every response.
+            let base_sampler = sampler_config.build_sampler(&model.language_model)?;
+
+            let tool_sampler = build_tool_sampler(
+                &model.language_model,
+                &mut grammar_factory,
+                &config.tools,
+                &sampler_config,
+                model_output.resolved_format(),
+            )?;
+
+            let engine = InferenceEngine::new_with_type(
+                model,
+                config.n_ctx,
+                false,
+                config.mtp,
+                config.n_threads,
+                LlamaPoolingType::None,
+            )?;
+
+            Ok::<_, InitWorkerError>(ChatContext {
+                engine,
+                sampler: ChatSampler::new(base_sampler, tool_sampler),
+            })
+        })?;
 
         // Parse against the real context, which may be capped below the requested n_ctx.
         let shift = config
             .context_shift
-            .map(|options| options.parse(engine.ctx.n_ctx()))
+            .map(|options| options.parse(context.get().engine.ctx.n_ctx()))
             .transpose()?;
 
         Ok(Chat {
-            model,
-            engine,
+            context,
             should_stop,
             model_output,
-            sampler: ChatSampler::new(base_sampler, tool_sampler),
             grammar_factory,
             sampler_config,
             messages: History::default(),
@@ -2238,6 +2255,21 @@ impl<'a> Chat<'a> {
             media: MediaStore::new(),
             shift,
         })
+    }
+
+    fn engine(&self) -> &InferenceEngine<'_> {
+        &self.context.get().engine
+    }
+
+    fn engine_mut<R: 'static>(
+        &mut self,
+        f: impl FnOnce(&mut InferenceEngine<'_>) -> R + 'static,
+    ) -> R {
+        self.context.with_mut_return(|c| f(&mut c.engine))
+    }
+
+    fn sampler_mut<R: 'static>(&mut self, f: impl FnOnce(&mut ChatSampler) -> R + 'static) -> R {
+        self.context.with_mut_return(|c| f(&mut c.sampler))
     }
 
     fn should_stop(&self) -> bool {
@@ -2272,7 +2304,7 @@ impl<'a> Chat<'a> {
     fn sync_context_with_render(&mut self) -> Result<String, ContextSyncError> {
         let mut render = self.render(&self.messages, true)?;
         let mut chunks = self.chunks_of(&self.messages, render.clone())?;
-        if chunks.n_tokens() > self.engine.ctx.n_ctx() as usize {
+        if chunks.n_tokens() > self.engine().ctx.n_ctx() as usize {
             self.context_shift(0)?;
             render = self.render(&self.messages, true)?;
             chunks = self.chunks_of(&self.messages, render.clone())?;
@@ -2286,7 +2318,7 @@ impl<'a> Chat<'a> {
         let checkpoint_at = self.checkpoint_index(&chunks)?;
 
         // Diff against the KV mirror and load only the new tail.
-        self.engine.sync_context(chunks, checkpoint_at)?;
+        self.engine_mut(move |e| e.sync_context(chunks, checkpoint_at))?;
         self.media.retain_referenced(&self.messages);
 
         Ok(render)
@@ -2296,7 +2328,8 @@ impl<'a> Chat<'a> {
     /// message, which later turns keep while e.g. dropping the answer's thinking.
     fn checkpoint_index(&self, chunks: &TokenizerChunks) -> Result<Option<usize>, RenderError> {
         // Not at a tool response: the next turn may re-render the tool call before it.
-        if !self.engine.needs_checkpoints() || !self.messages.last().is_some_and(Message::is_user) {
+        if !self.engine().needs_checkpoints() || !self.messages.last().is_some_and(Message::is_user)
+        {
             return Ok(None);
         }
         let history = self.render_as_chunks(&self.messages, false)?;
@@ -2407,8 +2440,8 @@ impl<'a> Chat<'a> {
                     return Ok(None);
                 }
                 match part {
-                    ContentPart::Image { path, .. } => self.engine.load_image(path).map(Some),
-                    ContentPart::Audio { path, .. } => self.engine.load_audio(path).map(Some),
+                    ContentPart::Image { path, .. } => self.engine().load_image(path).map(Some),
+                    ContentPart::Audio { path, .. } => self.engine().load_audio(path).map(Some),
                     ContentPart::Text { .. } => unreachable!("media_parts filters out text"),
                 }
             })
@@ -2520,7 +2553,7 @@ impl<'a> Chat<'a> {
             .flat_map(|msg| msg.media_ids())
             .filter_map(|id| self.media.get(id))
             .collect();
-        Ok(self.engine.tokenize(render, bitmaps)?)
+        Ok(self.engine().tokenize(render, bitmaps)?)
     }
 
     /// `messages` through the chat template, as `render_as_chunks` explains.
@@ -2548,15 +2581,15 @@ impl<'a> Chat<'a> {
     ) -> Result<(), SetterError> {
         // Run fallible functions before committing to state.
         let tool_sampler = build_tool_sampler(
-            &self.model.language_model,
+            &self.context.backing_cart().language_model,
             &mut self.grammar_factory,
             &tools,
             &self.sampler_config,
             self.model_output.resolved_format(),
         )?;
 
-        self.engine.reset_context()?;
-        self.sampler.set_tool(tool_sampler);
+        self.engine_mut(|e| e.reset_context())?;
+        self.sampler_mut(|s| s.set_tool(tool_sampler));
         self.tools = tools;
         self.messages = History::default();
         self.system_prompt = system_prompt;
@@ -2608,7 +2641,7 @@ impl<'a> Chat<'a> {
             return Ok(());
         }
 
-        let model = &self.model.language_model;
+        let model = &self.context.backing_cart().language_model;
         let config = sampler_config.as_ref().unwrap_or(&self.sampler_config);
         let effective_tools = tools.as_deref().unwrap_or(&self.tools);
 
@@ -2638,9 +2671,9 @@ impl<'a> Chat<'a> {
             self.sampler_config = config;
         }
         if let Some(base_sampler) = base_sampler {
-            self.sampler.set_base(base_sampler);
+            self.sampler_mut(|s| s.set_base(base_sampler));
         }
-        self.sampler.set_tool(tool_sampler);
+        self.sampler_mut(|s| s.set_tool(tool_sampler));
         if let Some(tools) = tools {
             self.tools = tools;
         }
@@ -2655,7 +2688,7 @@ impl<'a> Chat<'a> {
         options: Option<ContextShiftOptions>,
     ) -> Result<(), SetterError> {
         self.shift = options
-            .map(|options| options.parse(self.engine.ctx.n_ctx()))
+            .map(|options| options.parse(self.engine().ctx.n_ctx()))
             .transpose()?;
         Ok(())
     }
@@ -2708,14 +2741,14 @@ impl<'a> Chat<'a> {
             .media_parts()
             .into_iter()
             .map(|part| match part {
-                ContentPart::Image { path, .. } => self.engine.load_image(path),
-                ContentPart::Audio { path, .. } => self.engine.load_audio(path),
+                ContentPart::Image { path, .. } => self.engine().load_image(path),
+                ContentPart::Audio { path, .. } => self.engine().load_audio(path),
                 ContentPart::Text { .. } => unreachable!("media_parts filters out text"),
             })
             .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?;
 
         let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
-        let chunks = self.engine.tokenize(prompt.to_string(), bitmap_refs)?;
+        let chunks = self.engine().tokenize(prompt.to_string(), bitmap_refs)?;
         Ok(chunks.to_token_ids())
     }
 }
@@ -2756,10 +2789,10 @@ struct GeneratedResponse {
 impl ResponseGenerator {
     fn new(chat: &mut Chat) -> Result<Self, ContextSyncError> {
         let prompt = chat.sync_context_with_render()?;
-        let prompt_tokens = chat.engine.kv_mirror().n_tokens();
+        let prompt_tokens = chat.engine_mut(|e| e.kv_mirror().n_tokens());
 
-        chat.engine.reset_mtp_stats();
-        chat.sampler.reset();
+        chat.engine_mut(|e| e.reset_mtp_stats());
+        chat.sampler_mut(|s| s.reset());
 
         let parser = ResponseParser::new(chat.model_output.clone(), chat.tools.clone(), &prompt);
 
@@ -2818,7 +2851,7 @@ impl ResponseGenerator {
                 }
 
                 // Do a context shift if the context is full.
-                if chat.engine.is_context_full() {
+                if chat.engine().is_context_full() {
                     // Leave room for the partial response, which is read back
                     // in below.
                     chat.context_shift(self.produced_tokens.len())?;
@@ -2827,24 +2860,27 @@ impl ResponseGenerator {
                         let mut generated_chunks = TokenizerChunks::new();
                         generated_chunks
                             .append(TokenizerChunk::new_text(self.produced_tokens.clone()));
-                        chat.engine.read_chunks(generated_chunks)?;
+                        chat.engine_mut(|e| e.read_chunks(generated_chunks))?;
                     }
                 }
 
-                let new_token = chat.engine.next_token(&mut chat.sampler)?;
+                let new_token = chat
+                    .context
+                    .with_mut_return(|ctx| ctx.engine.next_token(&mut ctx.sampler))?;
                 assert_ne!(new_token.0, -1, "invalid token generated");
 
                 self.produced_tokens.push(new_token);
 
                 let bytes = chat
-                    .model
+                    .context
+                    .backing_cart()
                     .language_model
                     .vocab()
                     .token_to_piece(new_token, true, None);
                 let was_in_tool_calls = parser.in_tool_calls();
                 let text = parser.push(new_token, &bytes);
                 if !was_in_tool_calls && parser.in_tool_calls() {
-                    chat.sampler.activate_tool_grammar(new_token);
+                    chat.sampler_mut(move |s| s.activate_tool_grammar(new_token));
                 }
 
                 // Put back the state that we consumed in `mem::replace`
@@ -3102,7 +3138,7 @@ mod tests {
         let model = test_utils::load_test_model();
 
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 n_ctx: 1024,
                 ..Default::default()
@@ -3142,7 +3178,7 @@ mod tests {
         };
 
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 n_ctx: 1024,
                 mtp: Some(MtpConfig::default()),
@@ -3172,7 +3208,7 @@ mod tests {
     fn test_reset_chat() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 system_prompt: Some("You're a dog. End all responses with 'woof'".into()),
                 ..ChatConfig::default()
@@ -3209,7 +3245,7 @@ mod tests {
     fn test_stop_mid_write() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 system_prompt: Some("You are a counter, only outputting numbers".into()),
                 n_ctx: 1024,
@@ -3320,7 +3356,7 @@ mod tests {
         let model = test_utils::load_test_model();
         let setup_start = std::time::Instant::now();
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 system_prompt: Some("You're a helpful assistant.".into()),
                 n_ctx: 4096,
@@ -3373,7 +3409,7 @@ mod tests {
 
         let setup_start = std::time::Instant::now();
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 n_ctx: 512,
                 tools: vec![test_tool()],
@@ -3407,7 +3443,7 @@ mod tests {
     fn tool_calling_survives_a_sampler_config_change() {
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 n_ctx: 4096,
                 tools: vec![test_tool()],
@@ -3449,7 +3485,7 @@ mod tests {
     fn test_tool_chat() {
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 system_prompt: Some("You're a helpful assistant.".into()),
                 n_ctx: 4096,
@@ -3503,7 +3539,7 @@ mod tests {
     fn a_turn_out_of_tokens_finishes_with_length() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 n_ctx: 1024,
                 tools: vec![test_tool()],
@@ -3525,7 +3561,7 @@ mod tests {
     fn test_multi_tool_call() {
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 tools: vec![test_tool(), dkk_exchange_rate()],
                 ..Default::default()
@@ -3553,7 +3589,7 @@ mod tests {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 n_ctx: 1024,
                 tools: vec![test_tool()],
@@ -3657,14 +3693,14 @@ mod tests {
         let defaults = ContextShiftOptions::default();
         for turn_count in [2, defaults.keep_first_turns + defaults.keep_last_turns] {
             let mut worker = Chat::new_chat_worker(
-                &model,
+                Arc::clone(&model),
                 ChatConfig {
                     n_ctx: 512,
                     ..Default::default()
                 },
                 Arc::new(AtomicBool::new(false)),
             )?;
-            let target_size = (worker.engine.ctx.n_ctx() / 2) as usize;
+            let target_size = (worker.engine().ctx.n_ctx() / 2) as usize;
 
             // An opening turn far too large for the context, then filler turns.
             worker.add_user_message("padding ".repeat(target_size));
@@ -3693,7 +3729,7 @@ mod tests {
     fn test_context_shift_error_cases() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 n_ctx: 512,
                 ..Default::default()
@@ -3715,11 +3751,11 @@ mod tests {
         Ok(())
     }
 
-    fn worker_with_turns<'a>(
-        model: &'a llm::Model,
+    fn worker_with_turns(
+        model: Arc<llm::Model>,
         context_shift: Option<ContextShiftOptions>,
         turns: usize,
-    ) -> Result<Chat<'a>, Box<dyn std::error::Error>> {
+    ) -> Result<Chat, Box<dyn std::error::Error>> {
         let mut worker = Chat::new_chat_worker(
             model,
             ChatConfig {
@@ -3743,8 +3779,8 @@ mod tests {
     #[test]
     fn test_context_shift_deletes_fewest_turns() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
-        let mut worker = worker_with_turns(&model, Some(ContextShiftOptions::default()), 20)?;
-        let target_size = (worker.engine.ctx.n_ctx() / 2) as usize;
+        let mut worker = worker_with_turns(model, Some(ContextShiftOptions::default()), 20)?;
+        let target_size = (worker.engine().ctx.n_ctx() / 2) as usize;
         let original = worker.messages.clone();
         let turn_starts = user_message_indices(&original);
 
@@ -3772,7 +3808,7 @@ mod tests {
             keep_last_turns: 3,
             target: ShiftTarget::Tokens(200),
         };
-        let mut worker = worker_with_turns(&model, Some(options), 20)?;
+        let mut worker = worker_with_turns(model, Some(options), 20)?;
         let before: Vec<String> = worker
             .messages
             .iter()
@@ -3801,8 +3837,8 @@ mod tests {
     #[test]
     fn test_context_shift_reserves_tokens() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
-        let mut worker = worker_with_turns(&model, Some(ContextShiftOptions::default()), 20)?;
-        let target_size = (worker.engine.ctx.n_ctx() / 2) as usize;
+        let mut worker = worker_with_turns(model, Some(ContextShiftOptions::default()), 20)?;
+        let target_size = (worker.engine().ctx.n_ctx() / 2) as usize;
 
         worker.context_shift(100)?;
         assert!(render(&worker, &worker.messages)?.n_tokens() <= target_size - 100);
@@ -3813,7 +3849,7 @@ mod tests {
     #[test]
     fn test_context_shift_disabled() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
-        let mut worker = worker_with_turns(&model, None, 20)?;
+        let mut worker = worker_with_turns(model, None, 20)?;
         assert!(render(&worker, &worker.messages)?.n_tokens() > 512);
 
         assert!(matches!(
@@ -3827,7 +3863,7 @@ mod tests {
     #[test]
     fn test_set_context_shift() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
-        let mut worker = worker_with_turns(&model, Some(ContextShiftOptions::default()), 20)?;
+        let mut worker = worker_with_turns(model, Some(ContextShiftOptions::default()), 20)?;
 
         let invalid = ContextShiftOptions {
             target: ShiftTarget::Tokens(512),
@@ -3884,14 +3920,14 @@ mod tests {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 n_ctx: 512,
                 ..Default::default()
             },
             Arc::new(AtomicBool::new(false)),
         )?;
-        let target_size = (worker.engine.ctx.n_ctx() / 2) as usize;
+        let target_size = (worker.engine().ctx.n_ctx() / 2) as usize;
 
         worker.add_assistant_message("prefix".to_string());
         for (user, assistant) in [
@@ -3932,7 +3968,7 @@ mod tests {
         let n_ctx = 1024;
         let n_messages = 10;
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 n_ctx,
                 system_prompt: Some("You are a helpful assistant.".into()),
@@ -3986,7 +4022,7 @@ mod tests {
         // n_messages is chosen by trial and error. This exactly fills up the
         // the context so much that the next user message cannot be read and a context shift happens.
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 system_prompt: Some("You are a helpful assistant.".into()),
                 n_ctx: 512, // Use a small context size to force shifting
@@ -4059,7 +4095,7 @@ mod tests {
         // The same is true for n_ctx. It needs to be large enough to where n_ctx/2 is large enough
         // to contain the response but also small enough to fill easily and test wihtout being to slow.
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 n_ctx: 768, // Use a small context size to force shifting
                 system_prompt: Some("You are a helpful assistant.".into()),
@@ -4601,7 +4637,7 @@ mod tests {
     {
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 n_ctx: 512,
                 ..Default::default()
@@ -4770,7 +4806,7 @@ mod tests {
         };
 
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 n_ctx: 4096,
                 ..Default::default()
@@ -4812,7 +4848,7 @@ mod tests {
         };
 
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 n_ctx: 4096,
                 ..Default::default()
@@ -4882,7 +4918,7 @@ mod tests {
         };
 
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 n_ctx: 4096,
                 ..Default::default()
@@ -4975,7 +5011,7 @@ mod tests {
         };
 
         let mut worker = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 n_ctx: 4096,
                 ..Default::default()
@@ -5075,16 +5111,20 @@ mod tests {
     /// Prompt tokens llama.cpp decodes during `turn`; generated tokens aren't counted.
     fn prompt_tokens_decoded(chat: &mut Chat, turn: impl FnOnce(&mut Chat)) -> i32 {
         // llama.cpp counts a decode once it finishes, which reading the logits waits for.
-        let _ = chat.engine.ctx.get_logits();
-        chat.engine.ctx.reset_timings();
+        let _ = chat.engine().ctx.get_logits();
+        chat.engine_mut(|e| e.ctx.reset_timings());
         turn(chat);
-        let _ = chat.engine.ctx.get_logits();
-        chat.engine.ctx.timings().n_p_eval()
+        let _ = chat.engine().ctx.get_logits();
+        chat.engine_mut(|e| e.ctx.timings()).n_p_eval()
     }
 
     /// Before each turn the KV cache must hold exactly the rendered chat, by
     /// position and by token count, and later turns must not re-read all of it.
-    fn assert_cache_matches_render(model: &llm::Model, config: ChatConfig, first: MessageContent) {
+    fn assert_cache_matches_render(
+        model: Arc<llm::Model>,
+        config: ChatConfig,
+        first: MessageContent,
+    ) {
         let mut chat = Chat::new_chat_worker(
             model,
             ChatConfig {
@@ -5109,10 +5149,13 @@ mod tests {
             let decoded = prompt_tokens_decoded(&mut chat, |chat| {
                 chat.sync_context_with_render().unwrap();
                 assert_eq!(
-                    chat.engine.ctx.kv_cache_seq_pos_max(0) + 1,
+                    chat.engine().ctx.kv_cache_seq_pos_max(0) + 1,
                     render.n_positions() as i32
                 );
-                assert_eq!(chat.engine.actual_context_size(), render.n_tokens() as i32);
+                assert_eq!(
+                    chat.engine().actual_context_size(),
+                    render.n_tokens() as i32
+                );
             });
             if turn > 0 {
                 assert!(
@@ -5134,7 +5177,7 @@ mod tests {
         let Some(model) = test_utils::load_model_from_env("TEST_VISION_MODEL", None) else {
             return;
         };
-        assert_cache_matches_render(&model, ChatConfig::default(), "Say hi in one word.".into());
+        assert_cache_matches_render(model, ChatConfig::default(), "Say hi in one word.".into());
     }
 
     /// Qwen3.5 gives an image fewer KV positions than tokens (M-RoPE).
@@ -5151,7 +5194,7 @@ mod tests {
             ContentPart::image(image),
             ContentPart::text("What animal is this? One word."),
         ]);
-        assert_cache_matches_render(&model, ChatConfig::default(), first);
+        assert_cache_matches_render(model, ChatConfig::default(), first);
     }
 
     /// Qwen3.5 drops an answer's thinking from the history, so each turn rewinds
@@ -5165,7 +5208,7 @@ mod tests {
             template_variables: [("enable_thinking".to_string(), true)].into(),
             ..Default::default()
         };
-        assert_cache_matches_render(&model, config, "Say hi in one word.".into());
+        assert_cache_matches_render(model, config, "Say hi in one word.".into());
     }
 
     /// MTP on a recurrent model rolls rejected drafts back natively, and the draft
@@ -5178,13 +5221,13 @@ mod tests {
             return;
         };
         // Qwen3.5 keeps its MTP head in the same file.
-        let model = llm::get_model(&path, true, None, Some(&path), None).unwrap();
+        let model = Arc::new(llm::get_model(&path, true, None, Some(&path), None).unwrap());
         let config = ChatConfig {
             mtp: Some(MtpConfig::default()),
             template_variables: [("enable_thinking".to_string(), true)].into(),
             ..Default::default()
         };
-        assert_cache_matches_render(&model, config, "Say hi in one word.".into());
+        assert_cache_matches_render(model, config, "Say hi in one word.".into());
     }
 
     /// A tool call adds a sync at the tool response; the checkpoint has to stay at
@@ -5195,7 +5238,7 @@ mod tests {
             return;
         };
         let mut chat = Chat::new_chat_worker(
-            &model,
+            model,
             ChatConfig {
                 tools: vec![test_tool()],
                 template_variables: [("enable_thinking".to_string(), false)].into(),
@@ -5210,7 +5253,7 @@ mod tests {
             ("What is the temperature in Beijing?", "42.69"),
             ("And Copenhagen again?", "13.37"),
         ] {
-            let cached = chat.engine.kv_mirror().n_tokens() as i32;
+            let cached = chat.engine_mut(|e| e.kv_mirror().n_tokens()) as i32;
             let mut answer = String::new();
             let decoded = prompt_tokens_decoded(&mut chat, |chat| {
                 answer = chat

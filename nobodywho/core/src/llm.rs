@@ -377,7 +377,7 @@ impl<'a> InferenceEngine<'a> {
         let n_threads = crate::cpu::inference_thread_count(n_threads) as i32;
         let ctx_plan = memory::plan_context(
             std::cmp::min(n_ctx, model.language_model.n_ctx_train()),
-            projection_model.is_some(),
+            model.projection_model.is_some(),
             memory::ModelArchitecture {
                 n_layers: model.language_model.n_layer(),
                 n_embd: model.language_model.n_embd() as u32,

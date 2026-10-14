@@ -5,6 +5,7 @@ use crate::llm::WorkerGuard;
 use llama_cpp_2::context::params::LlamaPoolingType;
 use std::sync::Arc;
 use tracing::{error, warn};
+use yoke::Yoke;
 
 #[derive(Clone)]
 pub struct CrossEncoder {
@@ -46,7 +47,7 @@ impl CrossEncoderAsync {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let join_handle = std::thread::spawn(move || {
-            let worker = CrossEncoderWorker::new(&model, n_ctx);
+            let worker = CrossEncoderWorker::new(model, n_ctx);
             let mut worker_state = match worker {
                 Ok(worker_state) => worker_state,
                 Err(errmsg) => {
@@ -113,7 +114,7 @@ enum CrossEncoderMsg {
 }
 
 /// Handle one message, reporting success or failure on its reply channel.
-fn process_worker_msg(worker_state: &mut CrossEncoderWorker<'_>, msg: CrossEncoderMsg) {
+fn process_worker_msg(worker_state: &mut CrossEncoderWorker, msg: CrossEncoderMsg) {
     match msg {
         CrossEncoderMsg::Rank {
             query,
@@ -127,16 +128,16 @@ fn process_worker_msg(worker_state: &mut CrossEncoderWorker<'_>, msg: CrossEncod
     }
 }
 
-struct CrossEncoderWorker<'a> {
-    model: &'a llm::Model,
-    engine: InferenceEngine<'a>,
+struct CrossEncoderWorker {
+    engine: Yoke<InferenceEngine<'static>, Arc<llm::Model>>,
 }
 
-impl<'a> CrossEncoderWorker<'a> {
-    pub fn new(model: &'a llm::Model, n_ctx: u32) -> Result<Self, InitWorkerError> {
-        let engine =
-            InferenceEngine::new_with_type(model, n_ctx, true, None, None, LlamaPoolingType::Rank)?;
-        Ok(Self { model, engine })
+impl CrossEncoderWorker {
+    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
+        let engine = Yoke::try_attach_to_cart(model, |model| {
+            InferenceEngine::new_with_type(model, n_ctx, true, None, None, LlamaPoolingType::Rank)
+        })?;
+        Ok(Self { engine })
     }
 
     pub fn rank(
@@ -144,7 +145,7 @@ impl<'a> CrossEncoderWorker<'a> {
         query: String,
         documents: Vec<String>,
     ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
-        let vocab = self.model.language_model.vocab();
+        let vocab = self.engine.backing_cart().language_model.vocab();
 
         let bos = vocab.bos();
         let bos = if bos.0 != -1 {
@@ -170,7 +171,7 @@ impl<'a> CrossEncoderWorker<'a> {
             .collect();
 
         self.engine
-            .read_strings_batched(inputs, classification_score_for)
+            .with_mut_return(|e| e.read_strings_batched(inputs, classification_score_for))
             .map_err(|error| match error {
                 BatchedReadError::Read(error) => CrossEncoderWorkerError::Read(error),
                 BatchedReadError::Output(error) => error,
