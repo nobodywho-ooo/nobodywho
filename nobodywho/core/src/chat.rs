@@ -747,25 +747,7 @@ impl ChatHandle {
         Ok(TokenStream::new(output_rx))
     }
 
-    pub fn complete_with_metadata(
-        &self,
-        messages: Vec<Message>,
-        options: Options,
-        max_tokens: Option<usize>,
-    ) -> Result<CompletionStream, InvalidHistoryError> {
-        self.completion_stream(messages, options, max_tokens, true)
-    }
-
-    pub fn complete_with_external_tools(
-        &self,
-        messages: Vec<Message>,
-        options: Options,
-        max_tokens: Option<usize>,
-    ) -> Result<CompletionStream, InvalidHistoryError> {
-        self.completion_stream(messages, options, max_tokens, false)
-    }
-
-    fn completion_stream(
+    pub fn completion_stream(
         &self,
         messages: Vec<Message>,
         options: Options,
@@ -1159,38 +1141,23 @@ impl ChatHandleAsync {
         Ok(TokenStreamAsync::new(output_rx))
     }
 
-    pub fn complete_with_metadata(
-        &self,
-        messages: Vec<Message>,
-        options: Options,
-        max_tokens: Option<usize>,
-    ) -> Result<CompletionStreamAsync, InvalidHistoryError> {
-        Ok(CompletionStreamAsync(completion_receiver(
-            &self.guard,
-            messages,
-            options,
-            max_tokens,
-            true,
-        )?))
-    }
-
-    /// Generate one assistant response and return tool calls to the caller.
+    /// Generate one assistant response.
     ///
-    /// Unlike [`complete`](Self::complete), this never executes tool callbacks.
-    /// The caller can execute returned calls and submit the full conversation,
-    /// including the tool results, in a following request.
-    pub fn complete_with_external_tools(
+    /// If `execute_tools` is `false`, this returns return tool calls for the
+    /// caller to execute and submit in a following request.
+    pub fn completion_stream(
         &self,
         messages: Vec<Message>,
         options: Options,
         max_tokens: Option<usize>,
+        execute_tools: bool,
     ) -> Result<CompletionStreamAsync, InvalidHistoryError> {
         Ok(CompletionStreamAsync(completion_receiver(
             &self.guard,
             messages,
             options,
             max_tokens,
-            false,
+            execute_tools,
         )?))
     }
 
@@ -1661,7 +1628,7 @@ enum TurnInput {
 enum TurnOutput {
     /// Tokens, then the answer's text, as `ask` and `complete` stream them.
     Text(tokio::sync::mpsc::UnboundedSender<crate::stream::StreamOutput<CompletionError>>),
-    /// Tokens, then the whole response, as `complete_with_metadata` streams them.
+    /// Tokens, then the whole response, as `completion_stream` streams them.
     Completion(tokio::sync::mpsc::Sender<ExternalCompletionOutput>),
 }
 
