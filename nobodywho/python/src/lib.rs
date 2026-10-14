@@ -48,7 +48,7 @@ fn validate_output_limit(
     let Some(max_tokens) = max_tokens else {
         return Ok(None);
     };
-    let context_size = py.detach(|| chat.get_stats()).context_size as usize;
+    let context_size = py.detach(|| chat.blocking_lock().get_stats()).context_size as usize;
     if max_tokens == 0 || max_tokens > context_size {
         return Err(pyo3::exceptions::PyValueError::new_err(format!(
             "the output token limit must be between 1 and {context_size}"
@@ -1126,13 +1126,13 @@ enum SyncStreamInner {
 impl SyncStreamInner {
     fn next_token(&mut self) -> Result<Option<String>, String> {
         match self {
-            Self::Chat(s) => s.next_token().map_err(|e| render_miette(&e)),
+            Self::Chat(s) => s.blocking_next_token().map_err(|e| render_miette(&e)),
             Self::SpeechToText(s) => s.next_token().map_err(|e| e.to_string()),
         }
     }
     fn completed(&mut self) -> Result<String, String> {
         match self {
-            Self::Chat(s) => s.completed().map_err(|e| render_miette(&e)),
+            Self::Chat(s) => s.blocking_completed().map_err(|e| render_miette(&e)),
             Self::SpeechToText(s) => s.completed().map_err(|e| e.to_string()),
         }
     }
@@ -1140,7 +1140,7 @@ impl SyncStreamInner {
 
 // Type-erased inner for async streams.
 enum AsyncStreamInner {
-    Chat(nobodywho::chat::TokenStreamAsync),
+    Chat(nobodywho::chat::TokenStream),
     SpeechToText(nobodywho::stream::TokenStreamAsync<nobodywho::errors::SpeechToTextError>),
 }
 
@@ -1571,7 +1571,7 @@ impl ChatCompletionStream {
             }
 
             let inner = self.inner.as_mut().expect("stream used after drop");
-            let chunk = py.detach(|| inner.next()).map_err(|error| {
+            let chunk = py.detach(|| inner.blocking_next()).map_err(|error| {
                 pyo3::exceptions::PyRuntimeError::new_err(render_miette(&error))
             })?;
             match chunk {
@@ -2421,6 +2421,10 @@ impl Chat {
     fn handle(&self) -> &nobodywho::chat::ChatHandle {
         self.chat_handle.as_ref().expect("Chat used after drop")
     }
+
+    fn lock(&self) -> tokio::sync::MutexGuard<'_, nobodywho::chat::Chat> {
+        self.handle().blocking_lock()
+    }
 }
 
 impl Drop for Chat {
@@ -2608,7 +2612,7 @@ impl Chat {
         py: Python,
     ) -> PyResult<()> {
         py.detach(|| {
-            self.handle()
+            self.lock()
                 .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
                 .map_err(err)
         })
@@ -2619,7 +2623,7 @@ impl Chat {
     /// Raises:
     ///     RuntimeError: If reset fails
     pub fn reset_history(&self, py: Python) -> PyResult<()> {
-        py.detach(|| self.handle().reset_history().map_err(err))
+        py.detach(|| self.lock().reset_history().map_err(err))
     }
 
     /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
@@ -2643,7 +2647,7 @@ impl Chat {
             1,
         )?;
         Ok(py.detach(|| {
-            self.handle()
+            self.lock()
                 .set_template_variable("enable_thinking".to_string(), allow_thinking)
         }))
     }
@@ -2657,7 +2661,7 @@ impl Chat {
     /// Raises:
     ///     RuntimeError: If the variable cannot be set
     pub fn set_template_variable(&self, name: String, value: bool, py: Python) {
-        py.detach(|| self.handle().set_template_variable(name, value))
+        py.detach(|| self.lock().set_template_variable(name, value))
     }
 
     /// Set all template variables, replacing any existing ones.
@@ -2672,7 +2676,7 @@ impl Chat {
         variables: std::collections::HashMap<String, bool>,
         py: Python,
     ) {
-        py.detach(|| self.handle().set_template_variables(variables))
+        py.detach(|| self.lock().set_template_variables(variables))
     }
 
     /// Get all template variables.
@@ -2683,7 +2687,7 @@ impl Chat {
     /// Raises:
     ///     RuntimeError: If the variables cannot be retrieved
     pub fn get_template_variables(&self, py: Python) -> std::collections::HashMap<String, bool> {
-        py.detach(|| self.handle().get_template_variables())
+        py.detach(|| self.lock().get_template_variables())
     }
 
     /// Get the current chat history as a list of message dictionaries.
@@ -2696,7 +2700,7 @@ impl Chat {
     ///     RuntimeError: If retrieval fails
     #[pyo3(signature = () -> "list[dict]")]
     pub fn get_chat_history(&self, py: Python) -> PyResult<Py<PyAny>> {
-        let msgs = py.detach(|| self.handle().get_chat_history());
+        let msgs = py.detach(|| self.lock().get_chat_history());
 
         pythonize::pythonize(py, &msgs)
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
@@ -2717,7 +2721,7 @@ impl Chat {
         let msgs = pythonize::depythonize(&msgs)
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
 
-        py.detach(|| self.handle().set_chat_history(msgs).map_err(err))
+        py.detach(|| self.lock().set_chat_history(msgs).map_err(err))
     }
 
     /// Stop the current text generation immediately.
@@ -2737,7 +2741,7 @@ impl Chat {
     ///     RuntimeError: If updating tools fails
     pub fn set_tools(&self, tools: Vec<Tool>, py: Python) -> PyResult<()> {
         py.detach(|| {
-            self.handle()
+            self.lock()
                 .set_tools(tools.into_iter().map(|t| t.tool).collect())
                 .map_err(err)
         })
@@ -2751,7 +2755,7 @@ impl Chat {
     /// Raises:
     ///     RuntimeError: If the system prompt cannot be changed
     pub fn set_system_prompt(&self, system_prompt: Option<String>, py: Python) {
-        py.detach(|| self.handle().set_system_prompt(system_prompt))
+        py.detach(|| self.lock().set_system_prompt(system_prompt))
     }
 
     /// Update how old turns are forgotten when the context is full.
@@ -2762,7 +2766,7 @@ impl Chat {
     /// Raises:
     ///     RuntimeError: If the options are invalid for this chat's context size
     pub fn set_context_shift(&self, options: ContextShiftOptions, py: Python) -> PyResult<()> {
-        py.detach(|| self.handle().set_context_shift(options.into()).map_err(err))
+        py.detach(|| self.lock().set_context_shift(options.into()).map_err(err))
     }
 
     /// Update the sampler configuration without resetting chat history.
@@ -2774,7 +2778,7 @@ impl Chat {
     ///     RuntimeError: If the sampler config cannot be changed
     pub fn set_sampler_config(&self, sampler: SamplerConfig, py: Python) -> PyResult<()> {
         py.detach(|| {
-            self.handle()
+            self.lock()
                 .set_sampler_config(sampler.sampler_config)
                 .map_err(err)
         })
@@ -2789,7 +2793,7 @@ impl Chat {
     ///     RuntimeError: If the sampler config cannot be retrieved
     pub fn get_sampler_config(&self, py: Python) -> SamplerConfig {
         py.detach(|| SamplerConfig {
-            sampler_config: self.handle().get_sampler_config(),
+            sampler_config: self.lock().get_sampler_config(),
         })
     }
 
@@ -2799,7 +2803,7 @@ impl Chat {
     ///     ChatStats with context_size and context_used fields
     #[pyo3(signature = () -> "ChatStats")]
     pub fn stats(&self, py: Python) -> ChatStats {
-        let s = py.detach(|| self.handle().get_stats());
+        let s = py.detach(|| self.lock().get_stats());
         ChatStats {
             context_size: s.context_size,
             context_used: s.context_used,
@@ -2813,7 +2817,7 @@ impl Chat {
     /// Returns:
     ///     Optional[float]
     pub fn mtp_acceptance_rate(&self, py: Python) -> Option<f32> {
-        py.detach(|| self.handle().mtp_acceptance_rate())
+        py.detach(|| self.lock().mtp_acceptance_rate())
     }
 
     /// Get the current system prompt.
@@ -2824,7 +2828,7 @@ impl Chat {
     /// Raises:
     ///     RuntimeError: If the system prompt cannot be retrieved
     pub fn get_system_prompt(&self, py: Python) -> Option<String> {
-        py.detach(|| self.handle().get_system_prompt())
+        py.detach(|| self.lock().get_system_prompt())
     }
 
     /// Tokenize a prompt and return token IDs.
@@ -2850,7 +2854,7 @@ impl Chat {
             PromptOrText::PromptObj(prompt_obj) => prompt_obj.borrow().prompt.clone(),
         };
         py.detach(|| {
-            self.handle()
+            self.lock()
                 .tokenize(nw_prompt)
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
@@ -2862,14 +2866,18 @@ impl Chat {
 #[pyclass]
 pub struct ChatAsync {
     // Option so we can take it in Drop to release it with the GIL temporarily dropped.
-    chat_handle: Option<nobodywho::chat::ChatHandleAsync>,
+    chat_handle: Option<nobodywho::chat::ChatHandle>,
 }
 
 impl ChatAsync {
-    fn handle(&self) -> &nobodywho::chat::ChatHandleAsync {
+    fn handle(&self) -> &nobodywho::chat::ChatHandle {
         self.chat_handle
             .as_ref()
             .expect("ChatAsync used after drop")
+    }
+
+    async fn lock(&self) -> tokio::sync::MutexGuard<'_, nobodywho::chat::Chat> {
+        self.handle().lock().await
     }
 }
 
@@ -2964,7 +2972,7 @@ impl ChatAsync {
             if let Some(s) = sampler {
                 builder = builder.with_sampler(s.sampler_config);
             }
-            builder.build_async()
+            builder.build()
         });
         let chat_handle = build_result.map_err(err)?;
         Ok(Self {
@@ -3052,9 +3060,9 @@ impl ChatAsync {
     ///     RuntimeError: If reset fails
     pub async fn reset(&self, system_prompt: Option<String>, tools: Vec<Tool>) -> PyResult<()> {
         // TODO: spawn_blocking
-        self.handle()
-            .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
+        self.lock()
             .await
+            .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
             .map_err(err)
     }
 
@@ -3063,7 +3071,7 @@ impl ChatAsync {
     /// Raises:
     ///     RuntimeError: If reset fails
     pub async fn reset_history(&self) -> PyResult<()> {
-        self.handle().reset_history().await.map_err(err)
+        self.lock().await.reset_history().map_err(err)
     }
 
     /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
@@ -3089,9 +3097,9 @@ impl ChatAsync {
             )
         })?;
         Ok(self
-            .handle()
-            .set_template_variable("enable_thinking".to_string(), allow_thinking)
-            .await)
+            .lock()
+            .await
+            .set_template_variable("enable_thinking".to_string(), allow_thinking))
     }
 
     /// Set a single template variable.
@@ -3103,7 +3111,7 @@ impl ChatAsync {
     /// Raises:
     ///     RuntimeError: If the variable cannot be set
     pub async fn set_template_variable(&self, name: String, value: bool) {
-        self.handle().set_template_variable(name, value).await
+        self.lock().await.set_template_variable(name, value)
     }
 
     /// Set all template variables, replacing any existing ones.
@@ -3114,7 +3122,7 @@ impl ChatAsync {
     /// Raises:
     ///     RuntimeError: If the variables cannot be set
     pub async fn set_template_variables(&self, variables: std::collections::HashMap<String, bool>) {
-        self.handle().set_template_variables(variables).await
+        self.lock().await.set_template_variables(variables)
     }
 
     /// Get all template variables.
@@ -3125,9 +3133,9 @@ impl ChatAsync {
     /// Raises:
     ///     RuntimeError: If the variables cannot be retrieved
     pub async fn get_template_variables(&self) -> std::collections::HashMap<String, bool> {
-        self.handle()
-            .get_template_variables()
+        self.lock()
             .await
+            .get_template_variables()
             .into_iter()
             .collect()
     }
@@ -3142,7 +3150,7 @@ impl ChatAsync {
     ///     RuntimeError: If retrieval fails
     #[pyo3(signature = () -> "list[dict]")]
     pub async fn get_chat_history(&self) -> PyResult<Py<PyAny>> {
-        let msgs = self.handle().get_chat_history().await;
+        let msgs = self.lock().await.get_chat_history();
 
         Python::attach(|py| {
             pythonize::pythonize(py, &msgs)
@@ -3168,7 +3176,7 @@ impl ChatAsync {
                 .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
         })?;
 
-        self.handle().set_chat_history(msgs).await.map_err(err)
+        self.lock().await.set_chat_history(msgs).map_err(err)
     }
 
     /// Stop the current text generation immediately.
@@ -3187,9 +3195,9 @@ impl ChatAsync {
     /// Raises:
     ///     RuntimeError: If updating tools fails
     pub async fn set_tools(&self, tools: Vec<Tool>) -> PyResult<()> {
-        self.handle()
-            .set_tools(tools.into_iter().map(|t| t.tool).collect())
+        self.lock()
             .await
+            .set_tools(tools.into_iter().map(|t| t.tool).collect())
             .map_err(err)
     }
 
@@ -3201,7 +3209,7 @@ impl ChatAsync {
     /// Raises:
     ///     RuntimeError: If the system prompt cannot be changed
     pub async fn set_system_prompt(&self, system_prompt: Option<String>) {
-        self.handle().set_system_prompt(system_prompt).await
+        self.lock().await.set_system_prompt(system_prompt)
     }
 
     /// Update how old turns are forgotten when the context is full.
@@ -3212,9 +3220,9 @@ impl ChatAsync {
     /// Raises:
     ///     RuntimeError: If the options are invalid for this chat's context size
     pub async fn set_context_shift(&self, options: ContextShiftOptions) -> PyResult<()> {
-        self.handle()
-            .set_context_shift(options.into())
+        self.lock()
             .await
+            .set_context_shift(options.into())
             .map_err(err)
     }
 
@@ -3226,9 +3234,9 @@ impl ChatAsync {
     /// Raises:
     ///     RuntimeError: If the sampler config cannot be changed
     pub async fn set_sampler_config(&self, sampler: SamplerConfig) -> PyResult<()> {
-        self.handle()
-            .set_sampler_config(sampler.sampler_config)
+        self.lock()
             .await
+            .set_sampler_config(sampler.sampler_config)
             .map_err(err)
     }
 
@@ -3241,7 +3249,7 @@ impl ChatAsync {
     ///     RuntimeError: If the sampler config cannot be retrieved
     pub async fn get_sampler_config(&self) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: self.handle().get_sampler_config().await,
+            sampler_config: self.lock().await.get_sampler_config(),
         }
     }
 
@@ -3251,7 +3259,7 @@ impl ChatAsync {
     ///     ChatStats with context_size and context_used fields
     #[pyo3(signature = () -> "ChatStats")]
     pub async fn stats(&self) -> ChatStats {
-        let s = self.handle().get_stats().await;
+        let s = self.lock().await.get_stats();
         ChatStats {
             context_size: s.context_size,
             context_used: s.context_used,
@@ -3265,7 +3273,7 @@ impl ChatAsync {
     /// Returns:
     ///     Optional[float]
     pub async fn mtp_acceptance_rate(&self) -> Option<f32> {
-        self.handle().mtp_acceptance_rate().await
+        self.lock().await.mtp_acceptance_rate()
     }
 
     /// Get the current system prompt.
@@ -3276,7 +3284,7 @@ impl ChatAsync {
     /// Raises:
     ///     RuntimeError: If the system prompt cannot be retrieved
     pub async fn get_system_prompt(&self) -> Option<String> {
-        self.handle().get_system_prompt().await
+        self.lock().await.get_system_prompt()
     }
 
     /// Tokenize a prompt and return token IDs.
@@ -3309,9 +3317,9 @@ impl ChatAsync {
                 ))
             }
         })?;
-        self.handle()
-            .tokenize(nw_prompt)
+        self.lock()
             .await
+            .tokenize(nw_prompt)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 }

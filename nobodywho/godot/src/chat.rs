@@ -29,7 +29,7 @@ use crate::tools::NobodyWhoTool;
 #[derive(GodotClass)]
 #[class(no_init, base=RefCounted)]
 pub struct NobodyWhoChat {
-    handle: nobodywho::chat::ChatHandleAsync,
+    handle: nobodywho::chat::ChatHandle,
     /// Set while one of this chat's tools is running (the worker is blocked
     /// waiting for it). Chat methods check it and fail fast instead of
     /// hanging — see `guarded()` and TOOLS_DESIGN.md §3.
@@ -106,7 +106,7 @@ impl NobodyWhoChat {
                     .await;
             match result {
                 Some(Ok(handle)) => Gd::from_init_fn(|base| NobodyWhoChat {
-                    handle: handle.into_async(),
+                    handle,
                     reentrancy_flag,
                     base,
                 })
@@ -221,8 +221,9 @@ impl NobodyWhoChat {
         let handle = self.handle.clone();
         self.guarded("set_tools", async move {
             handle
-                .set_tools(core_tools)
+                .lock()
                 .await
+                .set_tools(core_tools)
                 .map(|()| Variant::nil())
                 .map_err(|e| e.to_string())
         })
@@ -245,8 +246,9 @@ impl NobodyWhoChat {
         self.guarded("reset_chat", async move {
             // TODO: on_blocking_thread
             handle
-                .reset_chat(prompt, core_tools)
+                .lock()
                 .await
+                .reset_chat(prompt, core_tools)
                 .map(|()| Variant::nil())
                 .map_err(|e| e.to_string())
         })
@@ -258,7 +260,7 @@ impl NobodyWhoChat {
     fn get_chat_history(&self) -> Variant {
         let handle = self.handle.clone();
         self.guarded("get_chat_history", async move {
-            let msgs = handle.get_chat_history().await;
+            let msgs = handle.lock().await.get_chat_history();
             let json = serde_json::to_value(&msgs)
                 .map_err(|e| format!("failed to serialize messages: {e}"))?;
             Ok(json_to_variant(&json))
@@ -291,8 +293,9 @@ impl NobodyWhoChat {
         let handle = self.handle.clone();
         self.guarded("set_chat_history", async move {
             handle
-                .set_chat_history(msgs)
+                .lock()
                 .await
+                .set_chat_history(msgs)
                 .map(|()| Variant::nil())
                 .map_err(|e| nobodywho::render_miette(&e))
         })
@@ -305,8 +308,9 @@ impl NobodyWhoChat {
         let handle = self.handle.clone();
         self.guarded("reset_history", async move {
             handle
-                .reset_history()
+                .lock()
                 .await
+                .reset_history()
                 .map(|()| Variant::nil())
                 .map_err(|e| nobodywho::render_miette(&e))
         })
@@ -318,7 +322,7 @@ impl NobodyWhoChat {
     fn get_system_prompt(&self) -> Variant {
         let handle = self.handle.clone();
         self.guarded("get_system_prompt", async move {
-            let prompt = handle.get_system_prompt().await;
+            let prompt = handle.lock().await.get_system_prompt();
             Ok(prompt.map_or(Variant::nil(), |s| GString::from(&s).to_variant()))
         })
     }
@@ -336,7 +340,7 @@ impl NobodyWhoChat {
         };
         let handle = self.handle.clone();
         self.guarded("set_system_prompt", async move {
-            handle.set_system_prompt(prompt).await;
+            handle.lock().await.set_system_prompt(prompt);
             Ok(Variant::nil())
         })
     }
@@ -347,7 +351,7 @@ impl NobodyWhoChat {
     fn get_sampler_config(&self) -> Variant {
         let handle = self.handle.clone();
         self.guarded("get_sampler_config", async move {
-            let cfg = handle.get_sampler_config().await;
+            let cfg = handle.lock().await.get_sampler_config();
             Ok(NobodyWhoSamplerConfig::wrap(cfg).to_variant())
         })
     }
@@ -367,8 +371,9 @@ impl NobodyWhoChat {
         let handle = self.handle.clone();
         self.guarded("set_context_shift", async move {
             handle
-                .set_context_shift(options)
+                .lock()
                 .await
+                .set_context_shift(options)
                 .map(|()| Variant::nil())
                 .map_err(|e| nobodywho::render_miette(&e))
         })
@@ -382,8 +387,9 @@ impl NobodyWhoChat {
         let handle = self.handle.clone();
         self.guarded("set_sampler_config", async move {
             handle
-                .set_sampler_config(cfg)
+                .lock()
                 .await
+                .set_sampler_config(cfg)
                 .map(|()| Variant::nil())
                 .map_err(|e| nobodywho::render_miette(&e))
         })
@@ -395,7 +401,7 @@ impl NobodyWhoChat {
     fn get_template_variables(&self) -> Variant {
         let handle = self.handle.clone();
         self.guarded("get_template_variables", async move {
-            let vars = handle.get_template_variables().await;
+            let vars = handle.lock().await.get_template_variables();
             let mut dict: VarDictionary = Dictionary::new();
             for (k, v) in vars {
                 let _ = dict.insert(&GString::from(&k), &v.to_variant());
@@ -411,7 +417,7 @@ impl NobodyWhoChat {
         let name = name.to_string();
         let handle = self.handle.clone();
         self.guarded("set_template_variable", async move {
-            handle.set_template_variable(name, value).await;
+            handle.lock().await.set_template_variable(name, value);
             Ok(Variant::nil())
         })
     }
@@ -423,7 +429,7 @@ impl NobodyWhoChat {
         let vars = collect_template_variables(&vars);
         let handle = self.handle.clone();
         self.guarded("set_template_variables", async move {
-            handle.set_template_variables(vars?).await;
+            handle.lock().await.set_template_variables(vars?);
             Ok(Variant::nil())
         })
     }
@@ -434,7 +440,7 @@ impl NobodyWhoChat {
     fn get_stats(&self) -> Variant {
         let handle = self.handle.clone();
         self.guarded("get_stats", async move {
-            let stats = handle.get_stats().await;
+            let stats = handle.lock().await.get_stats();
             let mut dict: VarDictionary = Dictionary::new();
             let _ = dict.insert(
                 &GString::from("context_size"),
@@ -454,7 +460,7 @@ impl NobodyWhoChat {
     fn mtp_acceptance_rate(&self) -> Variant {
         let handle = self.handle.clone();
         self.guarded("mtp_acceptance_rate", async move {
-            let rate = handle.mtp_acceptance_rate().await;
+            let rate = handle.lock().await.mtp_acceptance_rate();
             Ok(rate.map_or(Variant::nil(), |r| r.to_variant()))
         })
     }
@@ -474,8 +480,9 @@ impl NobodyWhoChat {
         let handle = self.handle.clone();
         self.guarded("tokenize", async move {
             let ids = handle
-                .tokenize(core_prompt)
+                .lock()
                 .await
+                .tokenize(core_prompt)
                 .map_err(|e| e.to_string())?;
             let arr: VarArray = ids
                 .iter()
@@ -761,7 +768,7 @@ pub struct NobodyWhoTokenStream {
 /// only difference is the error type, which is rendered to a string either
 /// way. Mirrors the Python binding's `AsyncStreamInner` enum.
 pub(crate) enum StreamInner {
-    Chat(nobodywho::chat::TokenStreamAsync),
+    Chat(nobodywho::chat::TokenStream),
     Stt(nobodywho::stream::TokenStreamAsync<nobodywho::errors::SpeechToTextError>),
 }
 
@@ -839,7 +846,7 @@ impl NobodyWhoTokenStream {
 
 impl NobodyWhoTokenStream {
     /// Wrap a chat token stream.
-    pub(crate) fn wrap_chat(stream: nobodywho::chat::TokenStreamAsync) -> Gd<Self> {
+    pub(crate) fn wrap_chat(stream: nobodywho::chat::TokenStream) -> Gd<Self> {
         Gd::from_init_fn(|base| Self {
             stream: Rc::new(tokio::sync::Mutex::new(StreamInner::Chat(stream))),
             base,
