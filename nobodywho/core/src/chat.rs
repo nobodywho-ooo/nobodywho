@@ -10,7 +10,7 @@
 //! use nobodywho::llm;
 //! use std::sync::Arc;
 //!
-//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let model = Arc::new(llm::get_model("model.gguf", true, None, None, None)?);
 //!
 //! let chat = ChatBuilder::new(model)
@@ -632,7 +632,7 @@ impl ChatBuilder {
 
     /// Build an async chat handle and start the background worker.
     pub fn build_async(self) -> Result<ChatHandleAsync, InitWorkerError> {
-        ChatHandleAsync::new(self.model, self.config)
+        Ok(self.build()?.into_async())
     }
 }
 
@@ -647,34 +647,26 @@ impl ChatHandle {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
     pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Self, InitWorkerError> {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
-        let (init_tx, init_rx) = std::sync::mpsc::channel::<Result<(), InitWorkerError>>();
 
         let should_stop = Arc::new(AtomicBool::new(false));
-        let should_stop_clone = Arc::clone(&should_stop);
+        let mut worker = Chat::new_chat_worker(model, config, Arc::clone(&should_stop))?;
 
         let join_handle = std::thread::spawn(move || {
-            let worker = Chat::new_chat_worker(model, config, should_stop_clone);
-            let mut worker_state = match worker {
-                Ok(w) => {
-                    let _ = init_tx.send(Ok(()));
-                    w
-                }
-                Err(e) => {
-                    let _ = init_tx.send(Err(e));
-                    return;
-                }
-            };
-
             while let Ok(msg) = msg_rx.recv() {
-                process_worker_msg(&mut worker_state, msg);
+                process_worker_msg(&mut worker, msg);
             }
         });
-
-        init_rx.recv().map_err(|_| InitWorkerError::NoResponse)??;
 
         Ok(Self {
             guard: WorkerGuard::new(msg_tx, join_handle, Some(should_stop)),
         })
+    }
+
+    /// Hack for constructors such as Python's `__new__` not being async-able.
+    pub fn into_async(self) -> ChatHandleAsync {
+        ChatHandleAsync {
+            guard: Arc::new(self.guard),
+        }
     }
 
     /// Send a message and collect tokens as they arrive.
@@ -1043,39 +1035,6 @@ pub struct ChatHandleAsync {
 }
 
 impl ChatHandleAsync {
-    /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
-    pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Self, InitWorkerError> {
-        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
-        let (init_tx, init_rx) = std::sync::mpsc::channel::<Result<(), InitWorkerError>>();
-
-        let should_stop = Arc::new(AtomicBool::new(false));
-        let should_stop_clone = Arc::clone(&should_stop);
-
-        let join_handle = std::thread::spawn(move || {
-            let worker = Chat::new_chat_worker(model, config, should_stop_clone);
-            let mut worker_state = match worker {
-                Ok(w) => {
-                    let _ = init_tx.send(Ok(()));
-                    w
-                }
-                Err(e) => {
-                    let _ = init_tx.send(Err(e));
-                    return;
-                }
-            };
-
-            while let Ok(msg) = msg_rx.recv() {
-                process_worker_msg(&mut worker_state, msg);
-            }
-        });
-
-        init_rx.recv().map_err(|_| InitWorkerError::NoResponse)??;
-
-        Ok(Self {
-            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, Some(should_stop))),
-        })
-    }
-
     /// Send a message and collect tokens as they arrive.
     ///
     /// # Example

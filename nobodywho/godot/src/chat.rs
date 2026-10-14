@@ -102,11 +102,11 @@ impl NobodyWhoChat {
             // ChatHandleAsync::new blocks on worker init (sync channel recv),
             // so run it off the main thread.
             let result =
-                on_blocking_thread(move || nobodywho::chat::ChatHandleAsync::new(arc, chat_config))
+                on_blocking_thread(move || nobodywho::chat::ChatHandle::new(arc, chat_config))
                     .await;
             match result {
                 Some(Ok(handle)) => Gd::from_init_fn(|base| NobodyWhoChat {
-                    handle,
+                    handle: handle.into_async(),
                     reentrancy_flag,
                     base,
                 })
