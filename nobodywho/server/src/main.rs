@@ -7,8 +7,8 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use clap::Parser;
 use nobodywho::chat::{
-    ChatBuilder, ChatHandleAsync, CompletionChunk, CompletionResponse, CompletionStreamAsync,
-    Message, Options,
+    ChatBuilder, ChatHandle, CompletionChunk, CompletionResponse, CompletionStream, Message,
+    Options,
 };
 use nobodywho::llm;
 use nobodywho::sampler::SamplerConfig;
@@ -82,7 +82,7 @@ struct ServerConfig {
 
 #[derive(Clone)]
 struct AppState {
-    chat: ChatHandleAsync,
+    chat: ChatHandle,
     model: ModelInfo,
     request_lock: Arc<Mutex<()>>,
     request_ids: Arc<AtomicU64>,
@@ -268,7 +268,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(threads) = config.threads {
         builder = builder.with_n_threads(threads);
     }
-    let chat = builder.build_async()?;
+    let chat = builder.build()?;
     let model_id = config.name.unwrap_or_else(|| model_id_for(&config.model));
 
     let state = AppState {
@@ -387,7 +387,7 @@ async fn start_completion(
     let options = Options::new().with_sampler(sampler).with_tools(tools);
     let stream = {
         let _request_guard = state.request_lock.lock().await;
-        state.chat.set_system_prompt(None).await;
+        state.chat.lock().await.set_system_prompt(None);
         state
             .chat
             .completion_stream(messages, options, Some(max_tokens), false)
@@ -538,7 +538,7 @@ fn select_tools(
 }
 
 async fn buffered_response(
-    mut stream: CompletionStreamAsync,
+    mut stream: CompletionStream,
     id: String,
     model: String,
     created: u64,
@@ -696,7 +696,7 @@ impl ResponseStreamParser {
 }
 
 fn streaming_response(
-    mut stream: CompletionStreamAsync,
+    mut stream: CompletionStream,
     id: String,
     model: String,
     created: u64,
