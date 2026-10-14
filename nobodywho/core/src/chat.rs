@@ -1964,11 +1964,7 @@ fn process_worker_msg(worker_state: &mut Chat, msg: ChatMsg) {
             let _ = output_tx.blocking_send(sampler_config);
         }
         ChatMsg::GetStats { output_tx } => {
-            let stats = ChatStats {
-                context_size: worker_state.engine().ctx.n_ctx(),
-                context_used: worker_state.engine().actual_context_size() as u32,
-            };
-            let _ = output_tx.blocking_send(stats);
+            let _ = output_tx.blocking_send(worker_state.get_stats());
         }
         ChatMsg::GetMtpAcceptanceRate { output_tx } => {
             let _ = output_tx.blocking_send(worker_state.engine().mtp_acceptance_rate());
@@ -2614,6 +2610,13 @@ impl Chat {
 
     pub fn set_sampler_config(&mut self, sampler_config: SamplerConfig) -> Result<(), SetterError> {
         self.apply_sampler_and_tools(Some(sampler_config), None)
+    }
+
+    pub fn get_stats(&self) -> ChatStats {
+        ChatStats {
+            context_size: self.engine().ctx.n_ctx(),
+            context_used: self.engine().actual_context_size() as u32,
+        }
     }
 
     /// Apply a turn's [`Options`]. The sampler and tools are applied together, so
