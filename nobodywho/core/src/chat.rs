@@ -1967,7 +1967,7 @@ fn process_worker_msg(worker_state: &mut Chat, msg: ChatMsg) {
             let _ = output_tx.blocking_send(worker_state.get_stats());
         }
         ChatMsg::GetMtpAcceptanceRate { output_tx } => {
-            let _ = output_tx.blocking_send(worker_state.engine().mtp_acceptance_rate());
+            let _ = output_tx.blocking_send(worker_state.mtp_acceptance_rate());
         }
         ChatMsg::Tokenize { prompt, output_tx } => {
             let result = worker_state.tokenize(prompt);
@@ -2617,6 +2617,10 @@ impl Chat {
             context_size: self.engine().ctx.n_ctx(),
             context_used: self.engine().actual_context_size() as u32,
         }
+    }
+
+    pub fn mtp_acceptance_rate(&self) -> Option<f32> {
+        self.engine().mtp_acceptance_rate()
     }
 
     /// Apply a turn's [`Options`]. The sampler and tools are applied together, so
