@@ -497,7 +497,13 @@ impl From<ContextShiftOptions> for Option<nobodywho::chat::ContextShiftOptions> 
 
 #[derive(uniffi::Object)]
 pub struct RustChat {
-    inner: nobodywho::chat::ChatHandleAsync,
+    inner: nobodywho::chat::ChatHandle,
+}
+
+impl RustChat {
+    async fn lock(&self) -> tokio::sync::MutexGuard<'_, nobodywho::chat::Chat> {
+        self.inner.lock().await
+    }
 }
 
 #[uniffi::export]
@@ -552,7 +558,7 @@ impl RustChat {
         if let Some(context_shift) = context_shift {
             builder = builder.with_context_shift(context_shift.into());
         }
-        let chat = builder.build_async().map_err(|e| NobodyWhoError::Error {
+        let chat = builder.build().map_err(|e| NobodyWhoError::Error {
             message: nobodywho::render_miette(&e),
         })?;
 
@@ -643,17 +649,17 @@ impl RustChat {
             .map(|t| t.inner.clone())
             .collect();
         // TODO: spawn_blocking
-        self.inner
-            .reset_chat(system_prompt, core_tools)
+        self.lock()
             .await
+            .reset_chat(system_prompt, core_tools)
             .map_err(setter_err)
     }
 
     /// Reset the chat history, keeping the system prompt and tools.
     pub async fn reset_history(&self) -> Result<(), NobodyWhoError> {
-        self.inner
-            .reset_history()
+        self.lock()
             .await
+            .reset_history()
             .map_err(|e| NobodyWhoError::Error {
                 message: nobodywho::render_miette(&e),
             })
@@ -661,7 +667,7 @@ impl RustChat {
 
     /// Get the current chat history as a list of messages.
     pub async fn get_chat_history(&self) -> Vec<Message> {
-        let messages = self.inner.get_chat_history().await;
+        let messages = self.lock().await.get_chat_history();
         messages.iter().map(core_message_to_uniffi).collect()
     }
 
@@ -669,22 +675,22 @@ impl RustChat {
     pub async fn set_chat_history(&self, messages: Vec<Message>) -> Result<(), NobodyWhoError> {
         let core_messages: Result<Vec<_>, NobodyWhoError> =
             messages.iter().map(uniffi_message_to_core).collect();
-        self.inner
-            .set_chat_history(core_messages?)
+        self.lock()
             .await
+            .set_chat_history(core_messages?)
             .map_err(setter_err)
     }
 
     /// Get the current system prompt.
     pub async fn get_system_prompt(&self) -> Option<String> {
-        self.inner.get_system_prompt().await
+        self.lock().await.get_system_prompt()
     }
 
     /// Tokenize a plain text string and return the token IDs.
     pub async fn tokenize(&self, message: String) -> Result<Vec<Option<i32>>, NobodyWhoError> {
-        self.inner
-            .tokenize(message)
+        self.lock()
             .await
+            .tokenize(message)
             .map_err(|e| NobodyWhoError::Error {
                 message: e.to_string(),
             })
@@ -699,9 +705,9 @@ impl RustChat {
         let prompt = nobodywho::tokenizer::Prompt::parts(
             parts.iter().map(uniffi_part_to_core).collect::<Vec<_>>(),
         );
-        self.inner
-            .tokenize(prompt)
+        self.lock()
             .await
+            .tokenize(prompt)
             .map_err(|e| NobodyWhoError::Error {
                 message: e.to_string(),
             })
@@ -709,7 +715,7 @@ impl RustChat {
 
     /// Set the system prompt.
     pub async fn set_system_prompt(&self, system_prompt: Option<String>) {
-        self.inner.set_system_prompt(system_prompt).await
+        self.lock().await.set_system_prompt(system_prompt)
     }
 
     /// Set how old turns are forgotten when the context is full.
@@ -717,9 +723,9 @@ impl RustChat {
         &self,
         options: ContextShiftOptions,
     ) -> Result<(), NobodyWhoError> {
-        self.inner
-            .set_context_shift(options.into())
+        self.lock()
             .await
+            .set_context_shift(options.into())
             .map_err(setter_err)
     }
 
@@ -727,30 +733,30 @@ impl RustChat {
     pub async fn set_tools(&self, tools: Vec<Arc<RustTool>>) -> Result<(), NobodyWhoError> {
         let core_tools: Vec<nobodywho::tool_calling::Tool> =
             tools.into_iter().map(|t| t.inner.clone()).collect();
-        self.inner.set_tools(core_tools).await.map_err(setter_err)
+        self.lock().await.set_tools(core_tools).map_err(setter_err)
     }
 
     /// Set a template variable.
     pub async fn set_template_variable(&self, name: String, value: bool) {
-        self.inner.set_template_variable(name, value).await
+        self.lock().await.set_template_variable(name, value)
     }
 
     /// Get all template variables.
     pub async fn get_template_variables(&self) -> HashMap<String, bool> {
-        self.inner.get_template_variables().await
+        self.lock().await.get_template_variables()
     }
 
     /// Set the sampler configuration.
     pub async fn set_sampler_config(&self, sampler: &SamplerConfig) -> Result<(), NobodyWhoError> {
-        self.inner
-            .set_sampler_config(sampler.inner.clone())
+        self.lock()
             .await
+            .set_sampler_config(sampler.inner.clone())
             .map_err(setter_err)
     }
 
     /// Get context usage statistics.
     pub async fn get_stats(&self) -> ChatStats {
-        let s = self.inner.get_stats().await;
+        let s = self.lock().await.get_stats();
         ChatStats {
             context_size: s.context_size,
             context_used: s.context_used,
@@ -761,12 +767,12 @@ impl RustChat {
     ///
     /// Resets each generation. `null` when MTP is disabled or no drafts were proposed.
     pub async fn mtp_acceptance_rate(&self) -> Option<f32> {
-        self.inner.mtp_acceptance_rate().await
+        self.lock().await.mtp_acceptance_rate()
     }
 
     /// Get the current sampler configuration as a JSON string.
     pub async fn get_sampler_config_json(&self) -> Result<String, NobodyWhoError> {
-        let config = self.inner.get_sampler_config().await;
+        let config = self.lock().await.get_sampler_config();
         serde_json::to_string(&config).map_err(|e| NobodyWhoError::Error {
             message: e.to_string(),
         })
@@ -922,7 +928,7 @@ impl RustSpeechToTextStream {
 pub struct RustTokenStream {
     // Mutex needed because UniFFI wraps objects in Arc (giving &self),
     // but TokenStreamAsync methods require &mut self.
-    inner: tokio::sync::Mutex<nobodywho::chat::TokenStreamAsync>,
+    inner: tokio::sync::Mutex<nobodywho::chat::TokenStream>,
 }
 
 #[uniffi::export]

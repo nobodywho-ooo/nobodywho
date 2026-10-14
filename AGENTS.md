@@ -35,7 +35,7 @@ The main implementation is in `nobodywho/core/src/`:
 
 ### Core Types
 
-- `ChatHandle` / `ChatHandleAsync` - Main chat interface (sync and async)
+- `ChatHandle` - Main chat interface (sync and async)
 - `ChatBuilder` - Builder pattern for chat configuration
 - `Message` enum - User/Assistant/System/Tool messages
 - `Model` - Shared model instance (`Arc<LlamaModel>`)
@@ -120,7 +120,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup instructions.
 
 - Use `Arc<LlamaModel>` for shared model instances
 - Builder pattern for configuration (`ChatBuilder`)
-- Async support via `tokio` (`ChatHandleAsync`)
+- Async support via `tokio`
 - Error propagation with `?` operator
 - Tracing for logging (`tracing::info!`, `tracing::debug!`, etc.)
 
@@ -148,4 +148,3 @@ printf '%s\n' 'python, flutter' added minor 'One-sentence description for users.
 ```
 
 It gives every binding the same bump. Edit the file it writes in [`.changeset/`](.changeset/) to give bindings different bumps or to add detail, then validate with `just check-changesets`.
-

@@ -985,10 +985,12 @@ mod tests {
         let chat = crate::chat::ChatBuilder::new(model)
             .build()
             .expect("build chat");
-        chat.set_sampler_config(cfg).expect("set sampler config");
+        chat.blocking_lock()
+            .set_sampler_config(cfg)
+            .expect("set sampler config");
         let response = chat
             .ask("Say hello.")
-            .completed()
+            .blocking_completed()
             .expect("generation with grammar-first unlikely literal failed");
 
         assert_eq!(response, "zqxjvkw");
@@ -1006,11 +1008,12 @@ mod tests {
         let chat = crate::chat::ChatBuilder::new(model)
             .build()
             .expect("build chat");
-        chat.set_sampler_config(SamplerPresets::json())
+        chat.blocking_lock()
+            .set_sampler_config(SamplerPresets::json())
             .expect("set sampler config");
         let response = chat
             .ask("Return {\"hello\": \"world\"}.")
-            .completed()
+            .blocking_completed()
             .expect("generation with json preset failed");
 
         assert!(!response.is_empty(), "empty response");
@@ -1098,10 +1101,12 @@ mod tests {
         let chat = crate::chat::ChatBuilder::new(model)
             .build()
             .expect("build chat");
-        chat.set_sampler_config(cfg).expect("set sampler config");
+        chat.blocking_lock()
+            .set_sampler_config(cfg)
+            .expect("set sampler config");
         let response = chat
             .ask("Say hello.")
-            .completed()
+            .blocking_completed()
             .expect("generation with a builder-added constraint failed");
 
         assert_eq!(response, "zqxjvkw");
