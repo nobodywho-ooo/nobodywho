@@ -1301,22 +1301,22 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 24327) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 12722) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 18792) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json() != 33078) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats() != 59932) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats() != 357) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt() != 57727) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt() != 1030) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() != 19616) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() != 1114) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() != 727) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() != 6312) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context() != 47191) {
@@ -1334,10 +1334,10 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config() != 28012) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt() != 31690) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt() != 30912) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable() != 64000) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable() != 12690) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_tools() != 55680) {
@@ -2382,7 +2382,6 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     /**
      * Get the current chat history as a list of messages.
      */
-    @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
     override suspend fun `getChatHistory`() : List<Message> {
         return uniffiRustCallAsync(
@@ -2398,7 +2397,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         // lift function
         { FfiConverterSequenceTypeMessage.lift(it) },
         // Error FFI converter
-        NobodyWhoException.ErrorHandler,
+        UniffiNullRustCallStatusErrorHandler,
     )
     }
 
@@ -2430,7 +2429,6 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     /**
      * Get context usage statistics.
      */
-    @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
     override suspend fun `getStats`() : ChatStats {
         return uniffiRustCallAsync(
@@ -2446,7 +2444,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         // lift function
         { FfiConverterTypeChatStats.lift(it) },
         // Error FFI converter
-        NobodyWhoException.ErrorHandler,
+        UniffiNullRustCallStatusErrorHandler,
     )
     }
 
@@ -2454,7 +2452,6 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     /**
      * Get the current system prompt.
      */
-    @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
     override suspend fun `getSystemPrompt`() : kotlin.String? {
         return uniffiRustCallAsync(
@@ -2470,7 +2467,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         // lift function
         { FfiConverterOptionalString.lift(it) },
         // Error FFI converter
-        NobodyWhoException.ErrorHandler,
+        UniffiNullRustCallStatusErrorHandler,
     )
     }
 
@@ -2478,7 +2475,6 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     /**
      * Get all template variables.
      */
-    @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
     override suspend fun `getTemplateVariables`() : Map<kotlin.String, kotlin.Boolean> {
         return uniffiRustCallAsync(
@@ -2494,7 +2490,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         // lift function
         { FfiConverterMapStringBoolean.lift(it) },
         // Error FFI converter
-        NobodyWhoException.ErrorHandler,
+        UniffiNullRustCallStatusErrorHandler,
     )
     }
 
@@ -2504,7 +2500,6 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
      *
      * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
      */
-    @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
     override suspend fun `mtpAcceptanceRate`() : kotlin.Float? {
         return uniffiRustCallAsync(
@@ -2520,7 +2515,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         // lift function
         { FfiConverterOptionalFloat.lift(it) },
         // Error FFI converter
-        NobodyWhoException.ErrorHandler,
+        UniffiNullRustCallStatusErrorHandler,
     )
     }
 
@@ -2653,7 +2648,6 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     /**
      * Set the system prompt.
      */
-    @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
     override suspend fun `setSystemPrompt`(`systemPrompt`: kotlin.String?) {
         return uniffiRustCallAsync(
@@ -2670,7 +2664,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         { Unit },
         
         // Error FFI converter
-        NobodyWhoException.ErrorHandler,
+        UniffiNullRustCallStatusErrorHandler,
     )
     }
 
@@ -2678,7 +2672,6 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     /**
      * Set a template variable.
      */
-    @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
     override suspend fun `setTemplateVariable`(`name`: kotlin.String, `value`: kotlin.Boolean) {
         return uniffiRustCallAsync(
@@ -2695,7 +2688,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         { Unit },
         
         // Error FFI converter
-        NobodyWhoException.ErrorHandler,
+        UniffiNullRustCallStatusErrorHandler,
     )
     }
 

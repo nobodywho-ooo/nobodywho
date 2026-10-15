@@ -384,9 +384,6 @@ pub enum InitWorkerError {
     )]
     ChatTemplate(#[from] SelectTemplateError),
 
-    #[error("Got no response after initializing worker.")]
-    NoResponse,
-
     #[error("Could not initialize projection model: {0}")]
     ProjectionModel(#[from] MultimodalError),
 
@@ -492,6 +489,9 @@ pub enum SetterError {
 
     #[error(transparent)]
     InvalidContextShiftOptions(#[from] InvalidContextShiftOptions),
+
+    #[error("failed joining task: {0}")]
+    Join(#[from] tokio::task::JoinError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -866,50 +866,6 @@ impl From<HuggingFaceError> for VoiceActivityDetectionError {
 
 // ChatWorker errors
 
-#[derive(thiserror::Error, Debug)]
-pub(crate) enum ChatWorkerError {
-    #[error("Error initializing worker: {0}")]
-    InitWorker(#[from] InitWorkerError),
-
-    #[error("Error reading string: {0}")]
-    Say(#[from] SayError),
-
-    #[error("Init template error: {0}")]
-    Template(#[from] SelectTemplateError),
-
-    #[error("Error rendering template: {0}")]
-    TemplateRender(#[from] minijinja::Error),
-
-    #[error("Read error: {0}")]
-    Read(#[from] ReadError),
-
-    #[error("Error getting token difference: {0}")]
-    Render(#[from] RenderError),
-
-    #[error("Error removing tokens from KvCache: {0}")]
-    KvCacheConversion(#[from] KvCacheConversionError),
-
-    #[error("Error during context syncing: {0}")]
-    ContextSyncError(#[from] ContextSyncError),
-
-    #[error("Invalid sampler configuration: {0}")]
-    InvalidSamplerConfig(#[from] SamplerError),
-
-    #[error("Failed setting up tool calling: {0}")]
-    ToolCallingSetup(#[from] ToolCallingSetupError),
-
-    #[error(transparent)]
-    Setter(#[from] SetterError),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum InferenceError {
-    #[error("Error reading tokens: {0}")]
-    Read(#[from] ReadError),
-
-    #[error("Error while generating response: {0}")]
-    GenerateResponse(#[from] GenerateResponseError),
-}
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum GenerateResponseError {
     #[error("Error reading generated tokens back after context shift: {0}")]
@@ -1035,6 +991,10 @@ pub enum InvalidHistoryError {
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum CompleteError {
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    InvalidHistory(#[from] InvalidHistoryError),
+
     #[error("Multimodal error: {0}")]
     Multimodal(#[from] MultimodalError),
 
@@ -1219,12 +1179,18 @@ pub enum ToolCallingSetupError {
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum CompletionError {
-    #[error(
-        "Worker thread terminated before completing the response. This usually indicates an error occurred during token generation (e.g., context shift failure, sampling error, or token decoding issue)."
-    )]
-    WorkerCrashed,
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    Complete(#[from] CompleteError),
 
     #[error(transparent)]
     #[diagnostic(transparent)]
-    WorkerError(Box<dyn miette::Diagnostic + Send + Sync + 'static>),
+    Say(#[from] SayError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    GenerateResponse(#[from] GenerateResponseError),
+
+    #[error("failed waiting for result: {0}")]
+    Recv(#[from] tokio::sync::oneshot::error::RecvError),
 }
