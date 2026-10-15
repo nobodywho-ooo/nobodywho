@@ -642,6 +642,7 @@ impl RustChat {
             .into_iter()
             .map(|t| t.inner.clone())
             .collect();
+        // TODO: spawn_blocking
         self.inner
             .reset_chat(system_prompt, core_tools)
             .await

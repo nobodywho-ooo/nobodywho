@@ -706,6 +706,7 @@ impl RustChat {
         system_prompt: Option<String>,
         tools: Vec<RustTool>,
     ) -> Result<(), String> {
+        // TODO: spawn_blocking
         self.chat
             .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
             .await
