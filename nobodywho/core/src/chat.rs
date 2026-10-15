@@ -823,35 +823,23 @@ impl ChatHandle {
 
     /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
     #[deprecated(note = "Use set_template_variable(\"enable_thinking\", value) instead")]
-    pub fn set_allow_thinking(&self, allow_thinking: bool) -> Result<(), SetterError> {
-        self.set_template_variable("enable_thinking".to_string(), allow_thinking)
+    pub fn set_allow_thinking(&self, allow_thinking: bool) {
+        self.set_template_variable("enable_thinking".to_string(), allow_thinking);
     }
 
     /// Set a single template variable.
-    pub fn set_template_variable(
-        &self,
-        name: String,
-        value: bool,
-    ) -> Result<(), crate::errors::SetterError> {
+    pub fn set_template_variable(&self, name: String, value: bool) {
         self.blocking_lock().set_template_variable(name, value);
-        Ok(()) // TODO: Remove
     }
 
     /// Set all template variables, replacing any existing ones.
-    pub fn set_template_variables(
-        &self,
-        variables: std::collections::HashMap<String, bool>,
-    ) -> Result<(), crate::errors::SetterError> {
+    pub fn set_template_variables(&self, variables: std::collections::HashMap<String, bool>) {
         self.blocking_lock().set_template_variables(variables);
-        Ok(()) // TODO: Remove
     }
 
     /// Get all template variables.
-    pub fn get_template_variables(
-        &self,
-    ) -> Result<std::collections::HashMap<String, bool>, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.blocking_lock().get_template_variables())
+    pub fn get_template_variables(&self) -> std::collections::HashMap<String, bool> {
+        self.blocking_lock().get_template_variables()
     }
 
     /// Update the sampler configuration for inference.
@@ -872,9 +860,8 @@ impl ChatHandle {
     /// The system prompt is a separate setting, so it is never part of this list
     /// — see [`get_system_prompt`](Self::get_system_prompt). A system message
     /// placed mid-conversation is part of the history, and does show up here.
-    pub fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.blocking_lock().get_chat_history())
+    pub fn get_chat_history(&self) -> Vec<Message> {
+        self.blocking_lock().get_chat_history()
     }
 
     /// Set the chat history (lower-level API).
@@ -889,24 +876,21 @@ impl ChatHandle {
     }
 
     /// Get the sampler config
-    pub fn get_sampler_config(&self) -> Result<SamplerConfig, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.blocking_lock().get_sampler_config())
+    pub fn get_sampler_config(&self) -> SamplerConfig {
+        self.blocking_lock().get_sampler_config()
     }
 
     /// Get context usage statistics.
-    pub fn get_stats(&self) -> Result<ChatStats, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.blocking_lock().get_stats())
+    pub fn get_stats(&self) -> ChatStats {
+        self.blocking_lock().get_stats()
     }
 
     /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
     ///
     /// The counters reset at the start of each generation.
     /// Returns `None` when no drafts were proposed in the last generation.
-    pub fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.blocking_lock().mtp_acceptance_rate())
+    pub fn mtp_acceptance_rate(&self) -> Option<f32> {
+        self.blocking_lock().mtp_acceptance_rate()
     }
 
     /// Update the system prompt without resetting chat history.
@@ -932,15 +916,11 @@ impl ChatHandle {
     /// # use std::sync::Arc;
     /// # let model = Arc::new(get_model("model.gguf", true, None, None, None).unwrap());
     /// # let chat = ChatBuilder::new(model).build().unwrap();
-    /// chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string()))?;
+    /// chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string()));
     /// # Ok::<(), nobodywho::errors::SetterError>(())
     /// ```
-    pub fn set_system_prompt(
-        &self,
-        system_prompt: Option<String>,
-    ) -> Result<(), crate::errors::SetterError> {
+    pub fn set_system_prompt(&self, system_prompt: Option<String>) {
         self.blocking_lock().set_system_prompt(system_prompt);
-        Ok(()) // TODO: Remove
     }
 
     /// Set how old turns are forgotten when the context is full; `None` disables it.
@@ -952,9 +932,8 @@ impl ChatHandle {
     }
 
     /// Get the system prompt
-    pub fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.blocking_lock().get_system_prompt())
+    pub fn get_system_prompt(&self) -> Option<String> {
+        self.blocking_lock().get_system_prompt()
     }
 
     /// Tokenize a prompt and return token IDs. Text tokens are `Some(id)`, media embedding
@@ -1064,39 +1043,24 @@ impl ChatHandleAsync {
 
     /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
     #[deprecated(note = "Use set_template_variable(\"enable_thinking\", value) instead")]
-    pub async fn set_allow_thinking(
-        &self,
-        allow_thinking: bool,
-    ) -> Result<(), crate::errors::SetterError> {
+    pub async fn set_allow_thinking(&self, allow_thinking: bool) {
         self.set_template_variable("enable_thinking".to_string(), allow_thinking)
             .await
     }
 
     /// Set a single template variable.
-    pub async fn set_template_variable(
-        &self,
-        name: String,
-        value: bool,
-    ) -> Result<(), crate::errors::SetterError> {
-        self.lock().await.set_template_variable(name, value);
-        Ok(()) // TODO: Remove
+    pub async fn set_template_variable(&self, name: String, value: bool) {
+        self.lock().await.set_template_variable(name, value)
     }
 
     /// Set all template variables, replacing any existing ones.
-    pub async fn set_template_variables(
-        &self,
-        variables: std::collections::HashMap<String, bool>,
-    ) -> Result<(), crate::errors::SetterError> {
-        self.lock().await.set_template_variables(variables);
-        Ok(()) // TODO: Remove
+    pub async fn set_template_variables(&self, variables: std::collections::HashMap<String, bool>) {
+        self.lock().await.set_template_variables(variables)
     }
 
     /// Get all template variables.
-    pub async fn get_template_variables(
-        &self,
-    ) -> Result<std::collections::HashMap<String, bool>, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.lock().await.get_template_variables())
+    pub async fn get_template_variables(&self) -> std::collections::HashMap<String, bool> {
+        self.lock().await.get_template_variables()
     }
 
     /// Update the sampler configuration for inference.
@@ -1117,9 +1081,8 @@ impl ChatHandleAsync {
     /// The system prompt is a separate setting, so it is never part of this list
     /// — see [`get_system_prompt`](Self::get_system_prompt). A system message
     /// placed mid-conversation is part of the history, and does show up here.
-    pub async fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.lock().await.get_chat_history())
+    pub async fn get_chat_history(&self) -> Vec<Message> {
+        self.lock().await.get_chat_history()
     }
 
     /// Set the chat history (lower-level API).
@@ -1134,24 +1097,21 @@ impl ChatHandleAsync {
     }
 
     /// Get the sampler config.
-    pub async fn get_sampler_config(&self) -> Result<SamplerConfig, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.lock().await.get_sampler_config())
+    pub async fn get_sampler_config(&self) -> SamplerConfig {
+        self.lock().await.get_sampler_config()
     }
 
     /// Get context usage statistics.
-    pub async fn get_stats(&self) -> Result<ChatStats, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.lock().await.get_stats())
+    pub async fn get_stats(&self) -> ChatStats {
+        self.lock().await.get_stats()
     }
 
     /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
     ///
     /// The counters reset at the start of each generation.
     /// Returns `None` when no drafts were proposed in the last generation.
-    pub async fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.lock().await.mtp_acceptance_rate())
+    pub async fn mtp_acceptance_rate(&self) -> Option<f32> {
+        self.lock().await.mtp_acceptance_rate()
     }
 
     /// Update the system prompt without resetting chat history.
@@ -1180,12 +1140,8 @@ impl ChatHandleAsync {
     /// # chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string())).await?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
     /// ```
-    pub async fn set_system_prompt(
-        &self,
-        system_prompt: Option<String>,
-    ) -> Result<(), crate::errors::SetterError> {
-        self.lock().await.set_system_prompt(system_prompt);
-        Ok(()) // TODO: Remove
+    pub async fn set_system_prompt(&self, system_prompt: Option<String>) {
+        self.lock().await.set_system_prompt(system_prompt)
     }
 
     /// Set how old turns are forgotten when the context is full; `None` disables it.
@@ -1197,9 +1153,8 @@ impl ChatHandleAsync {
     }
 
     /// Get the system prompt
-    pub async fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.lock().await.get_system_prompt())
+    pub async fn get_system_prompt(&self) -> Option<String> {
+        self.lock().await.get_system_prompt()
     }
 
     /// Tokenize a prompt and return token IDs. Text tokens are `Some(id)`, media embedding
@@ -3112,8 +3067,7 @@ mod tests {
 
         assert!(dog_response.to_lowercase().contains("woof"));
 
-        chat.set_system_prompt(Some("You are a cat. End all responses with meow.".into()))
-            .unwrap();
+        chat.set_system_prompt(Some("You are a cat. End all responses with meow.".into()));
         let cat_response = chat
             .ask("Now say the correct animal sound!")
             .completed()
@@ -3132,13 +3086,13 @@ mod tests {
             .build()
             .expect("chat build failed in test");
 
-        chat.set_system_prompt(None).unwrap();
-        assert_eq!(chat.get_system_prompt().unwrap(), None);
+        chat.set_system_prompt(None);
+        assert_eq!(chat.get_system_prompt(), None);
 
         chat.set_tools(vec![]).unwrap();
         chat.set_tools(vec![test_tool()]).unwrap();
 
-        assert!(chat.get_chat_history().unwrap().is_empty());
+        assert!(chat.get_chat_history().is_empty());
     }
 
     /// Below keep_first_turns + keep_last_turns turns nothing is deletable, so the
@@ -3673,7 +3627,7 @@ mod tests {
         );
 
         chat.set_template_variable("enable_thinking".to_string(), false)
-            .await?;
+            .await;
 
         let res2: String = chat
             .ask("What is the capital of the Czech Republic?".to_string())
@@ -3701,8 +3655,7 @@ mod tests {
         chat.set_sampler_config(SamplerPresets::greedy()).unwrap();
 
         // Also test if get_sampler followed by set_sampler is no op
-        chat.set_sampler_config(chat.get_sampler_config().unwrap())
-            .unwrap();
+        chat.set_sampler_config(chat.get_sampler_config()).unwrap();
 
         let response1 = chat.ask("Say exactly: 'Hello'").completed().unwrap();
         chat.reset_history().unwrap();
@@ -3768,7 +3721,7 @@ mod tests {
             "Model did not read the supplied history: {resp}"
         );
 
-        let history = chat.get_chat_history().unwrap();
+        let history = chat.get_chat_history();
         assert_eq!(
             serde_json::to_value(&history[..messages.len()]).unwrap(),
             serde_json::to_value(&messages).unwrap(),
@@ -3803,10 +3756,10 @@ mod tests {
 
         // Observable through the ordinary getters, like any other setter.
         assert_eq!(
-            chat.get_template_variables().unwrap(),
+            chat.get_template_variables(),
             [("enable_thinking".to_string(), false)].into()
         );
-        let after_first = chat.get_sampler_config().unwrap();
+        let after_first = chat.get_sampler_config();
 
         // A turn that carries no options changes neither of them.
         chat.complete(vec![user("Say hi again.")], Options::new())
@@ -3814,12 +3767,12 @@ mod tests {
             .completed()
             .unwrap();
         assert_eq!(
-            chat.get_template_variables().unwrap(),
+            chat.get_template_variables(),
             [("enable_thinking".to_string(), false)].into(),
             "an empty Options should leave the template variables alone"
         );
         assert_eq!(
-            serde_json::to_value(chat.get_sampler_config().unwrap()).unwrap(),
+            serde_json::to_value(chat.get_sampler_config()).unwrap(),
             serde_json::to_value(&after_first).unwrap(),
             "an empty Options should leave the sampler alone"
         );
@@ -3853,7 +3806,7 @@ mod tests {
             .unwrap();
         assert!(cat.to_lowercase().contains("meow"), "{cat}");
         assert_eq!(
-            chat.get_system_prompt().unwrap().as_deref(),
+            chat.get_system_prompt().as_deref(),
             Some("You are a cat. End all responses with meow.")
         );
 
@@ -3866,7 +3819,7 @@ mod tests {
             .completed()
             .unwrap();
         assert_eq!(
-            chat.get_system_prompt().unwrap().as_deref(),
+            chat.get_system_prompt().as_deref(),
             Some("You are a cat. End all responses with meow."),
             "a complete() without a system message should keep the current one"
         );
@@ -3905,10 +3858,10 @@ mod tests {
         // The leading one became the prompt; the later one is history, followed
         // by the turn that was just generated.
         assert_eq!(
-            chat.get_system_prompt().unwrap().as_deref(),
+            chat.get_system_prompt().as_deref(),
             Some("You are a dog. End all responses with woof.")
         );
-        let history = chat.get_chat_history().unwrap();
+        let history = chat.get_chat_history();
         assert_eq!(
             serde_json::to_value(&history[..messages.len() - 1]).unwrap(),
             serde_json::to_value(&messages[1..]).unwrap(),
@@ -3975,7 +3928,7 @@ mod tests {
 
         assert!(resp.contains("13.37"), "Tool was not called: {resp}");
 
-        let history = chat.get_chat_history().unwrap();
+        let history = chat.get_chat_history();
         assert!(
             history.iter().any(Message::has_tool_calls) && history.iter().any(Message::is_tool),
             "the tool exchange should be part of the history: {history:?}"
@@ -3992,7 +3945,7 @@ mod tests {
             .build()
             .expect("chat build failed in test");
 
-        let before = chat.get_sampler_config().expect("worker should answer");
+        let before = chat.get_sampler_config();
 
         // An unresolvable `$ref`: the lark is generated fine and then fails to
         // compile, after the base sampler was already built. (A bogus `type` or a
@@ -4020,7 +3973,7 @@ mod tests {
         // The sampler config is the observable half: it is applied first, so
         // before the coalescing it survived a later tool failure.
         assert_eq!(
-            serde_json::to_value(chat.get_sampler_config().expect("worker is alive")).unwrap(),
+            serde_json::to_value(chat.get_sampler_config()).unwrap(),
             serde_json::to_value(&before).unwrap(),
             "a failed Options should leave the sampler config alone"
         );
@@ -4162,7 +4115,7 @@ mod tests {
             user("Hi"),
         ])
         .expect("a leading system message is fine");
-        assert_eq!(chat.get_chat_history().unwrap().len(), 1);
+        assert_eq!(chat.get_chat_history().len(), 1);
 
         // A mid-conversation system message is accepted and kept in place, while
         // the leading one is still hoisted out to the system prompt.
@@ -4175,12 +4128,9 @@ mod tests {
         ];
         chat.set_chat_history(messages.clone())
             .expect("a mid-conversation system message is fine");
+        assert_eq!(chat.get_system_prompt().as_deref(), Some("Be terse."));
         assert_eq!(
-            chat.get_system_prompt().unwrap().as_deref(),
-            Some("Be terse.")
-        );
-        assert_eq!(
-            serde_json::to_value(chat.get_chat_history().unwrap()).unwrap(),
+            serde_json::to_value(chat.get_chat_history()).unwrap(),
             serde_json::to_value(&messages[1..]).unwrap(),
         );
 
@@ -4196,7 +4146,7 @@ mod tests {
             "{err:?}"
         );
         assert_eq!(
-            serde_json::to_value(chat.get_chat_history().unwrap()).unwrap(),
+            serde_json::to_value(chat.get_chat_history()).unwrap(),
             serde_json::to_value(&messages[1..]).unwrap(),
             "a failed set_chat_history should leave the history alone"
         );
@@ -4213,7 +4163,7 @@ mod tests {
             .build()
             .expect("chat build failed in test");
 
-        let before = chat.get_sampler_config().expect("worker should answer");
+        let before = chat.get_sampler_config();
 
         let err = chat
             .set_sampler_config(SamplerPresets::constrain_with_json_schema(
@@ -4227,7 +4177,7 @@ mod tests {
 
         // The worker survived, and the rejected config was not committed.
         assert_eq!(
-            format!("{:?}", chat.get_sampler_config().expect("worker is alive")),
+            format!("{:?}", chat.get_sampler_config()),
             format!("{before:?}"),
             "a failed set_sampler_config should leave the sampler alone"
         );
@@ -4506,7 +4456,7 @@ mod tests {
             .await?;
 
         assert!(resp.contains("Copenhagen"), "{resp}");
-        assert_eq!(chat.get_chat_history().await?.len(), 2);
+        assert_eq!(chat.get_chat_history().await.len(), 2);
 
         Ok(())
     }
