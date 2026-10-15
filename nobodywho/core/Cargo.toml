@@ -107,6 +107,9 @@ ureq = { version = "3", default-features = false, features = [] }
 # ort = { version = "=2.0.0-rc.13", default-features = false, features = ["alternative-backend"] }
 # ort-web = "=0.3.1+1.27"
 # mel_spec = { version = "0.4", features = ["wasm"] }
+llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "wasm32-unknown-emscripten", default-features = false, features = [
+    "webgpu",
+] }
 
 # Enable Vulkan for x86_64, x86, and aarch64 targets (excluding Apple platforms and Android).
 # Apple platforms use Metal, which is auto-enabled by llama-cpp-rs for all Apple targets
