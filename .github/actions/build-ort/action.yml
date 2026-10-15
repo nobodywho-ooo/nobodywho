@@ -108,7 +108,7 @@ runs:
       uses: WarpBuilds/cache@v1
       with:
         path: ${{ runner.temp }}/ort-${{ inputs.target }}-build
-        key: ort-${{ inputs.target }}-${{ inputs.ort_version }}
+        key: ort-${{ inputs.target }}-${{ inputs.ort_version }}-no-telemetry
 
     - name: "Build ORT from source"
       if: steps.cache.outputs.cache-hit != 'true'
@@ -151,9 +151,11 @@ runs:
           *)        OSX_ARCH=arm64 ;;
         esac
 
+        # Telemetry is on by default since ORT 1.31 and needs sqlite3, zlib and Network.framework at link time.
         python3 tools/ci_build/build.py \
           --build_dir "$BUILD_DIR" \
           --config Release --skip_tests --skip_submodule_sync \
+          --no_telemetry \
           --build_apple_framework \
           --apple_sysroot "${{ steps.params.outputs.sysroot }}" \
           --apple_deploy_target "${{ steps.params.outputs.deploy_target }}" \

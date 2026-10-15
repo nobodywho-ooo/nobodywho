@@ -11,8 +11,12 @@ use std::path::Path;
 use std::sync::LazyLock;
 
 /// The process-wide ONNX Runtime environment.
-static ENVIRONMENT: LazyLock<Result<Environment, ort::Error>> =
-    LazyLock::new(|| ort::init().with_name("nobodywho").build());
+static ENVIRONMENT: LazyLock<Result<Environment, ort::Error>> = LazyLock::new(|| {
+    ort::init()
+        .with_name("nobodywho")
+        .with_telemetry(false)
+        .build()
+});
 
 /// Hardware target for ONNX Runtime execution.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
