@@ -384,9 +384,6 @@ pub enum InitWorkerError {
     )]
     ChatTemplate(#[from] SelectTemplateError),
 
-    #[error("Got no response after initializing worker.")]
-    NoResponse,
-
     #[error("Could not initialize projection model: {0}")]
     ProjectionModel(#[from] MultimodalError),
 

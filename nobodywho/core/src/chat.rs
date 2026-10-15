@@ -10,7 +10,7 @@
 //! use nobodywho::llm;
 //! use std::sync::Arc;
 //!
-//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let model = Arc::new(llm::get_model("model.gguf", true, None, None, None)?);
 //!
 //! let chat = ChatBuilder::new(model)
@@ -52,7 +52,7 @@ use std::hash::Hasher;
 use std::mem;
 use std::num::NonZeroUsize;
 use std::ops::ControlFlow;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
 use yoke::{Yoke, Yokeable};
@@ -631,8 +631,12 @@ impl ChatBuilder {
     }
 
     /// Build an async chat handle and start the background worker.
+    ///
+    /// Ideally this would be `async`, and would run `Chat::new` on a
+    /// different thread, but most constructors such as Python's `__new__` are
+    /// not async-able anyhow, so the effort is not really worth it.
     pub fn build_async(self) -> Result<ChatHandleAsync, InitWorkerError> {
-        ChatHandleAsync::new(self.model, self.config)
+        Ok(self.build()?.into_async())
     }
 }
 
@@ -647,34 +651,25 @@ impl ChatHandle {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
     pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Self, InitWorkerError> {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
-        let (init_tx, init_rx) = std::sync::mpsc::channel::<Result<(), InitWorkerError>>();
 
-        let should_stop = Arc::new(AtomicBool::new(false));
-        let should_stop_clone = Arc::clone(&should_stop);
+        let mut worker = Chat::new(model, config)?;
+        let should_stop = Arc::clone(&worker.should_stop);
 
         let join_handle = std::thread::spawn(move || {
-            let worker = Chat::new_chat_worker(model, config, should_stop_clone);
-            let mut worker_state = match worker {
-                Ok(w) => {
-                    let _ = init_tx.send(Ok(()));
-                    w
-                }
-                Err(e) => {
-                    let _ = init_tx.send(Err(e));
-                    return;
-                }
-            };
-
             while let Ok(msg) = msg_rx.recv() {
-                process_worker_msg(&mut worker_state, msg);
+                process_worker_msg(&mut worker, msg);
             }
         });
-
-        init_rx.recv().map_err(|_| InitWorkerError::NoResponse)??;
 
         Ok(Self {
             guard: WorkerGuard::new(msg_tx, join_handle, Some(should_stop)),
         })
+    }
+
+    pub fn into_async(self) -> ChatHandleAsync {
+        ChatHandleAsync {
+            guard: Arc::new(self.guard),
+        }
     }
 
     /// Send a message and collect tokens as they arrive.
@@ -1043,39 +1038,6 @@ pub struct ChatHandleAsync {
 }
 
 impl ChatHandleAsync {
-    /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
-    pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Self, InitWorkerError> {
-        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
-        let (init_tx, init_rx) = std::sync::mpsc::channel::<Result<(), InitWorkerError>>();
-
-        let should_stop = Arc::new(AtomicBool::new(false));
-        let should_stop_clone = Arc::clone(&should_stop);
-
-        let join_handle = std::thread::spawn(move || {
-            let worker = Chat::new_chat_worker(model, config, should_stop_clone);
-            let mut worker_state = match worker {
-                Ok(w) => {
-                    let _ = init_tx.send(Ok(()));
-                    w
-                }
-                Err(e) => {
-                    let _ = init_tx.send(Err(e));
-                    return;
-                }
-            };
-
-            while let Ok(msg) = msg_rx.recv() {
-                process_worker_msg(&mut worker_state, msg);
-            }
-        });
-
-        init_rx.recv().map_err(|_| InitWorkerError::NoResponse)??;
-
-        Ok(Self {
-            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, Some(should_stop))),
-        })
-    }
-
     /// Send a message and collect tokens as they arrive.
     ///
     /// # Example
@@ -1986,8 +1948,8 @@ fn bitmap_id(bitmap: &MtmdBitmap) -> ChunkId {
     hasher.finish().to_string()
 }
 
-/// Builds the tool-call grammar sampler for the chat's output format, which is
-/// detected once in `new_chat_worker`. `Ok(None)` if `tools` is empty, and an
+/// Builds the tool-call grammar sampler for the chat's output format, which
+/// is detected once in `Chat::new`. `Ok(None)` if `tools` is empty, and an
 /// error if tools are requested but no format was detected for this model.
 ///
 /// `grammar_factory` carries the llguidance state between calls: the ~400ms init
@@ -2124,11 +2086,7 @@ struct ChatContext<'model> {
 }
 
 impl Chat {
-    fn new_chat_worker(
-        model: Arc<llm::Model>,
-        config: ChatConfig,
-        should_stop: Arc<AtomicBool>,
-    ) -> Result<Chat, InitWorkerError> {
+    fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Chat, InitWorkerError> {
         if !model.is_generative_model() {
             let architecture = model
                 .language_model
@@ -2200,7 +2158,7 @@ impl Chat {
 
         Ok(Chat {
             context,
-            should_stop,
+            should_stop: Arc::new(AtomicBool::new(false)),
             model_output,
             grammar_factory,
             sampler_config,
@@ -2227,10 +2185,6 @@ impl Chat {
 
     fn sampler_mut<R: 'static>(&mut self, f: impl FnOnce(&mut ChatSampler) -> R + 'static) -> R {
         self.context.with_mut_return(|c| f(&mut c.sampler))
-    }
-
-    fn should_stop(&self) -> bool {
-        self.should_stop.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     pub fn add_assistant_message(&mut self, content: String) {
@@ -2364,8 +2318,7 @@ impl Chat {
 
     pub fn ask(&mut self, prompt: Prompt) -> Result<TurnGenerator, SayError> {
         // reset the stop flag
-        self.should_stop
-            .store(false, std::sync::atomic::Ordering::Relaxed);
+        self.should_stop.store(false, Ordering::Relaxed);
 
         // A prompt is message content, so it becomes the user turn as-is —
         // interleaving and all. Flattening to `<__media__>` markers happens at
@@ -2461,8 +2414,7 @@ impl Chat {
         mut messages: History,
         options: Options,
     ) -> Result<TurnGenerator, CompleteError> {
-        self.should_stop
-            .store(false, std::sync::atomic::Ordering::Relaxed);
+        self.should_stop.store(false, Ordering::Relaxed);
         let hoisted = messages.take_system_prompt();
         self.reload_media(&mut messages)?;
         self.apply_options(options)
@@ -2796,7 +2748,7 @@ impl ResponseGenerator {
                 let hit_token_limit =
                     max_tokens.is_some_and(|max_tokens| max_tokens <= self.produced_tokens.len());
 
-                if chat.should_stop() || hit_token_limit || parser.ended() {
+                if chat.should_stop.load(Ordering::Relaxed) || hit_token_limit || parser.ended() {
                     // FIXME: Should we include EOG tokens in the statistics?
                     let eog_tokens = if parser.ended() { 1 } else { 0 };
                     let completion_tokens = self.produced_tokens.len() - eog_tokens;
@@ -2981,6 +2933,28 @@ mod tests {
     use crate::sampler::SamplerPresets;
     use crate::test_utils;
 
+    #[test]
+    fn send_sync() {
+        fn assert_send<T: Send>() {}
+        fn assert_sync<T: Sync>() {}
+
+        assert_send::<Chat>();
+        // `Chat` isn't `Sync` because it contains `LlamaContext<'_>`.
+        // assert_sync::<Chat>();
+        assert_send::<ChatHandle>();
+        assert_sync::<ChatHandle>();
+        assert_send::<ChatHandleAsync>();
+        assert_sync::<ChatHandleAsync>();
+        assert_send::<CompletionStream>();
+        assert_sync::<CompletionStream>();
+        assert_send::<CompletionStreamAsync>();
+        assert_sync::<CompletionStreamAsync>();
+        assert_send::<TokenStream>();
+        assert_sync::<TokenStream>();
+        assert_send::<TokenStreamAsync>();
+        assert_sync::<TokenStreamAsync>();
+    }
+
     /// The render the model answers from, generation prompt included.
     fn render(chat: &Chat, messages: &History) -> Result<TokenizerChunks, RenderError> {
         chat.render_as_chunks(messages, true)
@@ -3107,13 +3081,12 @@ mod tests {
     fn test_chat_worker() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
 
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 n_ctx: 1024,
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         let resp = worker
@@ -3147,14 +3120,13 @@ mod tests {
             return Ok(());
         };
 
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 n_ctx: 1024,
                 mtp: Some(MtpConfig::default()),
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         let resp = worker
@@ -3177,13 +3149,12 @@ mod tests {
     #[test]
     fn test_reset_chat() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 system_prompt: Some("You're a dog. End all responses with 'woof'".into()),
                 ..ChatConfig::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         // do it once
@@ -3214,19 +3185,18 @@ mod tests {
     #[test]
     fn test_stop_mid_write() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 system_prompt: Some("You are a counter, only outputting numbers".into()),
                 n_ctx: 1024,
                 ..ChatConfig::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
         let should_stop = worker.should_stop.clone();
 
         // ensure that the generationworker resets the flag when creating a new response.
-        should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        should_stop.store(true, Ordering::Relaxed);
 
         let mut generator = worker.ask("Count from 0 to 9".into())?;
 
@@ -3235,7 +3205,7 @@ mod tests {
                 ControlFlow::Continue(text) => {
                     for text in text {
                         if text.contains("5") {
-                            should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+                            should_stop.store(true, Ordering::Relaxed);
                         }
                     }
                 }
@@ -3325,7 +3295,7 @@ mod tests {
     fn bench_pre_built_sampler_amortization() {
         let model = test_utils::load_test_model();
         let setup_start = std::time::Instant::now();
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 system_prompt: Some("You're a helpful assistant.".into()),
@@ -3333,7 +3303,6 @@ mod tests {
                 tools: vec![test_tool()],
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )
         .expect("Failed making worker");
         let setup_ms = setup_start.elapsed().as_millis();
@@ -3378,14 +3347,13 @@ mod tests {
         let model = test_utils::load_test_model();
 
         let setup_start = std::time::Instant::now();
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 n_ctx: 512,
                 tools: vec![test_tool()],
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )
         .expect("Failed making worker");
         eprintln!(
@@ -3412,14 +3380,13 @@ mod tests {
     #[test]
     fn tool_calling_survives_a_sampler_config_change() {
         let model = test_utils::load_test_model();
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 n_ctx: 4096,
                 tools: vec![test_tool()],
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )
         .expect("Failed making worker");
 
@@ -3454,7 +3421,7 @@ mod tests {
     #[test]
     fn test_tool_chat() {
         let model = test_utils::load_test_model();
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 system_prompt: Some("You're a helpful assistant.".into()),
@@ -3462,7 +3429,6 @@ mod tests {
                 tools: vec![test_tool()],
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )
         .expect("Failed making worker");
 
@@ -3508,14 +3474,13 @@ mod tests {
     #[test]
     fn a_turn_out_of_tokens_finishes_with_length() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 n_ctx: 1024,
                 tools: vec![test_tool()],
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
         let messages = History::new(vec![user("What's the temperature in Copenhagen?")])?;
         let response =
@@ -3530,13 +3495,12 @@ mod tests {
     #[test]
     fn test_multi_tool_call() {
         let model = test_utils::load_test_model();
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 tools: vec![test_tool(), dkk_exchange_rate()],
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )
         .expect("Failed making worker");
 
@@ -3558,14 +3522,13 @@ mod tests {
     fn tool_call_preamble_is_kept_in_history() {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 n_ctx: 1024,
                 tools: vec![test_tool()],
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )
         .expect("Failed making worker");
 
@@ -3662,13 +3625,12 @@ mod tests {
 
         let defaults = ContextShiftOptions::default();
         for turn_count in [2, defaults.keep_first_turns + defaults.keep_last_turns] {
-            let mut worker = Chat::new_chat_worker(
+            let mut worker = Chat::new(
                 Arc::clone(&model),
                 ChatConfig {
                     n_ctx: 512,
                     ..Default::default()
                 },
-                Arc::new(AtomicBool::new(false)),
             )?;
             let target_size = (worker.engine().ctx.n_ctx() / 2) as usize;
 
@@ -3698,13 +3660,12 @@ mod tests {
     #[test]
     fn test_context_shift_error_cases() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 n_ctx: 512,
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         assert!(matches!(
@@ -3726,14 +3687,13 @@ mod tests {
         context_shift: Option<ContextShiftOptions>,
         turns: usize,
     ) -> Result<Chat, Box<dyn std::error::Error>> {
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 n_ctx: 512,
                 context_shift,
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
         for i in 0..turns {
             worker.add_user_message(format!("Question {i}: tell me about the number {i}."));
@@ -3889,13 +3849,12 @@ mod tests {
     fn test_context_shift_preserves_prefix_before_first_user_message(
     ) -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 n_ctx: 512,
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
         let target_size = (worker.engine().ctx.n_ctx() / 2) as usize;
 
@@ -3937,7 +3896,7 @@ mod tests {
         // Use a very small context size to force shifting
         let n_ctx = 1024;
         let n_messages = 10;
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 n_ctx,
@@ -3945,7 +3904,6 @@ mod tests {
                 tools: vec![test_tool()],
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         // Add exchanges with tool calls mixed in
@@ -3991,14 +3949,13 @@ mod tests {
         let n_messages = 14;
         // n_messages is chosen by trial and error. This exactly fills up the
         // the context so much that the next user message cannot be read and a context shift happens.
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 system_prompt: Some("You are a helpful assistant.".into()),
                 n_ctx: 512, // Use a small context size to force shifting
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         // Fill up the context until it's almost full
@@ -4064,14 +4021,13 @@ mod tests {
         // the context so much that the next assistant message cannot be fully written.
         // The same is true for n_ctx. It needs to be large enough to where n_ctx/2 is large enough
         // to contain the response but also small enough to fill easily and test wihtout being to slow.
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 n_ctx: 768, // Use a small context size to force shifting
                 system_prompt: Some("You are a helpful assistant.".into()),
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         // Fill up the context until it's almost full
@@ -4606,13 +4562,12 @@ mod tests {
     fn test_inline_system_message_reports_a_useful_error() -> Result<(), Box<dyn std::error::Error>>
     {
         let model = test_utils::load_test_model();
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 n_ctx: 512,
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
         // Gemma 2 style: raises as soon as it sees the system role, so only a
         // leading system message can be rendered.
@@ -4772,13 +4727,12 @@ mod tests {
             return Ok(());
         };
 
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 n_ctx: 4096,
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         let image = test_utils::test_image();
@@ -4814,13 +4768,12 @@ mod tests {
             return Ok(());
         };
 
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 n_ctx: 4096,
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         let image = test_utils::test_image();
@@ -4884,13 +4837,12 @@ mod tests {
             return Ok(());
         };
 
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 n_ctx: 4096,
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         let image = std::path::PathBuf::from(test_utils::test_image());
@@ -4977,13 +4929,12 @@ mod tests {
             return Ok(());
         };
 
-        let mut worker = Chat::new_chat_worker(
+        let mut worker = Chat::new(
             model,
             ChatConfig {
                 n_ctx: 4096,
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )?;
 
         let image = test_utils::test_image();
@@ -5092,14 +5043,13 @@ mod tests {
         config: ChatConfig,
         first: MessageContent,
     ) {
-        let mut chat = Chat::new_chat_worker(
+        let mut chat = Chat::new(
             model,
             ChatConfig {
                 n_ctx: 4096,
                 sampler_config: Some(SamplerPresets::greedy()),
                 ..config
             },
-            Arc::new(AtomicBool::new(false)),
         )
         .unwrap();
         for (turn, mut prompt) in [
@@ -5204,7 +5154,7 @@ mod tests {
         let Some(model) = test_utils::load_model_from_env("TEST_RECURRENT_MODEL", None) else {
             return;
         };
-        let mut chat = Chat::new_chat_worker(
+        let mut chat = Chat::new(
             model,
             ChatConfig {
                 tools: vec![test_tool()],
@@ -5212,7 +5162,6 @@ mod tests {
                 sampler_config: Some(SamplerPresets::greedy()),
                 ..Default::default()
             },
-            Arc::new(AtomicBool::new(false)),
         )
         .unwrap();
         for (prompt, expected) in [

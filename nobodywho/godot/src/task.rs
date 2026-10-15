@@ -81,8 +81,7 @@ where
 /// Run a blocking closure on a dedicated thread; await its result.
 ///
 /// Returns `None` if the closure panicked. Use for core constructors that
-/// block (e.g. `ChatHandleAsync::new`). Interim helper — deleted once core
-/// gets async constructors (Phase 5).
+/// block (e.g. `ChatHandle::new`).
 pub async fn on_blocking_thread<T, F>(f: F) -> Option<T>
 where
     T: Send + 'static,

@@ -16,8 +16,7 @@ use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::{LlamaStateSeqFlags, SeqState};
 use std::ops::Range;
 use std::path::Path;
-use std::rc::Rc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tracing::{debug, debug_span, trace, trace_span, warn};
 use yoke::Yokeable;
 
@@ -500,7 +499,7 @@ impl<'a> InferenceEngine<'a> {
     #[tracing::instrument(level = "trace", skip(self))]
     fn read_media_embeddings(
         &mut self,
-        embeddings: Rc<MtmdInputChunks>,
+        embeddings: Arc<MtmdInputChunks>,
     ) -> Result<&mut Self, ReadError> {
         let projection_model = self
             .projection_model
