@@ -50,7 +50,7 @@ async fn main() {
     let _ = args.next().unwrap();
     let path = args.next().expect("model path");
     let model = Arc::new(
-        llm::get_model(&path, true, None, None, None)
+        llm::get_model(&path, false, None, None, None)
             .unwrap_or_else(|e| panic!("failed to load test model from {path:?}: {e}")),
     );
     tracing::info!("LOADED");
