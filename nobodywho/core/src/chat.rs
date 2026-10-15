@@ -747,25 +747,7 @@ impl ChatHandle {
         Ok(TokenStream::new(output_rx))
     }
 
-    pub fn complete_with_metadata(
-        &self,
-        messages: Vec<Message>,
-        options: Options,
-        max_tokens: Option<usize>,
-    ) -> Result<CompletionStream, InvalidHistoryError> {
-        self.completion_stream(messages, options, max_tokens, true)
-    }
-
-    pub fn complete_with_external_tools(
-        &self,
-        messages: Vec<Message>,
-        options: Options,
-        max_tokens: Option<usize>,
-    ) -> Result<CompletionStream, InvalidHistoryError> {
-        self.completion_stream(messages, options, max_tokens, false)
-    }
-
-    fn completion_stream(
+    pub fn completion_stream(
         &self,
         messages: Vec<Message>,
         options: Options,
@@ -820,7 +802,7 @@ impl ChatHandle {
     pub fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_blocking(
             |output_tx| ChatMsg::SetChatHistory {
-                messages: History::default(),
+                messages: Vec::new(),
                 output_tx,
             },
             "reset_history",
@@ -935,7 +917,6 @@ impl ChatHandle {
         &self,
         messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
-        let messages = History::new(messages)?;
         self.set_and_wait_blocking(
             |output_tx| ChatMsg::SetChatHistory {
                 messages,
@@ -1160,38 +1141,23 @@ impl ChatHandleAsync {
         Ok(TokenStreamAsync::new(output_rx))
     }
 
-    pub fn complete_with_metadata(
-        &self,
-        messages: Vec<Message>,
-        options: Options,
-        max_tokens: Option<usize>,
-    ) -> Result<CompletionStreamAsync, InvalidHistoryError> {
-        Ok(CompletionStreamAsync(completion_receiver(
-            &self.guard,
-            messages,
-            options,
-            max_tokens,
-            true,
-        )?))
-    }
-
-    /// Generate one assistant response and return tool calls to the caller.
+    /// Generate one assistant response.
     ///
-    /// Unlike [`complete`](Self::complete), this never executes tool callbacks.
-    /// The caller can execute returned calls and submit the full conversation,
-    /// including the tool results, in a following request.
-    pub fn complete_with_external_tools(
+    /// If `execute_tools` is `false`, this returns return tool calls for the
+    /// caller to execute and submit in a following request.
+    pub fn completion_stream(
         &self,
         messages: Vec<Message>,
         options: Options,
         max_tokens: Option<usize>,
+        execute_tools: bool,
     ) -> Result<CompletionStreamAsync, InvalidHistoryError> {
         Ok(CompletionStreamAsync(completion_receiver(
             &self.guard,
             messages,
             options,
             max_tokens,
-            false,
+            execute_tools,
         )?))
     }
 
@@ -1236,7 +1202,7 @@ impl ChatHandleAsync {
     pub async fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_async(
             |output_tx| ChatMsg::SetChatHistory {
-                messages: History::default(),
+                messages: Vec::new(),
                 output_tx,
             },
             "reset_history",
@@ -1359,7 +1325,6 @@ impl ChatHandleAsync {
         &self,
         messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
-        let messages = History::new(messages)?;
         self.set_and_wait_async(
             |output_tx| ChatMsg::SetChatHistory {
                 messages,
@@ -1663,7 +1628,7 @@ enum TurnInput {
 enum TurnOutput {
     /// Tokens, then the answer's text, as `ask` and `complete` stream them.
     Text(tokio::sync::mpsc::UnboundedSender<crate::stream::StreamOutput<CompletionError>>),
-    /// Tokens, then the whole response, as `complete_with_metadata` streams them.
+    /// Tokens, then the whole response, as `completion_stream` streams them.
     Completion(tokio::sync::mpsc::Sender<ExternalCompletionOutput>),
 }
 
@@ -1750,7 +1715,7 @@ enum ChatMsg {
         output_tx: tokio::sync::mpsc::Sender<SamplerConfig>,
     },
     SetChatHistory {
-        messages: History,
+        messages: Vec<Message>,
         output_tx: SetterReply,
     },
     GetStats {
@@ -1953,25 +1918,17 @@ fn process_worker_msg(worker_state: &mut Chat, msg: ChatMsg) {
             messages,
             output_tx,
         } => {
-            let _ = output_tx.blocking_send(
-                worker_state
-                    .set_chat_history(messages)
-                    .map_err(SetterError::from),
-            );
+            let _ = output_tx.blocking_send(worker_state.set_chat_history(messages));
         }
         ChatMsg::GetSamplerConfig { output_tx } => {
             let sampler_config = worker_state.get_sampler_config();
             let _ = output_tx.blocking_send(sampler_config);
         }
         ChatMsg::GetStats { output_tx } => {
-            let stats = ChatStats {
-                context_size: worker_state.engine().ctx.n_ctx(),
-                context_used: worker_state.engine().actual_context_size() as u32,
-            };
-            let _ = output_tx.blocking_send(stats);
+            let _ = output_tx.blocking_send(worker_state.get_stats());
         }
         ChatMsg::GetMtpAcceptanceRate { output_tx } => {
-            let _ = output_tx.blocking_send(worker_state.engine().mtp_acceptance_rate());
+            let _ = output_tx.blocking_send(worker_state.mtp_acceptance_rate());
         }
         ChatMsg::Tokenize { prompt, output_tx } => {
             let result = worker_state.tokenize(prompt);
@@ -2616,6 +2573,17 @@ impl Chat {
         self.apply_sampler_and_tools(Some(sampler_config), None)
     }
 
+    pub fn get_stats(&self) -> ChatStats {
+        ChatStats {
+            context_size: self.engine().ctx.n_ctx(),
+            context_used: self.engine().actual_context_size() as u32,
+        }
+    }
+
+    pub fn mtp_acceptance_rate(&self) -> Option<f32> {
+        self.engine().mtp_acceptance_rate()
+    }
+
     /// Apply a turn's [`Options`]. The sampler and tools are applied together, so
     /// setting both builds the tool grammar once, and a failure in either leaves
     /// both alone. Template variables cannot fail.
@@ -2708,7 +2676,9 @@ impl Chat {
     /// Media is re-registered from the part paths, since bitmap ids issued by
     /// another worker mean nothing here. Nothing is committed unless that
     /// succeeds.
-    pub fn set_chat_history(&mut self, mut messages: History) -> Result<(), ContextSyncError> {
+    pub fn set_chat_history(&mut self, messages: Vec<Message>) -> Result<(), SetterError> {
+        let mut messages = History::new(messages)?;
+
         let hoisted = messages.take_system_prompt();
         self.reload_media(&mut messages)?;
 
@@ -4742,10 +4712,7 @@ mod tests {
             ])])
             .unwrap_err();
         assert!(
-            matches!(
-                err,
-                crate::errors::SetterError::ContextSync(ContextSyncError::Multimodal(_))
-            ),
+            matches!(err, crate::errors::SetterError::Multimodal(_)),
             "{err:?}"
         );
         assert_eq!(
@@ -4823,7 +4790,7 @@ mod tests {
             part.set_id("id-from-another-session".to_string());
         }
 
-        worker.set_chat_history(History::new(vec![Message::User { content }])?)?;
+        worker.set_chat_history(vec![Message::User { content }])?;
 
         let history = worker.get_chat_history();
         let registered = history[0].content_ref().media_parts()[0]
