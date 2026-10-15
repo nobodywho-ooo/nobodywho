@@ -820,7 +820,7 @@ impl ChatHandle {
     pub fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_blocking(
             |output_tx| ChatMsg::SetChatHistory {
-                messages: History::default(),
+                messages: Vec::new(),
                 output_tx,
             },
             "reset_history",
@@ -935,7 +935,6 @@ impl ChatHandle {
         &self,
         messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
-        let messages = History::new(messages)?;
         self.set_and_wait_blocking(
             |output_tx| ChatMsg::SetChatHistory {
                 messages,
@@ -1236,7 +1235,7 @@ impl ChatHandleAsync {
     pub async fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_async(
             |output_tx| ChatMsg::SetChatHistory {
-                messages: History::default(),
+                messages: Vec::new(),
                 output_tx,
             },
             "reset_history",
@@ -1359,7 +1358,6 @@ impl ChatHandleAsync {
         &self,
         messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
-        let messages = History::new(messages)?;
         self.set_and_wait_async(
             |output_tx| ChatMsg::SetChatHistory {
                 messages,
@@ -1750,7 +1748,7 @@ enum ChatMsg {
         output_tx: tokio::sync::mpsc::Sender<SamplerConfig>,
     },
     SetChatHistory {
-        messages: History,
+        messages: Vec<Message>,
         output_tx: SetterReply,
     },
     GetStats {
@@ -1953,11 +1951,7 @@ fn process_worker_msg(worker_state: &mut Chat, msg: ChatMsg) {
             messages,
             output_tx,
         } => {
-            let _ = output_tx.blocking_send(
-                worker_state
-                    .set_chat_history(messages)
-                    .map_err(SetterError::from),
-            );
+            let _ = output_tx.blocking_send(worker_state.set_chat_history(messages));
         }
         ChatMsg::GetSamplerConfig { output_tx } => {
             let sampler_config = worker_state.get_sampler_config();
@@ -2715,7 +2709,9 @@ impl Chat {
     /// Media is re-registered from the part paths, since bitmap ids issued by
     /// another worker mean nothing here. Nothing is committed unless that
     /// succeeds.
-    pub fn set_chat_history(&mut self, mut messages: History) -> Result<(), ContextSyncError> {
+    pub fn set_chat_history(&mut self, messages: Vec<Message>) -> Result<(), SetterError> {
+        let mut messages = History::new(messages)?;
+
         let hoisted = messages.take_system_prompt();
         self.reload_media(&mut messages)?;
 
@@ -4749,10 +4745,7 @@ mod tests {
             ])])
             .unwrap_err();
         assert!(
-            matches!(
-                err,
-                crate::errors::SetterError::ContextSync(ContextSyncError::Multimodal(_))
-            ),
+            matches!(err, crate::errors::SetterError::Multimodal(_)),
             "{err:?}"
         );
         assert_eq!(
@@ -4830,7 +4823,7 @@ mod tests {
             part.set_id("id-from-another-session".to_string());
         }
 
-        worker.set_chat_history(History::new(vec![Message::User { content }])?)?;
+        worker.set_chat_history(vec![Message::User { content }])?;
 
         let history = worker.get_chat_history();
         let registered = history[0].content_ref().media_parts()[0]

@@ -471,9 +471,8 @@ pub enum SetterError {
     #[diagnostic(transparent)]
     InvalidHistory(#[from] InvalidHistoryError),
 
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    ContextSync(#[from] ContextSyncError),
+    #[error("Multimodal error: {0}")]
+    Multimodal(#[from] MultimodalError),
 
     #[error("Failed setting up tool calling: {0}")]
     ToolCallingSetup(#[from] ToolCallingSetupError),
