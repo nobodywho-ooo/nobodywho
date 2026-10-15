@@ -337,7 +337,7 @@ fn espeak_data_dir() -> PathBuf {
     if let Ok(p) = std::env::var("NOBODYWHO_ESPEAK_DATA_DIR") {
         return PathBuf::from(p);
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "emscripten")))]
     if let Some(d) = dirs::cache_dir() {
         return d.join("nobodywho").join("espeak-ng-data");
     }
