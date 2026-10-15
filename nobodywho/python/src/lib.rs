@@ -3086,6 +3086,7 @@ impl ChatAsync {
     /// Raises:
     ///     RuntimeError: If reset fails
     pub async fn reset(&self, system_prompt: Option<String>, tools: Vec<Tool>) -> PyResult<()> {
+        // TODO: spawn_blocking
         self.handle()
             .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
             .await
