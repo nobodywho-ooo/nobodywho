@@ -4,10 +4,15 @@
 //! around [`ort`] session construction so each backend doesn't repeat the
 //! boilerplate.
 
+use ort::environment::Environment;
 use ort::ep::{ExecutionProviderDispatch, CPU};
-use ort::session::builder::SessionBuilder;
 use ort::session::Session;
 use std::path::Path;
+use std::sync::LazyLock;
+
+/// The process-wide ONNX Runtime environment.
+static ENVIRONMENT: LazyLock<Result<Environment, ort::Error>> =
+    LazyLock::new(|| ort::init().with_name("nobodywho").build());
 
 /// Hardware target for ONNX Runtime execution.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,7 +44,7 @@ fn cuda_provider(device: Device) -> Result<Option<ExecutionProviderDispatch>, or
     use ort::ep::{ExecutionProvider, CUDA};
     Ok(match device {
         Device::Cuda => Some(CUDA::default().build().error_on_failure()),
-        Device::Auto if CUDA::default().is_available().unwrap_or(false) => {
+        Device::Auto if CUDA::is_available().unwrap_or(false) => {
             Some(CUDA::default().build().fail_silently())
         }
         _ => None,
@@ -63,7 +68,11 @@ fn cuda_provider(device: Device) -> Result<Option<ExecutionProviderDispatch>, or
 /// error type (`TextToSpeechError::Ort`, `SpeechToTextError::Ort`, …) using `?` plus a
 /// `From<ort::Error>` impl.
 pub fn load_session(path: &Path, device: Device) -> Result<Session, ort::Error> {
-    SessionBuilder::new()?
+    let environment = ENVIRONMENT
+        .as_ref()
+        .map_err(|e| ort::Error::new(format!("failed to create ONNX Runtime environment: {e}")))?;
+
+    Session::builder(environment)?
         .with_log_level(ort::logging::LogLevel::Warning)?
         .with_execution_providers(execution_providers(device)?)?
         .commit_from_file(path)

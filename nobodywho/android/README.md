@@ -2,7 +2,7 @@
 
 The binding `.so` embeds GGML's CPU/OpenCL/Vulkan backends, a small OpenCL
 forwarding shim and C++ runtime. Android supplies `libvulkan.so` and optional OpenCL
-drivers. The existing x86_64 ONNX Runtime companion library is still required.
+drivers.
 
 With NDK r28, CMake and curl installed, run from `nobodywho/` in Bash:
 

@@ -97,8 +97,8 @@ val resolveNativeLibraries by tasks.registering {
         val toolDir = file("${projectDir}/../tool")
         val workingDir = file("${projectDir}/..")
 
-        // Runs resolve_binary.dart for the given ABI/component and returns the resolved path.
-        fun resolveLibrary(abi: String, component: String): String {
+        // Runs resolve_binary.dart for the given ABI and returns the resolved path.
+        fun resolveLibrary(abi: String): String {
             val stdout = ByteArrayOutputStream()
             val stderr = ByteArrayOutputStream()
 
@@ -108,8 +108,7 @@ val resolveNativeLibraries by tasks.registering {
                     "--platform=android",
                     "--arch=$abi",
                     "--build-type=release",
-                    "--cache-dir=${cacheDir.get().asFile.absolutePath}",
-                    "--component=$component"
+                    "--cache-dir=${cacheDir.get().asFile.absolutePath}"
                 )
                 setWorkingDir(workingDir)
                 standardOutput = stdout
@@ -124,7 +123,7 @@ val resolveNativeLibraries by tasks.registering {
             }
 
             if (execResult.exitValue != 0) {
-                throw GradleException("Failed to resolve $component library for $abi:\n$stderrText")
+                throw GradleException("Failed to resolve library for $abi:\n$stderrText")
             }
 
             return stdout.toString().trim()
@@ -135,24 +134,12 @@ val resolveNativeLibraries by tasks.registering {
             abiOutputDir.mkdirs()
 
             // Copy the resolved library to jniLibs
-            val resolvedLibPath = resolveLibrary(abi, "main")
+            val resolvedLibPath = resolveLibrary(abi)
             logger.lifecycle("[$abi] Resolved library: $resolvedLibPath")
             copy {
                 from(resolvedLibPath)
                 into(abiOutputDir)
                 rename { "libnobodywho_flutter.so" }
-            }
-
-            // Only x86_64 needs onnxruntime as a separate .so (Microsoft ships
-            // no static build for it); arm64 statically embeds it (see objdump -p).
-            if (abi == "x86_64") {
-                val resolvedOrtPath = resolveLibrary(abi, "onnxruntime")
-                logger.lifecycle("[$abi] Resolved onnxruntime library: $resolvedOrtPath")
-                copy {
-                    from(resolvedOrtPath)
-                    into(abiOutputDir)
-                    rename { "libonnxruntime.so" }
-                }
             }
         }
     }

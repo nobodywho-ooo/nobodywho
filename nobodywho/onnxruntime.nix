@@ -11,20 +11,20 @@
 }:
 
 let
-  version = "1.28.0";
+  version = "1.31.0";
   dists = {
     # `cuda` is enabled on x86_64 Linux (see core/Cargo.toml).
     x86_64-linux = {
       file = "x86_64-unknown-linux-gnu+cuda13,tensorrt,nvrtx";
-      sha256 = "b89451babb9d4ec77c3f381e8ef92b640e125021b59f9cc7747e73c9fe8d549b";
+      sha256 = "535872087d5a5921aad090fdb46c65bb11c4c50b900dfcf6657ad3d5c465986f";
     };
     aarch64-linux = {
       file = "aarch64-unknown-linux-gnu";
-      sha256 = "06a050ab9137ccb32421d0cb49e9ccf72d9e18ab0aeb8f8d038d1b5cc844b35a";
+      sha256 = "380c1b63eedf5671e7b39e4aa0f6c377ecc351c3a7b01ae708a707e73fb54709";
     };
     aarch64-darwin = {
       file = "aarch64-apple-darwin+coreml";
-      sha256 = "6934874e2e953576d9c1db47ff1af39c62c4f4220dbe6f988e131f72879674c7";
+      sha256 = "4033efca0e6c1606bd2ec3870d4cb19d0dba0ad0160dbfb616e66cae969ed68c";
     };
   };
   system = stdenvNoCC.hostPlatform.system;
