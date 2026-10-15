@@ -3011,6 +3011,28 @@ mod tests {
     use crate::sampler::SamplerPresets;
     use crate::test_utils;
 
+    #[test]
+    fn send_sync() {
+        fn assert_send<T: Send>() {}
+        fn assert_sync<T: Sync>() {}
+
+        assert_send::<Chat>();
+        // `Chat` isn't `Sync` because it contains `LlamaContext<'_>`.
+        // assert_sync::<Chat>();
+        assert_send::<ChatHandle>();
+        assert_sync::<ChatHandle>();
+        assert_send::<ChatHandleAsync>();
+        assert_sync::<ChatHandleAsync>();
+        assert_send::<CompletionStream>();
+        assert_sync::<CompletionStream>();
+        assert_send::<CompletionStreamAsync>();
+        assert_sync::<CompletionStreamAsync>();
+        assert_send::<TokenStream>();
+        assert_sync::<TokenStream>();
+        assert_send::<TokenStreamAsync>();
+        assert_sync::<TokenStreamAsync>();
+    }
+
     /// The render the model answers from, generation prompt included.
     fn render(chat: &Chat, messages: &History) -> Result<TokenizerChunks, RenderError> {
         chat.render_as_chunks(messages, true)
