@@ -667,11 +667,13 @@ impl RustChat {
         Ok(RustTokenStream { stream })
     }
 
-    pub async fn get_chat_history(&self) -> Result<Vec<Message>, nobodywho::errors::GetterError> {
+    pub async fn get_chat_history(&self) -> Vec<Message> {
         self.chat
             .get_chat_history()
             .await
-            .map(|msgs| msgs.into_iter().map(Message::from).collect())
+            .into_iter()
+            .map(Message::from)
+            .collect()
     }
 
     pub async fn set_chat_history(&self, messages: Vec<Message>) -> Result<(), String> {
@@ -692,13 +694,9 @@ impl RustChat {
             .map_err(|e| nobodywho::render_miette(&e))
     }
 
-    pub async fn get_sampler_config(
-        &self,
-    ) -> Result<SamplerConfig, nobodywho::errors::GetterError> {
-        self.chat
-            .get_sampler_config()
-            .await
-            .map(|sampler_config| SamplerConfig { sampler_config })
+    pub async fn get_sampler_config(&self) -> SamplerConfig {
+        let sampler_config = self.chat.get_sampler_config().await;
+        SamplerConfig { sampler_config }
     }
 
     pub async fn reset_context(
@@ -721,18 +719,14 @@ impl RustChat {
     }
 
     #[deprecated(note = "Use setTemplateVariable(\"enable_thinking\", value) instead")]
-    pub async fn set_allow_thinking(&self, allow_thinking: bool) -> Result<(), String> {
+    pub async fn set_allow_thinking(&self, allow_thinking: bool) {
         self.chat
             .set_template_variable("enable_thinking".to_string(), allow_thinking)
             .await
-            .map_err(|e| nobodywho::render_miette(&e))
     }
 
-    pub async fn set_system_prompt(&self, system_prompt: Option<String>) -> Result<(), String> {
-        self.chat
-            .set_system_prompt(system_prompt)
-            .await
-            .map_err(|e| nobodywho::render_miette(&e))
+    pub async fn set_system_prompt(&self, system_prompt: Option<String>) {
+        self.chat.set_system_prompt(system_prompt).await
     }
 
     pub async fn set_context_shift(&self, options: ContextShiftOptions) -> Result<(), String> {
@@ -742,9 +736,7 @@ impl RustChat {
             .map_err(|e| nobodywho::render_miette(&e))
     }
 
-    pub async fn get_system_prompt(
-        &self,
-    ) -> Result<Option<String>, nobodywho::errors::GetterError> {
+    pub async fn get_system_prompt(&self) -> Option<String> {
         self.chat.get_system_prompt().await
     }
 
@@ -765,17 +757,18 @@ impl RustChat {
         self.chat.tokenize(prompt).await
     }
 
-    pub async fn get_stats(&self) -> Result<ChatStats, nobodywho::errors::GetterError> {
-        self.chat.get_stats().await.map(|s| ChatStats {
+    pub async fn get_stats(&self) -> ChatStats {
+        let s = self.chat.get_stats().await;
+        ChatStats {
             context_size: s.context_size,
             context_used: s.context_used,
-        })
+        }
     }
 
     /// MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
     /// Resets each generation (per-response, not cumulative). Null when MTP is
     /// disabled or no drafts were proposed in the last generation.
-    pub async fn mtp_acceptance_rate(&self) -> Result<Option<f32>, nobodywho::errors::GetterError> {
+    pub async fn mtp_acceptance_rate(&self) -> Option<f32> {
         self.chat.mtp_acceptance_rate().await
     }
 
@@ -786,26 +779,15 @@ impl RustChat {
             .map_err(|e| nobodywho::render_miette(&e))
     }
 
-    pub async fn set_template_variable(&self, name: String, value: bool) -> Result<(), String> {
-        self.chat
-            .set_template_variable(name, value)
-            .await
-            .map_err(|e| nobodywho::render_miette(&e))
+    pub async fn set_template_variable(&self, name: String, value: bool) {
+        self.chat.set_template_variable(name, value).await
     }
 
-    pub async fn set_template_variables(
-        &self,
-        variables: HashMap<String, bool>,
-    ) -> Result<(), String> {
-        self.chat
-            .set_template_variables(variables)
-            .await
-            .map_err(|e| nobodywho::render_miette(&e))
+    pub async fn set_template_variables(&self, variables: HashMap<String, bool>) {
+        self.chat.set_template_variables(variables).await
     }
 
-    pub async fn get_template_variables(
-        &self,
-    ) -> Result<HashMap<String, bool>, nobodywho::errors::GetterError> {
+    pub async fn get_template_variables(&self) -> HashMap<String, bool> {
         self.chat.get_template_variables().await
     }
 
