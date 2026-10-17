@@ -243,6 +243,7 @@ impl NobodyWhoChat {
         let core_tools = build_core_tools(&tools, &self.reentrancy_flag);
         let handle = self.handle.clone();
         self.guarded("reset_chat", async move {
+            // TODO: on_blocking_thread
             handle
                 .reset_chat(prompt, core_tools)
                 .await
