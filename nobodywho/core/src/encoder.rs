@@ -51,7 +51,7 @@ impl EncoderAsync {
         });
 
         Self {
-            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, None)),
+            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle)),
         }
     }
 
