@@ -10,8 +10,7 @@ use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::speculative::{MtpSpeculative, MtpSpeculativeParams};
 use std::pin::pin;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{LazyLock, Mutex};
 use tracing::{error, info, info_span, warn};
 
 // Back-compat re-exports: bindings (Python, Godot, Flutter) import these via
@@ -487,19 +486,16 @@ impl<'a> InferenceEngine<'a> {
 pub(crate) struct WorkerGuard<T> {
     pub(crate) msg_tx: Option<std::sync::mpsc::Sender<T>>,
     join_handle: Option<std::thread::JoinHandle<()>>,
-    should_stop: Option<Arc<AtomicBool>>,
 }
 
 impl<T> WorkerGuard<T> {
     pub(crate) fn new(
         msg_tx: std::sync::mpsc::Sender<T>,
         join_handle: std::thread::JoinHandle<()>,
-        should_stop: Option<Arc<AtomicBool>>,
     ) -> Self {
         Self {
             msg_tx: Some(msg_tx),
             join_handle: Some(join_handle),
-            should_stop,
         }
     }
 
@@ -507,20 +503,10 @@ impl<T> WorkerGuard<T> {
     pub(crate) fn send(&self, msg: T) -> bool {
         self.msg_tx.as_ref().is_some_and(|tx| tx.send(msg).is_ok())
     }
-
-    /// Signal the worker to stop mid-generation (no-op if no stop flag).
-    pub(crate) fn stop(&self) {
-        if let Some(ref flag) = self.should_stop {
-            flag.store(true, Ordering::Relaxed);
-        }
-    }
 }
 
 impl<T> Drop for WorkerGuard<T> {
     fn drop(&mut self) {
-        if let Some(ref stop) = self.should_stop {
-            stop.store(true, Ordering::Relaxed);
-        }
         drop(self.msg_tx.take());
         if let Some(handle) = self.join_handle.take() {
             if let Err(e) = handle.join() {
@@ -536,6 +522,7 @@ mod tests {
     use crate::tokenizer::{TokenizerChunk, TokenizerChunks};
     use llama_cpp_2::token::LlamaToken;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
 
     #[test]
     fn model_keeps_its_source() {
