@@ -1,5 +1,5 @@
 use emscripten_functions::emscripten::set_main_loop_with_arg;
-use nobodywho::chat::{Chat, ChatConfig};
+use nobodywho::chat::{Chat, ChatConfig, TurnGenerator};
 use nobodywho::llm;
 use std::ops::ControlFlow;
 use std::sync::Arc;
@@ -55,7 +55,7 @@ fn main() {
     );
     tracing::info!("LOADED");
 
-    let mut chat = Chat::new(
+    let chat = Chat::new(
         model,
         ChatConfig {
             n_ctx: 1024,
@@ -65,27 +65,38 @@ fn main() {
     .unwrap();
     tracing::info!("CHAT CREATED");
 
-    let generator = chat.ask("What is the capital of Denmark?").unwrap();
-
     set_main_loop_with_arg(
-        |(chat, generator)| match generator.next(chat, None, true) {
-            Ok(ControlFlow::Continue(text)) => {
-                for text in text {
-                    tracing::info!("token: {text:?}");
+        |(chat, state)| {
+            if let Some(generator) = state {
+                match generator.next(chat, None, true) {
+                    Ok(ControlFlow::Continue(text)) => {
+                        for text in text {
+                            tracing::info!("token: {text:?}");
+                        }
+                    }
+                    Ok(ControlFlow::Break(response)) => {
+                        println!();
+                        println!("{}", response.content);
+                        println!();
+                        *state = None;
+                    }
+                    Err(e) => {
+                        tracing::error!(%e, "error");
+                        std::process::exit(0);
+                    }
+                }
+            } else {
+                let mut prompt = String::new();
+                match std::io::stdin().read_line(&mut prompt) {
+                    Ok(_) => {
+                        let generator = chat.ask(prompt).unwrap();
+                        *state = Some(generator);
+                    }
+                    Err(e) => tracing::error!("{e}"),
                 }
             }
-            Ok(ControlFlow::Break(response)) => {
-                println!();
-                println!("{}", response.content);
-                println!();
-                std::process::exit(0);
-            }
-            Err(e) => {
-                tracing::error!(%e, "error");
-                std::process::exit(0);
-            }
         },
-        (chat, generator),
+        (chat, None::<TurnGenerator>),
         0,
         false,
     );
