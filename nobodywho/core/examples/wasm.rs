@@ -7,8 +7,7 @@ use tracing_subscriber::fmt::format::{DefaultFields, Writer};
 use tracing_subscriber::fmt::{FmtContext, FormatFields};
 use tracing_subscriber::Registry;
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
+fn main() {
     nobodywho::send_llamacpp_logs_to_tracing();
 
     let f: fn(
