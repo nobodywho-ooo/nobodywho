@@ -1332,6 +1332,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "emscripten-functions"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4547520aeddeb32717ddd02f83888d27d5db7dd5932941142194015fda5b06aa"
+dependencies = [
+ "cc",
+ "emscripten-functions-sys",
+]
+
+[[package]]
+name = "emscripten-functions-sys"
+version = "5.0.401"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c1f3aa9a59cdd296650e7ba9bb966ad418aa754c17a5af69860a51153106a95"
+
+[[package]]
 name = "encode_unicode"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3435,6 +3451,7 @@ dependencies = [
  "chrono",
  "dirs",
  "emojis",
+ "emscripten-functions",
  "encoding_rs",
  "espeak-ng",
  "futures",

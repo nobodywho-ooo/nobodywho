@@ -1,3 +1,4 @@
+use emscripten_functions::emscripten::set_main_loop_with_arg;
 use nobodywho::chat::{Chat, ChatConfig};
 use nobodywho::llm;
 use std::ops::ControlFlow;
@@ -64,10 +65,10 @@ fn main() {
     .unwrap();
     tracing::info!("CHAT CREATED");
 
-    let mut generator = chat.ask("What is the capital of Denmark?").unwrap();
+    let generator = chat.ask("What is the capital of Denmark?").unwrap();
 
-    loop {
-        match generator.next(&mut chat, None, true) {
+    set_main_loop_with_arg(
+        |(chat, generator)| match generator.next(chat, None, true) {
             Ok(ControlFlow::Continue(text)) => {
                 for text in text {
                     tracing::info!("token: {text:?}");
@@ -77,14 +78,17 @@ fn main() {
                 println!();
                 println!("{}", response.content);
                 println!();
-                break;
+                std::process::exit(0);
             }
             Err(e) => {
                 tracing::error!(%e, "error");
-                break;
+                std::process::exit(0);
             }
-        }
-    }
+        },
+        (chat, generator),
+        0,
+        false,
+    );
 
     tracing::info!("DONE");
 }
