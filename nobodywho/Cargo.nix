@@ -12460,9 +12460,9 @@ rec {
       };
       "ort" = rec {
         crateName = "ort";
-        version = "2.0.0-rc.13";
+        version = "2.0.0-rc.14";
         edition = "2024";
-        sha256 = "02wa2fsqv3hawqsz6x3wkdc4w046d048ja6785934j48ngia2dj3";
+        sha256 = "1sr55ryq502b8bx5xwn5kbya0zabsl04l42hablygb2sq23r5jh8";
         license = "MIT OR Apache-2.0";
         authors = [
           "pyke.io <contact@pyke.io>"
@@ -12523,13 +12523,16 @@ rec {
           "api-26" = [ "ort-sys/api-26" "api-25" ];
           "api-27" = [ "ort-sys/api-27" "api-26" ];
           "api-28" = [ "ort-sys/api-28" "api-27" ];
+          "api-29" = [ "ort-sys/api-29" "api-28" ];
+          "api-30" = [ "ort-sys/api-30" "api-29" ];
+          "api-31" = [ "ort-sys/api-31" "api-30" ];
           "armnn" = [ "ort-sys/armnn" ];
           "azure" = [ "ort-sys/azure" ];
           "cann" = [ "ort-sys/cann" ];
           "copy-dylibs" = [ "ort-sys/copy-dylibs" ];
           "coreml" = [ "ort-sys/coreml" ];
           "cuda" = [ "ort-sys/cuda" ];
-          "default" = [ "std" "ndarray" "tracing" "download-binaries" "tls-native" "copy-dylibs" "api-27" ];
+          "default" = [ "std" "ndarray" "tracing" "download-binaries" "tls-native" "copy-dylibs" "api-31" ];
           "directml" = [ "ort-sys/directml" ];
           "download-binaries" = [ "ort-sys/download-binaries" ];
           "fetch-models" = [ "std" "dep:ureq" "dep:sha2" ];
@@ -12566,10 +12569,10 @@ rec {
       };
       "ort-sys" = rec {
         crateName = "ort-sys";
-        version = "2.0.0-rc.13";
+        version = "2.0.0-rc.14";
         edition = "2024";
         links = "onnxruntime";
-        sha256 = "0wjq7rgh360wil2l9qp5n7hp0vblvlca2bsmi34sx9pffqviw8fg";
+        sha256 = "0bzj708lsn5mia5y85v1gxh2h76n2z9bir5zn186d49zalz7dx2a";
         build = "build/main.rs";
         libName = "ort_sys";
         license = "MIT OR Apache-2.0";
@@ -12609,6 +12612,9 @@ rec {
           "api-26" = [ "api-25" ];
           "api-27" = [ "api-26" ];
           "api-28" = [ "api-27" ];
+          "api-29" = [ "api-28" ];
+          "api-30" = [ "api-29" ];
+          "api-31" = [ "api-30" ];
           "default" = [ "std" "api-17" ];
           "download-binaries" = [ "dep:ureq" "dep:lzma-rust2" "dep:hmac-sha256" ];
           "pkg-config" = [ "dep:pkg-config" ];
@@ -21977,7 +21983,7 @@ rec {
           "derive" = [ "dep:yoke-derive" "zerofrom/derive" ];
           "zerofrom" = [ "dep:zerofrom" ];
         };
-        resolvedDefaultFeatures = [ "alloc" "derive" "zerofrom" ];
+        resolvedDefaultFeatures = [ "alloc" "default" "derive" "zerofrom" ];
       };
       "yoke-derive" = rec {
         crateName = "yoke-derive";
