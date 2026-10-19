@@ -14,9 +14,10 @@ on — and all of them accept the same set of formats.
 - **Godot paths**: `"res://models/model.gguf"` (shipped with your game) or
   `"user://models/model.gguf"` (writable per-user directory). NobodyWho resolves these to real
   filesystem paths for you.
-- **Hugging Face repos**: `"hf://owner/repo"` — a model from Hugging Face, downloaded and cached
-  on first use. Examples:
-  - `"hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF"` (chat, GGUF)
+- **Hugging Face models**: a model from Hugging Face, downloaded and cached on first use. GGUF
+  models name the file in the repo, `"hf://owner/repo/file.gguf"`; speech models name just the
+  repo, `"hf://owner/repo"`. Examples:
+  - `"hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"` (chat, GGUF)
   - `"hf://onnx-community/whisper-base"` (speech to text, ONNX)
 - **llama.cpp-style references**: `"owner/repo:quantization"` — no prefix, and the repo name
   must end in `-GGUF`, which is how the model file is worked out. `"ggml-org/gemma-3-1b-it-GGUF:Q8_0"`
@@ -26,7 +27,7 @@ on — and all of them accept the same set of formats.
 - **`"auto"`**: pick a chat model that fits the machine's available memory.
 
 ```gdscript
-var chat = await NobodyWhoChat.create("hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF", {})
+var chat = await NobodyWhoChat.create("hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf", {})
 ```
 
 Downloads go to a per-user cache directory: `$XDG_CACHE_HOME/nobodywho/models` on Linux, the

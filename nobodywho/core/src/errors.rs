@@ -102,8 +102,19 @@ pub enum LoadModelError {
     Multimodal(#[from] MultimodalError),
     #[error("Channel for receiving model was closed unexpectedly")]
     ModelChannelError,
-    #[error("Failed parsing model path: {0}")]
-    FailedParsingModelPath(#[from] nom::Err<nom::error::Error<String>>),
+    #[error("Invalid Hugging Face model path: {path}")]
+    #[diagnostic(
+        code(nobodywho::invalid_hugging_face_model_path),
+        help(
+            "A Hugging Face model path takes the format:\n\
+             hf://owner/repo/filename.gguf\n\
+             `owner`, `repo` and `filename` are all required.\n\
+             For example: hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+        )
+    )]
+    InvalidHuggingFaceModelPath { path: String },
+    #[error("Failed parsing model path: {path}")]
+    FailedParsingModelPath { path: String },
     #[error("Model download cancelled")]
     #[diagnostic(code(nobodywho::download_cancelled))]
     DownloadCancelled,

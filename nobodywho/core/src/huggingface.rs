@@ -10,8 +10,9 @@ use indicatif::{ProgressBar, ProgressStyle};
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case, take_until};
 use nom::combinator::{cut, map, rest, verify};
+use nom::error::{ErrorKind, ParseError};
 use nom::sequence::{preceded, terminated};
-use nom::Parser;
+use nom::{IResult, Parser};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -528,29 +529,54 @@ pub(crate) enum ParsedModelPath {
     FilesystemPath(PathBuf),  // e.g. ./qwen3.gguf
 }
 
-pub(crate) fn parse_model_path(
-    model_path: &str,
-) -> Result<ParsedModelPath, nom::Err<nom::error::Error<String>>> {
+/// Why [`parse_model_path`] rejected a path.
+#[derive(Debug)]
+enum ModelPathError {
+    /// The path has a Hugging Face prefix, but isn't `owner/repo/filename` after it.
+    InvalidHuggingFaceUrl,
+    Other,
+}
+
+impl<I> ParseError<I> for ModelPathError {
+    fn from_error_kind(_input: I, _kind: ErrorKind) -> Self {
+        Self::Other
+    }
+
+    fn append(_input: I, _kind: ErrorKind, other: Self) -> Self {
+        other
+    }
+}
+
+/// Parses the `owner/repo/filename` that follows a Hugging Face prefix.
+fn parse_hugging_face_url(input: &str) -> IResult<&str, ParsedModelPath, ModelPathError> {
+    map(
+        (
+            terminated(take_until("/"), tag("/")),
+            terminated(take_until("/"), tag("/")),
+            verify(rest, |s: &str| !s.is_empty()),
+        ),
+        |(owner, repo, filename): (&str, &str, &str)| {
+            ParsedModelPath::HuggingFaceUrl(owner.into(), repo.into(), filename.into())
+        },
+    )
+    .parse(input)
+    .map_err(|e: nom::Err<nom::error::Error<&str>>| {
+        e.map(|_| ModelPathError::InvalidHuggingFaceUrl)
+    })
+}
+
+pub(crate) fn parse_model_path(model_path: &str) -> Result<ParsedModelPath, LoadModelError> {
     const GGUF_SUFFIX_LOWER_CASE: &str = "-gguf";
     let mut parser = alt((
         // hf://owner/repo/filename.gguf (also hf:, huggingface:, huggingface://)
-        map(
-            preceded(
-                alt((
-                    tag_no_case("huggingface://"),
-                    tag_no_case("huggingface:"),
-                    tag_no_case("hf://"),
-                    tag_no_case("hf:"),
-                )),
-                cut((
-                    terminated(take_until("/"), tag("/")),
-                    terminated(take_until("/"), tag("/")),
-                    verify(rest, |s: &str| !s.is_empty()),
-                )),
-            ),
-            |(owner, repo, filename): (&str, &str, &str)| {
-                ParsedModelPath::HuggingFaceUrl(owner.into(), repo.into(), filename.into())
-            },
+        preceded(
+            alt((
+                tag_no_case("huggingface://"),
+                tag_no_case("huggingface:"),
+                tag_no_case("hf://"),
+                tag_no_case("hf:"),
+            )),
+            cut(parse_hugging_face_url),
         ),
         // https://... or http://...
         map(
@@ -585,10 +611,20 @@ pub(crate) fn parse_model_path(
             ParsedModelPath::FilesystemPath(PathBuf::from(p))
         }),
     ));
-    let result: nom::IResult<&str, ParsedModelPath> = parser.parse(model_path);
-    result
+    parser
+        .parse(model_path)
         .map(|(_, parsed)| parsed)
-        .map_err(|e| e.map(|e| e.cloned()))
+        .map_err(|e| match e {
+            nom::Err::Error(ModelPathError::InvalidHuggingFaceUrl)
+            | nom::Err::Failure(ModelPathError::InvalidHuggingFaceUrl) => {
+                LoadModelError::InvalidHuggingFaceModelPath {
+                    path: model_path.into(),
+                }
+            }
+            _ => LoadModelError::FailedParsingModelPath {
+                path: model_path.into(),
+            },
+        })
 }
 
 /// Takes a fancy path (possibly with `hf:` or `https://` in front) and resolves
@@ -992,6 +1028,19 @@ mod tests {
         assert_eq!(owner, "owner");
         assert_eq!(repo, "repo");
         assert_eq!(filename, "filename.gguf");
+    }
+
+    #[test]
+    fn rejects_gguf_hf_scheme_without_filename() {
+        for path in ["hf://owner/repo", "hf://owner/repo/", "hf://owner"] {
+            assert!(
+                matches!(
+                    parse_model_path(path),
+                    Err(LoadModelError::InvalidHuggingFaceModelPath { .. })
+                ),
+                "expected {path:?} to be rejected"
+            );
+        }
     }
 
     #[test]
