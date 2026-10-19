@@ -1,0 +1,7 @@
+{
+  "name": "nobodywho-js",
+  "private": true,
+  "workspaces": [
+    "react-native"
+  ]
+}

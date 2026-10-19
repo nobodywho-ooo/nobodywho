@@ -1,6 +1,6 @@
 ---
 rust:
-  directory: ..
+  directory: ../..
   manifestPath: uniffi/Cargo.toml
 
 bindings:

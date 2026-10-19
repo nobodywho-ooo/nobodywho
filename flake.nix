@@ -97,10 +97,11 @@
         checks.react-native-jest = pkgs.buildNpmPackage {
           pname = "react-native-jest";
           version = "0.0.0"; # nix derivation metadata only, does not need to match the npm package version
-          src = ./nobodywho/react-native;
+          src = ./nobodywho/js;
+          npmWorkspace = "react-native";
           npmDepsHash = "sha256-KCqiEr7aDOok9qKfeT5e2cSX69M0nghor2pdh6Bm+UQ=";
           dontNpmBuild = true;
-          checkPhase = "npx jest";
+          checkPhase = "cd react-native && npx jest";
           doCheck = true;
           installPhase = "touch $out";
         };

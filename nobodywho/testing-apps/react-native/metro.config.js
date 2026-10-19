@@ -1,7 +1,7 @@
 const path = require('path');
 const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
 
-// Pointing the app at the in-repo binding (`npm install ../../react-native`)
+// Pointing the app at the in-repo binding (`npm install ../../js/react-native`)
 // links it rather than copying, and Metro will not follow a symlink whose
 // target lies outside the project root unless that target is watched.
 //
@@ -9,7 +9,7 @@ const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
 // pinned to this app's copies — otherwise Metro resolves a second instance of
 // each from the binding's tree, which fails at runtime rather than at build
 // time. Both settings are harmless when the app uses the published package.
-const bindingRoot = path.resolve(__dirname, '../../react-native');
+const bindingRoot = path.resolve(__dirname, '../../js/react-native');
 
 /**
  * Metro configuration
