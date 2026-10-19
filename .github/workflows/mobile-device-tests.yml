@@ -629,15 +629,16 @@ jobs:
 
       # Building the binding from source compiles its C++, which resolves
       # headers from its own dependency (uniffi-bindgen-react-native) relative
-      # to the binding directory — so the binding needs its own node_modules.
+      # to the binding directory — so the binding needs its own node_modules
+      # (installed through the `nobodywho/js` workspace that contains it).
       # npm never installs a linked package's dependencies into the linking
       # tree, and consumers never hit this: npm installs the published
       # package's dependencies into their own tree.
       - name: "Install the binding's dependencies"
-        working-directory: ./nobodywho/react-native
+        working-directory: ./nobodywho/js
         run: npm ci
 
-      # The committed package.json already depends on file:../../react-native,
+      # The committed package.json already depends on file:../../js/react-native,
       # so `npm ci` links the branch's binding by default. The `react-native-released` job
       # is the one that overrides.
       # We stage the .so we just built where the
@@ -647,7 +648,7 @@ jobs:
         run: |
           set -euo pipefail
           npm ci
-          DEST=../../react-native/android/src/main/jniLibs/arm64-v8a
+          DEST=../../js/react-native/android/src/main/jniLibs/arm64-v8a
           mkdir -p "$DEST"
           cp ../../target/aarch64-linux-android/release/libnobodywho_uniffi.so "$DEST/"
 

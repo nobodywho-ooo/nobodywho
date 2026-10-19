@@ -142,13 +142,12 @@ VERSION_FILES = {
         ),
     ],
     "react-native": [
-        ("nobodywho/react-native/package.json", NPM_TOP_LEVEL),
-        ("nobodywho/react-native/package-lock.json", NPM_TOP_LEVEL),
-        # The lockfile repeats the version under `"packages": { "": { ... } }`, the entry
-        # for the package itself.
+        ("nobodywho/js/react-native/package.json", NPM_TOP_LEVEL),
+        # The package is a workspace of `nobodywho/js`, so the shared lockfile records
+        # its version under `"packages": { "react-native": { ... } }`.
         (
-            "nobodywho/react-native/package-lock.json",
-            r'(?m)^    "": \{\n      "name": "[^"]*",\n      "version": "(?P<version>[^"]+)"',
+            "nobodywho/js/package-lock.json",
+            r'(?m)^    "react-native": \{\n      "name": "[^"]*",\n      "version": "(?P<version>[^"]+)"',
         ),
     ],
     # SwiftPM reads the version from the tag, so only the install snippets carry it.

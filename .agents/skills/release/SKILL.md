@@ -20,7 +20,7 @@ Pending user-facing changes live as one file each in `.changeset/` (format in [C
 
 - `just next-versions` previews the `CHANGELOG.md` entry, including the version each binding would get. It reads only.
 - `just prepare-release` publishes nothing. It only edits files in the working copy, preparing the release commit. Every binding named in any change file gets a new version, bumped by the highest level any file gives it. Bindings that no change file names are left alone. It:
-  - writes the new version to every location listed in `VERSION_FILES` in the script: the binding `Cargo.toml`s, `pyproject.toml`, `pubspec.yaml`, `build.gradle.kts`, `package.json`, both `package-lock.json` fields, the binding entries in `Cargo.lock` and `uv.lock`, and the Kotlin/Swift install snippets in the docs and README;
+  - writes the new version to every location listed in `VERSION_FILES` in the script: the binding `Cargo.toml`s, `pyproject.toml`, `pubspec.yaml`, `build.gradle.kts`, `package.json`, the workspace entry in `nobodywho/js/package-lock.json`, the binding entries in `Cargo.lock` and `uv.lock`, and the Kotlin/Swift install snippets in the docs and README;
   - adds the release's entry to the top of the root `CHANGELOG.md`, covering all released bindings;
   - if Flutter is released, also adds a Flutter-only `## X.Y.Z` section to `nobodywho/flutter/nobodywho/CHANGELOG.md`. That is a separate file: it ships inside the Flutter package, and pub.dev shows it;
   - writes per-binding GitHub release notes to the gitignored `nobodywho/changelogs/<binding>-<version>.md`, for review only: each tag's release job renders the same notes itself with `changesets.py notes`;
@@ -188,7 +188,7 @@ Commit both files together. The `Cargo.nix` diff can be larger than the version 
 
 ### 4b. `flake.nix` `npmDepsHash`
 
-Whenever React Native is released, the version change in `package-lock.json` invalidates the `npmDepsHash` of the `react-native-jest` check in `flake.nix`. It changed in every past React Native release. It only surfaces in `nix flake check` (4d), as `npmDepsHash is out of date`. To fix it:
+Whenever React Native is released, the version change in `nobodywho/js/package-lock.json` invalidates the `npmDepsHash` of the `react-native-jest` check in `flake.nix`. It changed in every past React Native release. It only surfaces in `nix flake check` (4d), as `npmDepsHash is out of date`. To fix it:
 
 1. In `flake.nix`, replace the `npmDepsHash` value with the literal `sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`. Do **not** use `lib.fakeHash`, because `lib` is not bound in this flake's `outputs` args.
 2. Build to get a hash mismatch: `nix build .#checks.x86_64-linux.react-native-jest`
