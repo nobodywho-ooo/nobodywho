@@ -107,7 +107,7 @@ def test_hf_invalid_format_gives_parse_error():
     """Passing an hf:// path with an invalid format (missing owner/repo/file
     structure) raises a parse error, not 'Model not found'.
     """
-    with pytest.raises(RuntimeError, match="Failed parsing model path"):
+    with pytest.raises(RuntimeError, match="nobodywho::invalid_hugging_face_model_path"):
         nobodywho.Model(HF_INVALID_ID)
 
 
