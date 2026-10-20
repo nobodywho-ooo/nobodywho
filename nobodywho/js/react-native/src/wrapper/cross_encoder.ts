@@ -1,4 +1,4 @@
-import { RustCrossEncoder } from "./generated";
+import { RustCrossEncoder } from "../generated";
 import { Model } from "./model";
 
 /**

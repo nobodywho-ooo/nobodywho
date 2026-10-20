@@ -1,32 +1,16 @@
 /**
- * NobodyWho — React Native bindings for local LLM inference.
+ * Pretty wrappers over the generated bindings.
  *
- * This is the public entry point. It re-exports the public API:
+ * Ideally, we'd be able to get rid of this entirely by telling `uniffi` to do better.
+ *
+ * Exports:
  * - Wrapper classes: Model, Chat, Encoder, CrossEncoder, TextToSpeech, Tool, TokenStream, Prompt
  * - Direct re-exports: SamplerBuilder, SamplerConfig
  * - Types: Message, Content, ContentPart, ToolCall
  * - Utilities: SamplerPresets, cosineSimilarity, downloadModel
- *
- * This file is NOT generated — it is safe to edit.
  */
 
-// Native crate install + bindings initialize. These run as side effects of
-// evaluating this module, which the React Native runtime is guaranteed to do
-// before any FFI call because wrapper.ts is the package main.
-//
-// The install logic was previously reached only through lazy re-exports from
-// ./index. In release mode Metro's inlineRequires defers lazy re-exports
-// until first use, so consumers whose first interaction was Model.load /
-// downloadModel / Chat never triggered ./index and FFI calls then threw
-// "Cannot read property 'ubrn_…' of undefined". Inlining the install here
-// removes the ./index indirection so this can't recur.
-import installer from "./NativeNobodywho";
-import nobodywhoDefault, {
-  downloadModel as _downloadModel,
-} from "./generated";
-
-installer.installRustCrate();
-nobodywhoDefault.initialize();
+import { downloadModel as _downloadModel } from "../generated";
 
 /**
  * Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
@@ -80,14 +64,14 @@ export {
   ShiftTarget,
   cosineSimilarity,
   getCachedModels,
-} from "./generated";
+} from "../generated";
 
 export type {
   ToolCall,
   CachedModel,
   ChatStats,
   ContextShiftOptions,
-} from "./generated";
+} from "../generated";
 export type { TextToSpeechArchitecture, TextToSpeechDevice, TextToSpeechOptions } from "./text_to_speech";
 export type { SpeechToTextOptions } from "./speech_to_text";
 export { VoiceActivityDetectionEvent } from "./vad";
