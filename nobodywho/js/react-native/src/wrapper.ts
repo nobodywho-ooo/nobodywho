@@ -23,7 +23,7 @@
 import installer from "./NativeNobodywho";
 import nobodywhoDefault, {
   downloadModel as _downloadModel,
-} from "../generated/ts/nobodywho";
+} from "./generated";
 
 installer.installRustCrate();
 nobodywhoDefault.initialize();
@@ -80,14 +80,14 @@ export {
   ShiftTarget,
   cosineSimilarity,
   getCachedModels,
-} from "../generated/ts/nobodywho";
+} from "./generated";
 
 export type {
   ToolCall,
   CachedModel,
   ChatStats,
   ContextShiftOptions,
-} from "../generated/ts/nobodywho";
+} from "./generated";
 export type { TextToSpeechArchitecture, TextToSpeechDevice, TextToSpeechOptions } from "./text_to_speech";
 export type { SpeechToTextOptions } from "./speech_to_text";
 export { VoiceActivityDetectionEvent } from "./vad";

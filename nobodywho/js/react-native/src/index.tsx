@@ -11,12 +11,12 @@ if (!rustInstalled) {
 }
 
 // Export the generated bindings to the app.
-export * from './../generated/ts/nobodywho';
+export * from './generated';
 
 // Now import the bindings so we can:
 // - intialize them
 // - export them as namespaced objects as the default export.
-import * as nobodywho from './../generated/ts/nobodywho';
+import * as nobodywho from './generated';
 
 // Initialize the generated bindings: mostly checksums, but also callbacks.
 // - the boolean flag ensures this loads exactly once, even if the JS code

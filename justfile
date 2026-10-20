@@ -99,7 +99,7 @@ regen-uniffi clean="false":
     # package-lock.json the install is missing or stale.
     cd nobodywho/js && { [ node_modules/.package-lock.json -nt package-lock.json ] || npm ci; }
     cd nobodywho/js/react-native && npm run generate-bindings -- $(pwd)/../../target/debug/libnobodywho_uniffi.{{LIB_EXT}}
-    [ "{{clean}}" != true ] || git diff --exit-code nobodywho/swift/generated/ nobodywho/kotlin/common/generated/ nobodywho/js/react-native/generated/ || (echo "Uniffi bindings are out of date — commit them before pushing" && exit 1)
+    [ "{{clean}}" != true ] || git diff --exit-code nobodywho/swift/generated/ nobodywho/kotlin/common/generated/ nobodywho/js/react-native/src/generated/ nobodywho/js/react-native/cpp/generated/ || (echo "Uniffi bindings are out of date — commit them before pushing" && exit 1)
 
 # Add a user-facing change for the next release notes.
 change:

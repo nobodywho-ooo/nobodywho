@@ -4,8 +4,8 @@ rust:
   manifestPath: uniffi/Cargo.toml
 
 bindings:
-  cpp: generated/cpp
-  ts: generated/ts
+  cpp: cpp/generated
+  ts: src/generated
 
 ios:
   frameworkName: NobodyWho
