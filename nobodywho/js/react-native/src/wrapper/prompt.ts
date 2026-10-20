@@ -1,4 +1,4 @@
-import { ContentPart } from "./generated";
+import { ContentPart } from "../generated";
 
 /** A text part of a multimodal prompt. */
 class TextPart {

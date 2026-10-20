@@ -10,7 +10,7 @@ import {
   samplerPresetTemperature,
   samplerPresetTopK,
   samplerPresetTopP,
-} from "./generated";
+} from "../generated";
 
 /**
  * Static factory methods for common sampler configurations.

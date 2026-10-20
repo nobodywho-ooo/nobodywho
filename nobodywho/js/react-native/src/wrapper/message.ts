@@ -6,7 +6,7 @@ import {
   MessageContent as InternalMessageContent,
   MessageContent_Tags,
   type ToolCall,
-} from "./generated";
+} from "../generated";
 
 /** One piece of a message: a run of text, or a media file at this position. */
 export type ContentPart =

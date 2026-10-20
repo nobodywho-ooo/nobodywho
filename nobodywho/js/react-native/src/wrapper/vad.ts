@@ -1,7 +1,7 @@
-import type { RustVoiceActivityDetectionInterface, VoiceActivityDetectionEvent } from "./generated";
-import * as nobodywho from "./generated";
+import type { RustVoiceActivityDetectionInterface, VoiceActivityDetectionEvent } from "../generated";
+import * as nobodywho from "../generated";
 
-export { VoiceActivityDetectionEvent } from "./generated";
+export { VoiceActivityDetectionEvent } from "../generated";
 
 export type VoiceActivityDetectionOptions = {
   source?: string;
