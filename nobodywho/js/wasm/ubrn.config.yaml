@@ -1,0 +1,10 @@
+---
+rust:
+  directory: ../..
+  manifestPath: uniffi/Cargo.toml
+
+wasm2:
+  ts: src/generated
+  # Once supported in uniffi-bindgen-react-native:
+  # targets:
+  # - wasm32-unknown-emscripten

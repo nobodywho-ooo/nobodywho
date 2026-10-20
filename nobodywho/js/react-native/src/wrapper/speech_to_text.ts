@@ -1,3 +1,6 @@
+// Copied from nobodywho/js/wasm/src/wrapper/speech_to_text.ts by nobodywho/js/sync-wrapper.mjs.
+// Do not edit: edit the original and run `npm run sync-wrapper` in nobodywho/js.
+
 import type { RustSpeechToTextInterface } from "../generated";
 import * as nobodywho from "../generated";
 import { TokenStream } from "./streaming";

@@ -1,8 +1,5 @@
 /**
  * NobodyWho — React Native bindings for local LLM inference.
- *
- * This is the package entry point. It installs the native crate and
- * re-exports the platform-independent public API from `./wrapper`.
  */
 
 // Native crate install + bindings initialize. These run as side effects of

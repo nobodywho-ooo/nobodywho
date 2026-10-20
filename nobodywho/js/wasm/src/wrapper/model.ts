@@ -1,0 +1,89 @@
+import {
+  loadModel,
+  type RustModelInterface,
+} from "../generated";
+
+/**
+ * A loaded LLM model that can be shared across Chat, Encoder, and CrossEncoder instances.
+ *
+ * @example
+ * ```typescript
+ * // Load from a local file
+ * const model = await Model.load({ modelPath: "model.gguf" });
+ * const chat = new Chat({ model, systemPrompt: "You are helpful." });
+ *
+ * // Download from HuggingFace (cached automatically)
+ * const model = await Model.load({
+ *   modelPath: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
+ * });
+ *
+ * // With vision support
+ * const visionModel = await Model.load({
+ *   modelPath: "model.gguf",
+ *   projectionModelPath: "mmproj.gguf",
+ * });
+ * ```
+ */
+export class Model {
+  /** @internal */
+  readonly _inner: RustModelInterface;
+
+  /** @internal */
+  private constructor(inner: RustModelInterface) {
+    this._inner = inner;
+  }
+
+  /**
+   * Load a GGUF model from a local path or remote URL.
+   *
+   * @param opts.modelPath - Local path, `hf://` or `https://` URL, or `auto` for memory-based model selection
+   * @param opts.useGpu - Use GPU acceleration if available (default: true)
+   * @param opts.projectionModelPath - Path to a multimodal projector file for vision models
+   * @param opts.draftModelPath - Optional MTP draft-heads gguf. Loading it lets `Chat`
+   *   instances opt into MTP speculative decoding via `new Chat({ ..., mtp: true })`.
+   *   Adds around 5% to VRAM usage. For models that bundle MTP layers (e.g. Qwen3.5),
+   *   pass the model file itself; it is only loaded once.
+   * @param opts.onDownloadProgress - Invoked with `(downloaded, total)` byte counts while a remote model is being downloaded. Throttled to ~10 Hz with a guaranteed final emit on completion. Not invoked for cached/local files.
+   */
+  static async load(opts: {
+    modelPath: string;
+    useGpu?: boolean;
+    projectionModelPath?: string;
+    draftModelPath?: string;
+    onDownloadProgress?: (downloaded: number, total: number) => void;
+  }): Promise<Model> {
+    const cb = opts.onDownloadProgress;
+    const progressCallback = cb
+      ? { onDownloadProgress: (d: bigint, t: bigint) => cb(Number(d), Number(t)) }
+      : undefined;
+    const inner = await loadModel(
+      opts.modelPath,
+      opts.useGpu ?? true,
+      opts.projectionModelPath,
+      opts.draftModelPath,
+      progressCallback,
+    );
+    return new Model(inner);
+  }
+
+  /** The identifier used to load this model. */
+  get source(): string {
+    return this._inner.source();
+  }
+
+  /**
+   * The maximum context size this model was trained with.
+   * Use this to avoid setting `contextSize` above what the model supports.
+   */
+  get maxCtx(): number {
+    return Number((this._inner as any).maxCtx());
+  }
+
+  /**
+   * Immediately free the underlying Rust resources (model weights, GPU memory).
+   * After calling this, the Model instance is no longer usable.
+   */
+  destroy(): void {
+    (this._inner as any).uniffiDestroy();
+  }
+}

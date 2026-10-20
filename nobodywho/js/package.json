@@ -2,6 +2,10 @@
   "name": "nobodywho-js",
   "private": true,
   "workspaces": [
-    "react-native"
-  ]
+    "react-native",
+    "wasm"
+  ],
+  "scripts": {
+    "sync-wrapper": "node sync-wrapper.mjs"
+  }
 }

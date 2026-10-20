@@ -5,6 +5,7 @@ name: "Regeneration checks"
 # the uniffi crate + uniffi-bindgen binary once; three downstream jobs (one per
 # binding language) download that artifact and run their language-specific
 # generator. Separate jobs surface which binding is stale in the run summary.
+# `js-wrapper-sync-check` also verifies React Native's copy of the shared JS wrapper.
 
 on: workflow_call
 
@@ -143,6 +144,33 @@ jobs:
             exit 1
           fi
 
+  js-wrapper-sync-check:
+    runs-on: warp-ubuntu-latest-x64-2x
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v5
+        with:
+          node-version: 26
+
+      - name: "Copy the shared JS wrapper into the React Native package"
+        working-directory: ./nobodywho/js
+        run: node sync-wrapper.mjs
+
+      - name: "Verify committed JS wrapper copies are up to date"
+        run: |
+          paths="nobodywho/js/react-native/src/wrapper/"
+          if git diff --exit-code $paths && [ -z "$(git ls-files --others --exclude-standard $paths)" ]; then
+            echo "React Native's copy of the JS wrapper is up to date"
+          else
+            echo "ERROR: React Native's committed copy of the JS wrapper is out of date."
+            echo "Edit nobodywho/js/wasm/src/wrapper/, then run and commit the results:"
+            echo "  cd nobodywho/js"
+            echo "  npm run sync-wrapper"
+            exit 1
+          fi
+
   react-native-bindings-check:
     needs: build-uniffi-host
     runs-on: warp-ubuntu-latest-x64-2x
@@ -176,7 +204,7 @@ jobs:
       - name: "Verify committed React Native bindings are up to date"
         working-directory: ./nobodywho/js/react-native
         run: |
-          if git diff --exit-code generated/; then
+          if git diff --exit-code src/generated/ cpp/generated/; then
             echo "Generated React Native bindings are up to date"
           else
             echo "ERROR: Committed React Native bindings are out of date."

@@ -10,6 +10,8 @@ Free to use in commercial projects under the EUPL-1.2 license — no API key req
 - [GitHub Issues](https://github.com/nobodywho-ooo/nobodywho/issues) — Report bugs
 - [GitHub Discussions](https://github.com/nobodywho-ooo/nobodywho/discussions) — Ask questions and request features
 
+See also [the Node.js / browser](https://www.npmjs.com/package/nobodywho) package.
+
 ## How do I get started?
 
 First, install `react-native-nobodywho`.

@@ -1,0 +1,4 @@
+src/uniffi.js
+src/uniffi.wasm
+dist/
+*.tgz

@@ -1,7 +1,15 @@
+// Copied from nobodywho/js/wasm/src/wrapper/index.ts by nobodywho/js/sync-wrapper.mjs.
+// Do not edit: edit the original and run `npm run sync-wrapper` in nobodywho/js.
+
 /**
  * Pretty wrappers over the generated bindings.
  *
  * Ideally, we'd be able to get rid of this entirely by telling `uniffi` to do better.
+ *
+ * Shared with the React Native package: `nobodywho/js/sync-wrapper.mjs` copies
+ * this directory to `react-native/src/wrapper/`. Files here may only import
+ * each other and `../generated`, which then resolves to that package's own
+ * bindings.
  *
  * Exports:
  * - Wrapper classes: Model, Chat, Encoder, CrossEncoder, TextToSpeech, Tool, TokenStream, Prompt

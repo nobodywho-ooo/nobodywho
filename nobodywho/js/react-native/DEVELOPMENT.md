@@ -1,6 +1,13 @@
-# nobodywho — React Native bindings (UniFFI)
+# React Native bindings
 
-React Native TurboModule for running LLMs locally on iOS and Android (via Vulkan/Metal GPU acceleration). Uses [UniFFI](https://mozilla.github.io/uniffi-rs/) to generate C++ JSI bindings from Rust, with [uniffi-bindgen-react-native](https://github.com/aspect-build/aspect-build) as the code generator.
+React Native TurboModule for running LLMs locally on iOS and Android (via Vulkan/Metal GPU acceleration).
+
+Uses [UniFFI](https://mozilla.github.io/uniffi-rs/) to generate C++ JSI bindings from Rust, with
+[uniffi-bindgen-react-native](https://github.com/aspect-build/aspect-build) as the code generator.
+
+This is a separate package from the main `nobodywho` package that uses WASM. This is required because React Native's
+[autolinking](https://github.com/react-native-community/cli/blob/main/docs/autolinking.md) mechanism only works when
+the React Native package is the root package (but we don't want to push the prebuilt binaries onto non-React Native users).
 
 ## Prerequisites
 
@@ -20,20 +27,7 @@ react-native/
 │
 ├── src/                         # Hand-written TypeScript wrappers
 │   ├── main.ts                  # Package entry point — runs native init, re-exports ./wrapper
-│   ├── wrapper/                 # Convenience wrappers for APIs.
-│   │   ├── index.ts             # Public API re-exports + downloadModel
-│   │   ├── chat.ts              # Chat wrapper (fromPath, destroy, etc.)
-│   │   ├── model.ts             # Model wrapper (Model.load factory)
-│   │   ├── encoder.ts           # Encoder wrapper (fromPath, destroy)
-│   │   ├── cross_encoder.ts     # CrossEncoder wrapper (fromPath, destroy, rankAndSort)
-│   │   ├── streaming.ts         # TokenStream with AsyncIterable support
-│   │   ├── tool.ts              # Tool with declarative parameter API
-│   │   ├── prompt.ts            # Prompt with Text/Image/Audio factories
-│   │   ├── message.ts           # Message type + internal conversion
-│   │   ├── sampler_presets.ts   # SamplerPresets static class
-│   │   ├── speech_to_text.ts    # SpeechToText wrapper
-│   │   ├── text_to_speech.ts    # TextToSpeech wrapper
-│   │   └── vad.ts               # VoiceActivityDetection wrapper
+│   ├── wrapper/                 # Copy of ../../wasm/src/wrapper, do not edit (see "Shared wrapper" below)
 │   ├── generated/               # Generated bindings (committed, regenerate when Rust API changes)
 │   │   ├── index.ts             # Hand-written re-export, so `src/` can import `generated`
 │   │   ├── nobodywho.ts         # TypeScript bindings
@@ -108,9 +102,16 @@ npm run generate-turbo-module
 
 **Do not regenerate for:** Rust API changes, adding new functions/types — those only affect the bindings layer above.
 
-### 3. TypeScript wrappers (`src/*.ts` except `NativeNobodywho.ts` and `index.tsx`)
+### 3. TypeScript wrappers (`src/wrapper`)
 
-**Never regenerated** — these are hand-written. Edit freely. Metro hot-reloads changes automatically.
+**Regenerate when:** `nobodywho/js/wasm/src/wrapper/` changed.
+
+The TypeScript wrapper classes (`Model`, `Chat`, `Tool`, ...) are shared with the wasm package, and are copied to the React Native package with a script:
+
+```bash
+cd nobodywho/js
+npm run sync-wrapper   # or `just sync-js-wrapper` from the repo root
+```
 
 ### Quick reference
 

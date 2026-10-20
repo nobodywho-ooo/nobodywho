@@ -57,9 +57,11 @@ LIBPATH="target/debug/libnobodywho_uniffi.$LIBEXT"
 npm run --prefix js/react-native generate-bindings -- $(realpath "$LIBPATH")
 ```
 
-### 3b. React Native wrapper
+### 3b. JS wrapper (React Native and wasm)
 
-Add a TypeScript wrapper class in `js/react-native/src/wrapper/<feature-lowercase>.ts` following the pattern of `js/react-native/src/wrapper/speech_to_text.ts`. Export it from `js/react-native/src/wrapper/index.ts`.
+Add a TypeScript wrapper class in `js/wasm/src/wrapper/<feature-lowercase>.ts` following the pattern of `js/wasm/src/wrapper/speech_to_text.ts`.
+
+Export it from `js/wasm/src/wrapper/index.ts`, then run `npm run sync-wrapper` in `js/` to copy the wrapper into the React Native package.
 
 ### 3c. Godot
 

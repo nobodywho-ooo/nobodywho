@@ -1,3 +1,6 @@
+// Copied from nobodywho/js/wasm/src/wrapper/text_to_speech.ts by nobodywho/js/sync-wrapper.mjs.
+// Do not edit: edit the original and run `npm run sync-wrapper` in nobodywho/js.
+
 import {
   RustTextToSpeech,
   loadTextToSpeech,

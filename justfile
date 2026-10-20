@@ -7,7 +7,7 @@ GODOT_PROJECT := "nobodywho/godot/tests"
 # `clean` must be passed to every dependency that (transitively) reaches a
 # recipe taking it; a missed edge silently runs that subtree lenient.
 [arg("clean", long="require-clean", value="true")]
-check clean="false": _check-start (fmt clean) clippy (regen-python clean) (regen-flutter clean) (ruff clean) (regen-uniffi clean) flutter-analyze (testing-apps clean) godot-build
+check clean="false": _check-start (fmt clean) clippy (regen-python clean) (regen-flutter clean) (ruff clean) (sync-js-wrapper clean) (regen-uniffi clean) flutter-analyze (testing-apps clean) godot-build
     @n=$(find nobodywho/target/debug/build -path '*/llama-cpp-sys-2-*/output' -newer nobodywho/target/.check-start | wc -l); \
     [ "$n" -le 1 ] || echo "⚠  llama.cpp was built $((n)) times; the cargo builds above no longer share one llama-cpp-sys-2 build."
 
@@ -89,6 +89,12 @@ godot-test: godot-build
         fi
     fi
     {{GODOT}} --headless --path "{{GODOT_PROJECT}}"
+
+# Copies the shared TypeScript wrapper (nobodywho/js/wasm/src/wrapper) into the React Native package.
+[arg("clean", long="require-clean", value="true")]
+sync-js-wrapper clean="false":
+    cd nobodywho/js && node sync-wrapper.mjs
+    [ "{{clean}}" != true ] || { git diff --exit-code nobodywho/js/react-native/src/wrapper/ && [ -z "$(git ls-files --others --exclude-standard nobodywho/js/react-native/src/wrapper/)" ]; } || (echo "React Native's copy of the JS wrapper is out of date — run \`just sync-js-wrapper\` and commit them before pushing" && exit 1)
 
 [arg("clean", long="require-clean", value="true")]
 regen-uniffi clean="false":
