@@ -18,14 +18,14 @@ get_filename_component(UNIFFI_BINDGEN_PATH "${UNIFFI_BINDGEN_PATH}" DIRECTORY)
 # Specifies a path to native header files.
 include_directories(
     ../cpp
-    ../generated/cpp
+    ../cpp/generated
 
     ${UNIFFI_BINDGEN_PATH}/cpp/includes
 )
 
 add_library(react-native-nobodywho            SHARED
     ../cpp/react-native-nobodywho.cpp
-    ../generated/cpp/nobodywho.cpp
+    ../cpp/generated/nobodywho.cpp
     cpp-adapter.cpp
 )
 
