@@ -42,13 +42,13 @@ flutter-analyze:
     cd nobodywho/flutter/nobodywho && flutter analyze lib/
 
 # Forwards `clean`; see `check`.
-testing-apps clean="false": testapp-flutter (testapp-react-native clean) testapp-kotlin
+testing-apps clean="false": testapp-flutter (testapp-js clean) testapp-kotlin
 
 testapp-flutter:
     cd nobodywho/testing-apps/flutter && flutter analyze
 
 # Forwards `clean`; see `check`.
-testapp-react-native clean="false": (regen-uniffi clean)
+testapp-js clean="false": (regen-uniffi clean)
     #!/usr/bin/env bash
     set -euo pipefail
     cd nobodywho/testing-apps/react-native

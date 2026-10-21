@@ -178,7 +178,7 @@ cd nobodywho/js
 npm test
 ```
 
-These tests run without native code — they test pure TypeScript functions like `convertValue`. They are also run as a nix flake check (`nix build .#checks.x86_64-linux.react-native-jest`).
+These tests run without native code — they test pure TypeScript functions like `convertValue`. They are also run as a nix flake check (`nix build .#checks.x86_64-linux.js-jest`).
 
 ### Testing on Android
 

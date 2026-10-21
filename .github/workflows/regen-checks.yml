@@ -143,7 +143,7 @@ jobs:
             exit 1
           fi
 
-  react-native-bindings-check:
+  js-bindings-check:
     needs: build-uniffi-host
     runs-on: warp-ubuntu-latest-x64-2x
     steps:

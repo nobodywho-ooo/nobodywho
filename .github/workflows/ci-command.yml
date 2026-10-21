@@ -54,7 +54,7 @@ jobs:
               'flutter-ci': 'flutter',
               'swift-ci': 'swift',
               'kotlin-ci': 'kotlin',
-              'react-native-ci': 'react_native',
+              'js-ci': 'js',
               'apple-extended-ci': 'apple_extended',
               'regen-ci': 'regen',
               // Cloudflare Pages preview of this branch's docs; the link is posted on the PR.
@@ -66,8 +66,8 @@ jobs:
               'kotlin-device-released-ci': 'device_kotlin_released',
               'flutter-device-source-ci': 'device_flutter_source',
               'flutter-device-released-ci': 'device_flutter_released',
-              'react-native-device-source-ci': 'device_react_native_source',
-              'react-native-device-released-ci': 'device_react_native_released',
+              'js-device-source-ci': 'device_js_source',
+              'js-device-released-ci': 'device_js_released',
             };
             const tokens = [...body.matchAll(/\/([a-z-]+-ci)/g)].map((m) => m[1]);
             const unknown = [...new Set(tokens.filter((t) => !(t in MAP)))];

@@ -94,8 +94,8 @@
         checks.cargo-test = nobodywho-tested;
         checks.nobodywho-python = nobodywho-python;
 
-        checks.react-native-jest = pkgs.buildNpmPackage {
-          pname = "react-native-jest";
+        checks.js-jest = pkgs.buildNpmPackage {
+          pname = "js-jest";
           version = "0.0.0"; # nix derivation metadata only, does not need to match the npm package version
           src = ./nobodywho/js;
           npmDepsHash = "sha256-KCqiEr7aDOok9qKfeT5e2cSX69M0nghor2pdh6Bm+UQ=";

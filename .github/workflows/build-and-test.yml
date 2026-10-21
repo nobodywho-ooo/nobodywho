@@ -64,7 +64,7 @@ jobs:
       needs.plan.outputs.run_flutter == 'true' ||
       needs.plan.outputs.run_swift == 'true' ||
       needs.plan.outputs.run_kotlin == 'true' ||
-      needs.plan.outputs.run_react_native == 'true' ||
+      needs.plan.outputs.run_js == 'true' ||
       needs.plan.outputs.run_apple_extended == 'true'
     uses: ./.github/workflows/build.yml
     with:
@@ -72,7 +72,7 @@ jobs:
       run_flutter:      ${{ needs.plan.outputs.run_flutter == 'true' }}
       run_swift:        ${{ needs.plan.outputs.run_swift == 'true' }}
       run_kotlin:       ${{ needs.plan.outputs.run_kotlin == 'true' }}
-      run_react_native: ${{ needs.plan.outputs.run_react_native == 'true' }}
+      run_js: ${{ needs.plan.outputs.run_js == 'true' }}
       # visionOS/watchOS: nightly rust + ORT from source. Full runs, or
       # /apple-extended-ci to compile-check just those targets.
       apple_extended:   ${{ needs.plan.outputs.run_apple_extended == 'true' }}

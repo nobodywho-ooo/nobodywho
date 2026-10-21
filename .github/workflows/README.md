@@ -23,14 +23,14 @@ The one exception is `changesets.yml`, a standalone PR check that validates `.ch
 | `flutter` | flutter build + multimodal tests + xcframework | `flutter/` | main, tag |
 | `swift` | uniffi Apple build + xcframework + tests | `swift/`, `uniffi/` | main, tag |
 | `kotlin` | uniffi build + JVM/Android tests + device-test-app compile | `kotlin/`, `testing-apps/kotlin/`, `uniffi/` | main, tag |
-| `react_native` | uniffi build + RN xcframework | `js/`, `uniffi/` | main, tag |
+| `js` | uniffi build + RN xcframework | `js/`, `uniffi/` | main, tag |
 | `apple_extended` | uniffi visionOS/watchOS device+sim (nightly rust, ORT from source) | — (never path-triggered) | main, tag |
 | `docs` | docusaurus build + Cloudflare Pages deploy | — | main only |
 | `docs_preview` | docusaurus build + Cloudflare Pages **preview** deploy of the PR branch; link posted on the PR | — (never path-triggered, not part of full CI) | — (`/docs-ci` only) |
 | `device` | on-device tests on real phones (Firebase Test Lab) | — | nightly on main; release tag (that binding only) |
 | `release` | publish PyPI / pub.dev / npm / Maven / Swift | — | release tag |
 
-Cross-bucket: `core/**` → `rust_core` + `python_models`; `uniffi/**` → `swift`/`kotlin`/`react_native`. Otherwise a bucket runs only on its own path. `Cargo.lock` and `.github/workflows/**` do **not** auto-trigger full CI — use `full-ci`, or they're caught by the post-merge full run on `main`.
+Cross-bucket: `core/**` → `rust_core` + `python_models`; `uniffi/**` → `swift`/`kotlin`/`js`. Otherwise a bucket runs only on its own path. `Cargo.lock` and `.github/workflows/**` do **not** auto-trigger full CI — use `full-ci`, or they're caught by the post-merge full run on `main`.
 
 ## Triggers
 
@@ -60,13 +60,13 @@ Comment on a PR to run CI by hand (write/admin only). The comment must be **only
 | `/core-ci` | `rust_core` |
 | `/python-ci` | `python` |
 | `/python-models-ci` | `python_models` |
-| `/godot-ci` `/flutter-ci` `/swift-ci` `/kotlin-ci` `/react-native-ci` | that binding |
+| `/godot-ci` `/flutter-ci` `/swift-ci` `/kotlin-ci` `/js-ci` | that binding |
 | `/apple-extended-ci` | `apple_extended` — the 4 visionOS/watchOS targets only (compile check; no xcframework) |
 | `/regen-ci` | `regen` |
 | `/docs-ci` | `docs_preview` — deploys this branch's docs as a Cloudflare Pages preview and comments the link on the PR (updated on each rerun). Branches in this repo only, not forks. Never touches docs.nobodywho.ooo |
 | `/device-ci` | all six on-device jobs |
-| `/kotlin-device-source-ci` `/flutter-device-source-ci` `/react-native-device-source-ci` | that binding on real phones, built from this repo |
-| `/kotlin-device-released-ci` `/flutter-device-released-ci` `/react-native-device-released-ci` | that binding on real phones, from its published package |
+| `/kotlin-device-source-ci` `/flutter-device-source-ci` `/js-device-source-ci` | that binding on real phones, built from this repo |
+| `/kotlin-device-released-ci` `/flutter-device-released-ci` `/js-device-released-ci` | that binding on real phones, from its published package |
 
 Example: `/swift-ci /kotlin-ci /python-ci` runs those three. `/full-ci` overrides any others in the same comment.
 

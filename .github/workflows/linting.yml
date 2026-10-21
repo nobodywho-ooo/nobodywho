@@ -79,7 +79,7 @@ jobs:
         working-directory: ./nobodywho/testing-apps/flutter
         run: flutter analyze
 
-  react-native-testapp:
+  js-testapp:
     runs-on: warp-ubuntu-latest-x64-2x
     steps:
       - uses: actions/checkout@v5

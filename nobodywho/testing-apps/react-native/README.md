@@ -72,14 +72,14 @@ cd android
 That mode is what a real consumer does, so it is the one that tells you whether
 what we *shipped* works.
 
-CI does exactly this in the `react-native-released` job, resolving the newest
+CI does exactly this in the `js-released` job, resolving the newest
 published version rather than hardcoding one, and skips it in the
-`react-native-source` job. See `.github/workflows/mobile-device-tests.yml`.
+`js-source` job. See `.github/workflows/mobile-device-tests.yml`.
 
 ## Static checks
 
 ```bash
-just testapp-react-native
+just testapp-js
 ```
 
 It is part of `just check`, and CI runs it on every event from `linting.yml`.

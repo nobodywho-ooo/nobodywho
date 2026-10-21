@@ -188,10 +188,10 @@ Commit both files together. The `Cargo.nix` diff can be larger than the version 
 
 ### 4b. `flake.nix` `npmDepsHash`
 
-Whenever React Native is released, the version change in `package-lock.json` invalidates the `npmDepsHash` of the `react-native-jest` check in `flake.nix`. It changed in every past React Native release. It only surfaces in `nix flake check` (4d), as `npmDepsHash is out of date`. To fix it:
+Whenever React Native is released, the version change in `package-lock.json` invalidates the `npmDepsHash` of the `js-jest` check in `flake.nix`. It changed in every past React Native release. It only surfaces in `nix flake check` (4d), as `npmDepsHash is out of date`. To fix it:
 
 1. In `flake.nix`, replace the `npmDepsHash` value with the literal `sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`. Do **not** use `lib.fakeHash`, because `lib` is not bound in this flake's `outputs` args.
-2. Build to get a hash mismatch: `nix build .#checks.x86_64-linux.react-native-jest`
+2. Build to get a hash mismatch: `nix build .#checks.x86_64-linux.js-jest`
 3. Copy the `got: sha256-...` value into `npmDepsHash`.
 4. Build again to confirm it succeeds.
 
