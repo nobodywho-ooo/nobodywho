@@ -1,5 +1,5 @@
-import type { RustSpeechToTextInterface } from "../generated/ts/nobodywho";
-import * as nobodywho from "../generated/ts/nobodywho";
+import type { RustSpeechToTextInterface } from "./bindings";
+import * as nobodywho from "./bindings";
 import { TokenStream } from "./streaming";
 
 export type SpeechToTextOptions = {

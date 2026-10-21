@@ -1,4 +1,4 @@
-import { ContentPart } from "../generated/ts/nobodywho";
+import { ContentPart } from "./bindings";
 
 /** A text part of a multimodal prompt. */
 class TextPart {

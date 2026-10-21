@@ -1,7 +1,7 @@
 import {
   RustTool,
   type ToolParameter,
-} from "../generated/ts/nobodywho";
+} from "./bindings";
 
 /**
  * Recursively convert a value from JSON based on a JSON Schema type.

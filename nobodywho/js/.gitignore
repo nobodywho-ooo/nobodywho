@@ -4,7 +4,7 @@ android/.cxx/
 android/src/main/jniLibs/
 NobodyWho.xcframework/
 test-app/
-src/uniffi.js
-src/uniffi.wasm
-dist/
+# Emscripten output, see `uniffi/build.rs`
+/build/
+/dist/
 *.tgz

@@ -10,7 +10,7 @@ import {
   samplerPresetTemperature,
   samplerPresetTopK,
   samplerPresetTopP,
-} from "../generated/ts/nobodywho";
+} from "./bindings";
 
 /**
  * Static factory methods for common sampler configurations.
