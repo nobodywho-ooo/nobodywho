@@ -23,11 +23,16 @@ oslog = "0.2.0"
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.15.1"
 
-[target.'cfg(target_family = "wasm")'.dependencies]
+[target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
 console_log = "1.1.0"
 
-[target.'cfg(not(any(target_os = "android", all(target_vendor = "apple", not(target_os = "macos")), target_family = "wasm")))'.dependencies]
+[target.'cfg(not(any(target_os = "android", all(target_vendor = "apple", not(target_os = "macos")), all(target_family = "wasm", target_os = "unknown"))))'.dependencies]
 env_logger = "0.11.11"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+uniffi-runtime-wasm = "0.31.0-3"
+# FIXME: Remove this, it shouldn't be necessary?
+uniffi_core = { version = "0.31", features = ["wasm-unstable-single-threaded"] }
 
 [[bin]]
 name = "uniffi-bindgen"

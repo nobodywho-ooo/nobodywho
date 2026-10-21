@@ -5,6 +5,9 @@ use std::sync::{Arc, Once};
 use nobodywho::worker::AsyncWorker;
 use tracing::{debug, error, info};
 
+#[cfg(target_family = "wasm")]
+extern crate uniffi_runtime_wasm as _;
+
 uniffi::setup_scaffolding!("nobodywho");
 
 pub fn init_logging() {
@@ -46,17 +49,18 @@ pub fn init_logging() {
                 .expect("log initialization must only happen once")
         }
 
-        // Web platforms log to the console.
-        #[cfg(target_family = "wasm")]
+        // wasm-bindgen log to the console.
+        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
         {
-            console_log::init_with_level(level).expect("log initialization must only happen once")
+            console_log::init_with_level(level.into())
+                .expect("log initialization must only happen once")
         }
 
         // All other platforms log to stderr.
         #[cfg(not(any(
             target_os = "android",
             all(target_vendor = "apple", not(target_os = "macos")),
-            target_family = "wasm"
+            all(target_family = "wasm", target_os = "unknown")
         )))]
         {
             env_logger::Builder::new()
