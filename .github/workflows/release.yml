@@ -281,13 +281,13 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: "Verify Login"
-        working-directory: ./nobodywho/react-native
+        working-directory: ./nobodywho/js
         run: npm whoami
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: "Publish to npm"
-        working-directory: ./nobodywho/react-native
+        working-directory: ./nobodywho/js
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

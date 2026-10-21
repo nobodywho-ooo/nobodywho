@@ -23,7 +23,7 @@ The one exception is `changesets.yml`, a standalone PR check that validates `.ch
 | `flutter` | flutter build + multimodal tests + xcframework | `flutter/` | main, tag |
 | `swift` | uniffi Apple build + xcframework + tests | `swift/`, `uniffi/` | main, tag |
 | `kotlin` | uniffi build + JVM/Android tests + device-test-app compile | `kotlin/`, `testing-apps/kotlin/`, `uniffi/` | main, tag |
-| `react_native` | uniffi build + RN xcframework | `react-native/`, `uniffi/` | main, tag |
+| `react_native` | uniffi build + RN xcframework | `js/`, `uniffi/` | main, tag |
 | `apple_extended` | uniffi visionOS/watchOS device+sim (nightly rust, ORT from source) | — (never path-triggered) | main, tag |
 | `docs` | docusaurus build + Cloudflare Pages deploy | — | main only |
 | `docs_preview` | docusaurus build + Cloudflare Pages **preview** deploy of the PR branch; link posted on the PR | — (never path-triggered, not part of full CI) | — (`/docs-ci` only) |

@@ -142,12 +142,12 @@ VERSION_FILES = {
         ),
     ],
     "react-native": [
-        ("nobodywho/react-native/package.json", NPM_TOP_LEVEL),
-        ("nobodywho/react-native/package-lock.json", NPM_TOP_LEVEL),
+        ("nobodywho/js/package.json", NPM_TOP_LEVEL),
+        ("nobodywho/js/package-lock.json", NPM_TOP_LEVEL),
         # The lockfile repeats the version under `"packages": { "": { ... } }`, the entry
         # for the package itself.
         (
-            "nobodywho/react-native/package-lock.json",
+            "nobodywho/js/package-lock.json",
             r'(?m)^    "": \{\n      "name": "[^"]*",\n      "version": "(?P<version>[^"]+)"',
         ),
     ],

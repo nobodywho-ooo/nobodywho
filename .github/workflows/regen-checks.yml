@@ -166,22 +166,22 @@ jobs:
           node-version: 26
 
       - name: "Install react-native npm dependencies"
-        working-directory: ./nobodywho/react-native
+        working-directory: ./nobodywho/js
         run: npm install
 
       - name: "Generate React Native bindings"
-        working-directory: ./nobodywho/react-native
+        working-directory: ./nobodywho/js
         run: npm run generate-bindings -- ${{ github.workspace }}/uniffi-host/libnobodywho_uniffi.so
 
       - name: "Verify committed React Native bindings are up to date"
-        working-directory: ./nobodywho/react-native
+        working-directory: ./nobodywho/js
         run: |
           if git diff --exit-code generated/; then
             echo "Generated React Native bindings are up to date"
           else
             echo "ERROR: Committed React Native bindings are out of date."
             echo "Run the binding generation command and commit the results:"
-            echo "  cd nobodywho/react-native"
+            echo "  cd nobodywho/js"
             echo "  cargo build -pnobodywho-uniffi"
             echo "  npm run generate-bindings -- ../target/debug/libnobodywho_uniffi.so"
             exit 1

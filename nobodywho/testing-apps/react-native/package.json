@@ -11,7 +11,7 @@
   "dependencies": {
     "react": "^19.2.3",
     "react-native": "^0.84.1",
-    "react-native-nobodywho": "file:../../react-native"
+    "react-native-nobodywho": "file:../../js"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
