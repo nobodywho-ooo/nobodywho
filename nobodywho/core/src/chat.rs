@@ -2000,11 +2000,11 @@ impl CompletionWorker {
             + 'static,
     {
         let (msg_tx, msg_rx) = tokio::sync::mpsc::unbounded_channel();
-        let join_handle = std::thread::spawn(|| worker(msg_tx));
+        worker(msg_tx);
 
         Self {
             msg_rx: Some(msg_rx),
-            join_handle: Some(join_handle),
+            join_handle: None,
             should_stop,
         }
     }
