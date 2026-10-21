@@ -349,19 +349,37 @@ pub async fn load_model(
     );
 
     let progress = on_download_progress.map(wrap_progress);
-    let model = nobodywho::llm::get_model_async(
-        model_path.clone(),
-        use_gpu,
-        projection_model_path,
-        draft_model_path,
-        progress,
-    )
-    .await
-    .map_err(|e| {
-        let msg = nobodywho::render_miette(&e);
-        error!("{}", msg);
-        NobodyWhoError::Error { message: msg }
-    })?;
+    #[cfg(not(target_os = "emscripten"))]
+    let model = {
+        nobodywho::llm::get_model_async(
+            model_path.clone(),
+            use_gpu,
+            projection_model_path,
+            draft_model_path,
+            progress,
+        )
+        .await
+        .map_err(|e| {
+            let msg = nobodywho::render_miette(&e);
+            error!("{}", msg);
+            NobodyWhoError::Error { message: msg }
+        })?
+    };
+    #[cfg(target_os = "emscripten")]
+    let model = {
+        nobodywho::llm::get_model(
+            &model_path,
+            use_gpu,
+            projection_model_path.as_deref(),
+            draft_model_path.as_deref(),
+            progress,
+        )
+        .map_err(|e| {
+            let msg = nobodywho::render_miette(&e);
+            error!("{}", msg);
+            NobodyWhoError::Error { message: msg }
+        })?
+    };
 
     info!("load_model SUCCESS for {}", model_path);
     Ok(Arc::new(RustModel {
@@ -382,20 +400,32 @@ pub async fn download_model(
     init_logging();
     let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
     let progress = on_download_progress.map(wrap_progress);
-    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
-    // because UniFFI's async bridge doesn't provide a Tokio runtime.
-    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-    std::thread::spawn(move || {
-        let result = nobodywho::llm::download_model(&model_path, headers_vec, progress)
+
+    #[cfg(not(target_os = "emscripten"))]
+    {
+        // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
+        // because UniFFI's async bridge doesn't provide a Tokio runtime.
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        std::thread::spawn(move || {
+            let result = nobodywho::llm::download_model(&model_path, headers_vec, progress)
+                .map(|p| p.to_string_lossy().into_owned())
+                .map_err(|e| NobodyWhoError::Error {
+                    message: nobodywho::render_miette(&e),
+                });
+            let _ = tx.blocking_send(result);
+        });
+        rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
+            message: "Download thread terminated unexpectedly".into(),
+        })?
+    }
+    #[cfg(target_os = "emscripten")]
+    {
+        nobodywho::llm::download_model(&model_path, headers_vec, progress)
             .map(|p| p.to_string_lossy().into_owned())
             .map_err(|e| NobodyWhoError::Error {
                 message: nobodywho::render_miette(&e),
-            });
-        let _ = tx.blocking_send(result);
-    });
-    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
-        message: "Download thread terminated unexpectedly".into(),
-    })?
+            })
+    }
 }
 
 #[uniffi::export]
