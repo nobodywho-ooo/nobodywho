@@ -785,9 +785,11 @@ impl RustChat {
 /// Use `transcribe_file` or `transcribe_pcm` to get a `RustSpeechToTextStream`.
 #[derive(uniffi::Object)]
 pub struct RustSpeechToText {
+    #[cfg(not(target_os = "emscripten"))]
     inner: nobodywho::speech_to_text::SpeechToText,
 }
 
+#[cfg(not(target_os = "emscripten"))]
 fn create_speech_to_text(
     source: String,
     language: Option<String>,
@@ -819,16 +821,23 @@ pub async fn load_speech_to_text(
     language: Option<String>,
     quantization: Option<String>,
 ) -> Result<Arc<RustSpeechToText>, NobodyWhoError> {
-    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
-    // because UniFFI's async bridge doesn't provide a Tokio runtime.
-    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-    std::thread::spawn(move || {
-        let result = create_speech_to_text(source, language, quantization);
-        let _ = tx.blocking_send(result);
-    });
-    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
-        message: "SpeechToText load thread terminated unexpectedly".into(),
-    })?
+    #[cfg(not(target_os = "emscripten"))]
+    {
+        // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
+        // because UniFFI's async bridge doesn't provide a Tokio runtime.
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        std::thread::spawn(move || {
+            let result = create_speech_to_text(source, language, quantization);
+            let _ = tx.blocking_send(result);
+        });
+        rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
+            message: "SpeechToText load thread terminated unexpectedly".into(),
+        })?
+    }
+    #[cfg(target_os = "emscripten")]
+    {
+        unimplemented!()
+    }
 }
 
 #[uniffi::export]
@@ -845,7 +854,14 @@ impl RustSpeechToText {
         language: Option<String>,
         quantization: Option<String>,
     ) -> Result<Arc<Self>, NobodyWhoError> {
-        create_speech_to_text(source, language, quantization)
+        #[cfg(not(target_os = "emscripten"))]
+        {
+            create_speech_to_text(source, language, quantization)
+        }
+        #[cfg(target_os = "emscripten")]
+        {
+            unimplemented!()
+        }
     }
 
     /// Start transcribing an audio file (WAV / MP3).
@@ -854,15 +870,21 @@ impl RustSpeechToText {
         &self,
         path: String,
     ) -> Result<Arc<RustSpeechToTextStream>, NobodyWhoError> {
-        let stream =
-            self.inner
-                .transcribe_file_stream_async(path)
-                .map_err(|e| NobodyWhoError::Error {
+        #[cfg(not(target_os = "emscripten"))]
+        {
+            let stream = self.inner.transcribe_file_stream_async(path).map_err(|e| {
+                NobodyWhoError::Error {
                     message: e.to_string(),
-                })?;
-        Ok(Arc::new(RustSpeechToTextStream {
-            inner: tokio::sync::Mutex::new(stream),
-        }))
+                }
+            })?;
+            Ok(Arc::new(RustSpeechToTextStream {
+                inner: tokio::sync::Mutex::new(stream),
+            }))
+        }
+        #[cfg(target_os = "emscripten")]
+        {
+            unimplemented!()
+        }
     }
 
     /// Start transcribing raw i16 PCM samples (e.g. from a microphone stream).
@@ -872,15 +894,22 @@ impl RustSpeechToText {
         samples: Vec<i16>,
         sample_rate: u32,
     ) -> Result<Arc<RustSpeechToTextStream>, NobodyWhoError> {
-        let stream = self
-            .inner
-            .transcribe_pcm_stream_async(samples, sample_rate)
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })?;
-        Ok(Arc::new(RustSpeechToTextStream {
-            inner: tokio::sync::Mutex::new(stream),
-        }))
+        #[cfg(not(target_os = "emscripten"))]
+        {
+            let stream = self
+                .inner
+                .transcribe_pcm_stream_async(samples, sample_rate)
+                .map_err(|e| NobodyWhoError::Error {
+                    message: e.to_string(),
+                })?;
+            Ok(Arc::new(RustSpeechToTextStream {
+                inner: tokio::sync::Mutex::new(stream),
+            }))
+        }
+        #[cfg(target_os = "emscripten")]
+        {
+            unimplemented!()
+        }
     }
 }
 
@@ -889,6 +918,7 @@ impl RustSpeechToText {
 /// A stream of transcript tokens from a Whisper SpeechToText run.
 #[derive(uniffi::Object)]
 pub struct RustSpeechToTextStream {
+    #[cfg(not(target_os = "emscripten"))]
     inner: tokio::sync::Mutex<
         nobodywho::speech_to_text::TokenStreamAsync<nobodywho::errors::SpeechToTextError>,
     >,
@@ -898,26 +928,40 @@ pub struct RustSpeechToTextStream {
 impl RustSpeechToTextStream {
     /// Get the next transcript token. Returns `None` when transcription is complete.
     pub async fn next_token(&self) -> Result<Option<String>, NobodyWhoError> {
-        self.inner
-            .lock()
-            .await
-            .next_token()
-            .await
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })
+        #[cfg(not(target_os = "emscripten"))]
+        {
+            self.inner
+                .lock()
+                .await
+                .next_token()
+                .await
+                .map_err(|e| NobodyWhoError::Error {
+                    message: e.to_string(),
+                })
+        }
+        #[cfg(target_os = "emscripten")]
+        {
+            unimplemented!()
+        }
     }
 
     /// Wait for transcription to finish and return the full transcript.
     pub async fn completed(&self) -> Result<String, NobodyWhoError> {
-        self.inner
-            .lock()
-            .await
-            .completed()
-            .await
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })
+        #[cfg(not(target_os = "emscripten"))]
+        {
+            self.inner
+                .lock()
+                .await
+                .completed()
+                .await
+                .map_err(|e| NobodyWhoError::Error {
+                    message: e.to_string(),
+                })
+        }
+        #[cfg(target_os = "emscripten")]
+        {
+            unimplemented!()
+        }
     }
 }
 
@@ -1174,15 +1218,18 @@ pub fn get_cached_models() -> Result<Vec<CachedModel>, NobodyWhoError> {
 
 #[derive(uniffi::Object)]
 pub struct RustTextToSpeech {
+    #[cfg(not(target_os = "emscripten"))]
     inner: nobodywho::text_to_speech::TextToSpeech,
 }
 
+#[cfg(not(target_os = "emscripten"))]
 fn text_to_speech_error(message: impl Into<String>) -> NobodyWhoError {
     NobodyWhoError::Error {
         message: message.into(),
     }
 }
 
+#[cfg(not(target_os = "emscripten"))]
 fn parse_text_to_speech_architecture(
     architecture: Option<String>,
 ) -> Result<Option<nobodywho::text_to_speech::TextToSpeechArchitecture>, NobodyWhoError> {
@@ -1197,6 +1244,7 @@ fn parse_text_to_speech_architecture(
         })
 }
 
+#[cfg(not(target_os = "emscripten"))]
 fn parse_text_to_speech_device(
     device: Option<String>,
 ) -> Result<nobodywho::text_to_speech::TextToSpeechDevice, NobodyWhoError> {
@@ -1215,6 +1263,7 @@ fn parse_text_to_speech_device(
     }
 }
 
+#[cfg(not(target_os = "emscripten"))]
 fn build_text_to_speech_config(
     source: String,
     architecture: Option<String>,
@@ -1293,6 +1342,7 @@ fn build_text_to_speech_config(
     Ok(config)
 }
 
+#[cfg(not(target_os = "emscripten"))]
 fn create_text_to_speech(
     source: String,
     architecture: Option<String>,
@@ -1339,28 +1389,35 @@ pub async fn load_text_to_speech(
     huggingface_token: Option<String>,
     device: Option<String>,
 ) -> Result<Arc<RustTextToSpeech>, NobodyWhoError> {
-    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
-    // because UniFFI's async bridge doesn't provide a Tokio runtime.
-    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-    std::thread::spawn(move || {
-        let result = create_text_to_speech(
-            source,
-            architecture,
-            voice,
-            language,
-            speed,
-            steps,
-            silence_duration,
-            precision,
-            temperature,
-            huggingface_token,
-            device,
-        );
-        let _ = tx.blocking_send(result);
-    });
-    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
-        message: "TextToSpeech load thread terminated unexpectedly".into(),
-    })?
+    #[cfg(not(target_os = "emscripten"))]
+    {
+        // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
+        // because UniFFI's async bridge doesn't provide a Tokio runtime.
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        std::thread::spawn(move || {
+            let result = create_text_to_speech(
+                source,
+                architecture,
+                voice,
+                language,
+                speed,
+                steps,
+                silence_duration,
+                precision,
+                temperature,
+                huggingface_token,
+                device,
+            );
+            let _ = tx.blocking_send(result);
+        });
+        rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
+            message: "TextToSpeech load thread terminated unexpectedly".into(),
+        })?
+    }
+    #[cfg(target_os = "emscripten")]
+    {
+        unimplemented!()
+    }
 }
 
 #[uniffi::export]
@@ -1380,34 +1437,55 @@ impl RustTextToSpeech {
         huggingface_token: Option<String>,
         device: Option<String>,
     ) -> Result<Arc<Self>, NobodyWhoError> {
-        create_text_to_speech(
-            source,
-            architecture,
-            voice,
-            language,
-            speed,
-            steps,
-            silence_duration,
-            precision,
-            temperature,
-            huggingface_token,
-            device,
-        )
+        #[cfg(not(target_os = "emscripten"))]
+        {
+            create_text_to_speech(
+                source,
+                architecture,
+                voice,
+                language,
+                speed,
+                steps,
+                silence_duration,
+                precision,
+                temperature,
+                huggingface_token,
+                device,
+            )
+        }
+        #[cfg(target_os = "emscripten")]
+        {
+            unimplemented!()
+        }
     }
 
     /// Synthesize text and return WAV bytes.
     pub fn synthesize(&self, text: String) -> Result<Vec<u8>, NobodyWhoError> {
-        self.inner
-            .synthesize(text)
-            .map_err(|e| text_to_speech_error(nobodywho::render_miette(&e)))
+        #[cfg(not(target_os = "emscripten"))]
+        {
+            self.inner
+                .synthesize(text)
+                .map_err(|e| text_to_speech_error(nobodywho::render_miette(&e)))
+        }
+        #[cfg(target_os = "emscripten")]
+        {
+            unimplemented!()
+        }
     }
 
     /// Synthesize text asynchronously and return WAV bytes.
     pub async fn synthesize_async(&self, text: String) -> Result<Vec<u8>, NobodyWhoError> {
-        self.inner
-            .synthesize_async(text)
-            .await
-            .map_err(|e| text_to_speech_error(nobodywho::render_miette(&e)))
+        #[cfg(not(target_os = "emscripten"))]
+        {
+            self.inner
+                .synthesize_async(text)
+                .await
+                .map_err(|e| text_to_speech_error(nobodywho::render_miette(&e)))
+        }
+        #[cfg(target_os = "emscripten")]
+        {
+            unimplemented!()
+        }
     }
 }
 
@@ -1480,6 +1558,7 @@ pub enum VoiceActivityDetectionEvent {
     Silence,
 }
 
+#[cfg(not(target_os = "emscripten"))]
 impl From<nobodywho::voice_activity_detection::VoiceActivityDetectionEvent>
     for VoiceActivityDetectionEvent
 {
@@ -1501,6 +1580,7 @@ impl From<nobodywho::voice_activity_detection::VoiceActivityDetectionEvent>
     }
 }
 
+#[cfg(not(target_os = "emscripten"))]
 fn parse_vad_device(
     device: Option<String>,
 ) -> Result<nobodywho::voice_activity_detection::Device, NobodyWhoError> {
@@ -1524,9 +1604,11 @@ fn parse_vad_device(
 /// `finish` to get that turn's captured audio (with pre-roll) and reset.
 #[derive(uniffi::Object)]
 pub struct RustVoiceActivityDetection {
+    #[cfg(not(target_os = "emscripten"))]
     inner: std::sync::Mutex<nobodywho::voice_activity_detection::VoiceActivityDetection>,
 }
 
+#[cfg(not(target_os = "emscripten"))]
 #[allow(clippy::too_many_arguments)]
 fn create_voice_activity_detection(
     source: Option<String>,
@@ -1577,24 +1659,31 @@ pub async fn load_voice_activity_detection(
     preroll_duration_ms: Option<u32>,
     device: Option<String>,
 ) -> Result<Arc<RustVoiceActivityDetection>, NobodyWhoError> {
-    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
-    // because UniFFI's async bridge doesn't provide a Tokio runtime.
-    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-    std::thread::spawn(move || {
-        let result = create_voice_activity_detection(
-            source,
-            sample_rate,
-            threshold,
-            min_silence_duration_ms,
-            min_speech_duration_ms,
-            preroll_duration_ms,
-            device,
-        );
-        let _ = tx.blocking_send(result);
-    });
-    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
-        message: "VoiceActivityDetection load thread terminated unexpectedly".into(),
-    })?
+    #[cfg(not(target_os = "emscripten"))]
+    {
+        // Use std::thread::spawn + tokio chnnel instead of tokio::task::spawn_blocking,
+        // because UniFFI's async bridge doesn't provide a Tokio runtime.
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        std::thread::spawn(move || {
+            let result = create_voice_activity_detection(
+                source,
+                sample_rate,
+                threshold,
+                min_silence_duration_ms,
+                min_speech_duration_ms,
+                preroll_duration_ms,
+                device,
+            );
+            let _ = tx.blocking_send(result);
+        });
+        rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
+            message: "VoiceActivityDetection load thread terminated unexpectedly".into(),
+        })?
+    }
+    #[cfg(target_os = "emscripten")]
+    {
+        unimplemented!()
+    }
 }
 
 #[uniffi::export]
@@ -1619,15 +1708,22 @@ impl RustVoiceActivityDetection {
         preroll_duration_ms: Option<u32>,
         device: Option<String>,
     ) -> Result<Arc<Self>, NobodyWhoError> {
-        create_voice_activity_detection(
-            source,
-            sample_rate,
-            threshold,
-            min_silence_duration_ms,
-            min_speech_duration_ms,
-            preroll_duration_ms,
-            device,
-        )
+        #[cfg(not(target_os = "emscripten"))]
+        {
+            create_voice_activity_detection(
+                source,
+                sample_rate,
+                threshold,
+                min_silence_duration_ms,
+                min_speech_duration_ms,
+                preroll_duration_ms,
+                device,
+            )
+        }
+        #[cfg(target_os = "emscripten")]
+        {
+            unimplemented!()
+        }
     }
 
     /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
@@ -1636,14 +1732,21 @@ impl RustVoiceActivityDetection {
     /// since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
     /// confirmed the transition.
     pub fn push(&self, chunk: Vec<i16>) -> Result<VoiceActivityDetectionEvent, NobodyWhoError> {
-        self.inner
-            .lock()
-            .unwrap()
-            .push(&chunk)
-            .map(Into::into)
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })
+        #[cfg(not(target_os = "emscripten"))]
+        {
+            self.inner
+                .lock()
+                .unwrap()
+                .push(&chunk)
+                .map(Into::into)
+                .map_err(|e| NobodyWhoError::Error {
+                    message: e.to_string(),
+                })
+        }
+        #[cfg(target_os = "emscripten")]
+        {
+            unimplemented!()
+        }
     }
 
     /// Return the current turn's captured audio (from the confirmed
@@ -1651,7 +1754,14 @@ impl RustVoiceActivityDetection {
     /// `SpeechEnded`) and reset internal state for the next turn. Empty if
     /// speech was never confirmed.
     pub fn finish(&self) -> Vec<i16> {
-        self.inner.lock().unwrap().finish()
+        #[cfg(not(target_os = "emscripten"))]
+        {
+            self.inner.lock().unwrap().finish()
+        }
+        #[cfg(target_os = "emscripten")]
+        {
+            unimplemented!()
+        }
     }
 
     /// Detect every speech segment in a complete audio buffer, returning
@@ -1659,13 +1769,20 @@ impl RustVoiceActivityDetection {
     /// correctly finds every segment regardless of buffer size — use this
     /// for offline/batch processing instead of live streaming.
     pub fn segment(&self, samples: Vec<i16>) -> Result<Vec<Vec<i16>>, NobodyWhoError> {
-        self.inner
-            .lock()
-            .unwrap()
-            .segment(&samples)
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })
+        #[cfg(not(target_os = "emscripten"))]
+        {
+            self.inner
+                .lock()
+                .unwrap()
+                .segment(&samples)
+                .map_err(|e| NobodyWhoError::Error {
+                    message: e.to_string(),
+                })
+        }
+        #[cfg(target_os = "emscripten")]
+        {
+            unimplemented!()
+        }
     }
 }
 
