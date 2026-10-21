@@ -1,13 +1,22 @@
-# nobodywho — React Native bindings (UniFFI)
+# nobodywho JavaScript bindings (UniFFI)
 
-React Native TurboModule for running LLMs locally on iOS and Android (via Vulkan/Metal GPU acceleration). Uses [UniFFI](https://mozilla.github.io/uniffi-rs/) to generate C++ JSI bindings from Rust, with [uniffi-bindgen-react-native](https://github.com/aspect-build/aspect-build) as the code generator.
+An amalgation between:
+- A React Native TurboModule for running LLMs locally on iOS and Android (via Vulkan/Metal GPU acceleration).
+- A WASM binary for running on the web with WebGPU.
+
+Uses [UniFFI](https://mozilla.github.io/uniffi-rs/) to generate the bindings from Rust, with
+[uniffi-bindgen-react-native](https://github.com/aspect-build/aspect-build) as the code generator.
 
 ## Prerequisites
 
-- Rust toolchain (stable) with Android targets: `rustup target add aarch64-linux-android x86_64-linux-android`
+- Rust toolchain
+  - With Android targets: `rustup target add aarch64-linux-android x86_64-linux-android`
+  - With iOS targets: `rustup target add aarch64-apple-ios aarch64-apple-ios-sim`
+  - With std sources (for Emscripten): `rustup component add rust-src`
 - Node.js 22+
 - For Android: Nix (`nix develop .#android` provides NDK r28, cmake, JDK 17, and all cross-compilation env vars)
 - For iOS: Xcode, CocoaPods
+- For WASM: The Emscripten SDK
 
 ## Project structure
 
@@ -69,6 +78,30 @@ js/
     └── android/
 ```
 
+## Build for WASM
+
+```toml
+[env]
+CFLAGS_wasm32_unknown_emscripten = "-fPIC"
+CXXFLAGS_wasm32_unknown_emscripten = "-fPIC"
+
+[target.'cfg(target_os = "emscripten")']
+# Needed because we're compiling C++ sources
+linker = "em++"
+rustflags = [
+    "-Clink-arg=--embed-file=/Users/madsmtm/Desktop/nobodywho/models/Qwen_Qwen3-0.6B-Q4_K_M.gguf@/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
+]
+runner = "node"
+```
+
+For testing:
+
+```sh
+cd nobodywho/js
+npm run build-uniffi
+npm test
+```
+
 ## When to regenerate what
 
 There are three layers of generated code. Each layer only needs regeneration for specific changes:
@@ -80,13 +113,12 @@ There are three layers of generated code. Each layer only needs regeneration for
 ```bash
 cd nobodywho/js
 cargo build -pnobodywho-uniffi
-# Linux
-npm run generate-bindings -- ../target/debug/libnobodywho_uniffi.so
-# macOS
-npm run generate-bindings -- ../target/debug/libnobodywho_uniffi.dylib
+npm run generate-jsi-bindings -- ../target/debug/libnobodywho_uniffi.a
+npm run generate-wasm-bindings -- ../target/debug/libnobodywho_uniffi.a
 ```
 
-This builds the UniFFI crate for the host, reads the UniFFI metadata embedded in the compiled `.so`/`.dylib` and generates:
+This builds the UniFFI crate for the host (which is valid as long as we assume that there's no `cfg`-guards in our UniFFI bindings that
+would make them differ on WASM), reads the UniFFI metadata embedded in the compiled `.so`/`.dylib` and generates:
 - `generated/ts/nobodywho.ts` — TypeScript classes, enums, free functions
 - `generated/ts/nobodywho-ffi.ts` — low-level FFI type bridge
 - `generated/cpp/nobodywho.{cpp,hpp}` — C++ JSI bridge implementation

@@ -20,6 +20,13 @@ android:
   apiLevel: 28
   useSharedLibrary: true
 
+wasm2:
+  ts: generated/wasm
+  # Once supported in uniffi-bindgen-react-native, use:
+  #
+  # targets:
+  # - wasm32-unknown-emscripten
+
 noOverwrite:
 # Downloads prebuilt xcframework from GitHub Releases, custom authors/source fields
 - Nobodywho.podspec
