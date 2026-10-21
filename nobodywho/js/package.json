@@ -11,6 +11,11 @@
   "license": "EUPL-1.2",
   "homepage": "https://www.nobodywho.ai",
   "bugs": "https://github.com/nobodywho-ooo/nobodywho/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nobodywho-ooo/nobodywho.git",
+    "directory": "nobodywho/js"
+  },
   "keywords": [
     "react-native",
     "expo",
@@ -50,10 +55,6 @@
     "android": {
       "javaPackageName": "ooo.nobodywho"
     }
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/nobodywho-ooo/nobodywho.git"
   },
   "peerDependencies": {
     "react": "*",
