@@ -1,0 +1,6 @@
+# Cloudflare Pages redirects: https://developers.cloudflare.com/pages/configuration/redirects/
+# Docusaurus copies this file to the root of the build output.
+
+# The React Native docs moved from /react-native/ to /js/
+/react-native    /js/         301
+/react-native/*  /js/:splat   301
