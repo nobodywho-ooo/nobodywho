@@ -26,7 +26,7 @@ function deriveSourcePath(pathname: string): string {
   const prefixMap: Record<string, string> = {
     '/python': 'docs-python',
     '/swift': 'docs-swift',
-    '/react-native': 'docs-react-native',
+    '/js': 'docs-js',
     '/flutter': 'docs-flutter',
     '/godot': 'docs-godot',
     '/docs': 'docs',

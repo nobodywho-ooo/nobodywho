@@ -20,7 +20,7 @@ docs/
   docs-kotlin/           # Kotlin binding docs
   docs-python/           # Python binding docs
   docs-swift/            # Swift binding docs
-  docs-react-native/     # React Native binding docs
+  docs-js/               # React Native binding docs
   docs-flutter/          # Flutter binding docs
   docs-godot/            # Godot binding docs
   sidebars/              # Sidebar config for each binding
@@ -49,7 +49,7 @@ const latestReleases: Record<string, string> = {
   kotlin: '2.0.0',
   python: '1.5.0',
   swift: '2.1.0',
-  'react-native': '2.3.0',
+  js: '2.3.0',
   flutter: '2.3.0',
   godot: '9.4.0',
 };
@@ -91,7 +91,7 @@ After building:
 
 If you want to start landing docs changes for the *next* release on `main`, edit `docs-python/` directly — those changes show up under `/python/main/` until the next snapshot.
 
-The same workflow applies to any binding. Replace `python` with `kotlin`, `swift`, `flutter`, `react-native`, or `godot`.
+The same workflow applies to any binding. Replace `python` with `kotlin`, `swift`, `flutter`, `js` (React Native), or `godot`.
 
 ### Removing an old version
 

@@ -25,7 +25,7 @@ If you already know the basics of LLMs, jump to the docs for your favorite langu
   <Link to="/python/" className="button button--secondary button--sm">Python</Link>
   <Link to="/kotlin/" className="button button--secondary button--sm">Kotlin</Link>
   <Link to="/swift/" className="button button--secondary button--sm">Swift</Link>
-  <Link to="/react-native/" className="button button--secondary button--sm">React Native/Expo</Link>
+  <Link to="/js/" className="button button--secondary button--sm">React Native/Expo</Link>
   <Link to="/flutter/" className="button button--secondary button--sm">Flutter</Link>
   <Link to="/godot/" className="button button--secondary button--sm">Godot</Link>
 </div>

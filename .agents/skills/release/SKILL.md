@@ -225,6 +225,7 @@ For each released binding, freeze the current docs as the new version. From `doc
 cd docs
 npx docusaurus docs:version:<binding> <new-version>
 # e.g. npx docusaurus docs:version:python 4.0.0
+# React Native's docs id is `js`: npx docusaurus docs:version:js <new-version>
 ```
 
 This creates `docs/<binding>_versioned_docs/version-<v>/` and `docs/<binding>_versioned_sidebars/version-<v>-sidebars.json`, and prepends the version to `docs/<binding>_versions.json` (see `docs/README.md` → "Cutting docs for a new release").

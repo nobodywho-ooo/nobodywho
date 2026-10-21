@@ -51,7 +51,7 @@ const bindings: {
     id: 'react-native',
     name: 'RN/Expo',
     description: 'Drop-in module for React Native and Expo on Android and iOS.',
-    docs: '/react-native/',
+    docs: '/js/',
     install: [
       {title: 'React Native', code: 'npm install react-native-nobodywho', language: 'bash'},
       {title: 'Expo', code: 'npx expo install react-native-nobodywho', language: 'bash'},
