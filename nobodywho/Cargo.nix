@@ -10990,7 +10990,13 @@ rec {
           {
             name = "tokio";
             packageId = "tokio";
-            features = [ "sync" "rt" "rt-multi-thread" "macros" ];
+            features = [ "sync" "rt" "macros" ];
+          }
+          {
+            name = "tokio";
+            packageId = "tokio";
+            target = { target, features }: (!("emscripten" == target."os" or null));
+            features = [ "rt-multi-thread" ];
           }
           {
             name = "tokio-stream";

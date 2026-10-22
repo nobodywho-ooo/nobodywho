@@ -27,7 +27,6 @@ llama-cpp-2 = { version = "=0.1.160", default-features = false, features = [
 tokio = { version = "1.43.0", features = [
     "sync",
     "rt",
-    "rt-multi-thread",
     "macros",
 ] }
 tokio-stream = "0.1.17"
@@ -129,6 +128,9 @@ llama-cpp-2 = { version = "=0.1.160", default-features = false, features = [
 # `dirs` doesn't support Android and Emscripten, we have our own custom impls there.
 [target.'cfg(not(any(target_os = "android", target_os = "emscripten")))'.dependencies]
 dirs = "7.0.0"
+
+[target.'cfg(not(target_os = "emscripten"))'.dependencies]
+tokio = { version = "1.43.0", features = ["rt-multi-thread"] }
 
 # Unifies host bitflags features (uniffi enables `std`) so llama-cpp-sys-2 is only built once.
 [build-dependencies]
