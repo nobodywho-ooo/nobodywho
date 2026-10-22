@@ -182,6 +182,14 @@ interface NativeModuleInterface {
     ptr: bigint,
     uniffi_out_err: UniffiRustCallStatus,
   ): void;
+  ubrn_uniffi_nobodywho_uniffi_fn_clone_rustdecision(
+    ptr: bigint,
+    uniffi_out_err: UniffiRustCallStatus,
+  ): bigint;
+  ubrn_uniffi_nobodywho_uniffi_fn_free_rustdecision(
+    ptr: bigint,
+    uniffi_out_err: UniffiRustCallStatus,
+  ): void;
   ubrn_uniffi_nobodywho_uniffi_fn_clone_rustencoder(
     ptr: bigint,
     uniffi_out_err: UniffiRustCallStatus,
@@ -461,6 +469,16 @@ interface NativeModuleInterface {
     uniffiSelf: bigint,
     query: Uint8Array,
     documents: Uint8Array,
+  ): bigint;
+  ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustdecision_new(
+    model: bigint,
+    nCtx: Uint8Array,
+    uniffi_out_err: UniffiRustCallStatus,
+  ): bigint;
+  ubrn_uniffi_nobodywho_uniffi_fn_method_rustdecision_decide(
+    uniffiSelf: bigint,
+    stateJson: Uint8Array,
+    questionsJson: Uint8Array,
   ): bigint;
   ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
     model: bigint,
@@ -753,6 +771,8 @@ interface NativeModuleInterface {
   ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json(): number;
+  ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustdecision_new(): number;
+  ubrn_uniffi_nobodywho_uniffi_checksum_method_rustdecision_decide(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch(): number;
@@ -817,6 +837,10 @@ interface NativeModuleInterface {
     uniffi_out_err: UniffiRustCallStatus,
   ): UniffiGcObject;
   ubrn_uniffi_internal_fn_method_rustcrossencoder_ffi__bless_pointer(
+    pointer: bigint,
+    uniffi_out_err: UniffiRustCallStatus,
+  ): UniffiGcObject;
+  ubrn_uniffi_internal_fn_method_rustdecision_ffi__bless_pointer(
     pointer: bigint,
     uniffi_out_err: UniffiRustCallStatus,
   ): UniffiGcObject;

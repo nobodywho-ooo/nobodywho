@@ -252,4 +252,72 @@ final class NobodyWhoTests: XCTestCase {
         XCTAssertTrue(text.lowercased().contains("ron"))
         XCTAssertTrue(text.lowercased().contains("billy"))
     }
+
+    // MARK: - Decisions
+
+    private static let referenceState =
+        "Customer message: I was charged twice for my order last week and nobody has replied."
+
+    private static let referenceQuestions: [String: DecisionQuestion] = [
+        "route": .choice(
+            instructions: .string("Choose the best team for this customer message."),
+            criteria: [
+                "billing": .string("payments, charges, refunds, invoices"),
+                "shipping": .string("delivery, tracking, lost or late parcels"),
+                "technical": .string("bugs, errors, login problems"),
+            ]
+        ),
+        "angry": .noul(instructions: .string("Is the customer angry?")),
+        "urgency": .score(
+            instructions: .string("How urgent is this?"),
+            criteria: [.string("can wait"), .string("this week"), .string("today"), .string("right now")]
+        ),
+    ]
+
+    func testDecision() async throws {
+        let modelPath = try requireEnv("TEST_DECISION_MODEL")
+        let model = try await Model.load(modelPath: modelPath, useGpu: false)
+        let decision = try Decision(model: model, contextSize: 1024)
+        let response = try await decision.decide(
+            state: .string(Self.referenceState),
+            questions: Self.referenceQuestions
+        )
+
+        XCTAssertEqual(Set(response.answers.keys), Set(Self.referenceQuestions.keys))
+
+        guard let route = response.answers["route"],
+              case let .choice(choice, probabilities, confidence) = route else {
+            return XCTFail("route answer is not a choice")
+        }
+        XCTAssertNotNil(probabilities[choice])
+        XCTAssertEqual(probabilities.values.reduce(0, +), 1.0, accuracy: 0.01)
+        XCTAssertTrue((0.0...1.0).contains(confidence))
+
+        guard let angry = response.answers["angry"],
+              case let .noul(noul) = angry else {
+            return XCTFail("angry answer is not a noul")
+        }
+        XCTAssertTrue((0.0...1.0).contains(noul))
+
+        guard let urgency = response.answers["urgency"],
+              case let .score(score, legend, _, _) = urgency else {
+            return XCTFail("urgency answer is not a score")
+        }
+        XCTAssertTrue((0.0...Double(legend.count - 1)).contains(score))
+
+        XCTAssertGreaterThan(response.usage.inputTokens, 0)
+        XCTAssertGreaterThanOrEqual(response.usage.outputTokens, 0)
+    }
+
+    func testDecisionRejectsEmptyQuestions() async throws {
+        let modelPath = try requireEnv("TEST_DECISION_MODEL")
+        let model = try await Model.load(modelPath: modelPath, useGpu: false)
+        let decision = try Decision(model: model, contextSize: 1024)
+        do {
+            _ = try await decision.decide(state: .string(Self.referenceState), questions: [:])
+            XCTFail("empty questions were accepted")
+        } catch {
+            // expected
+        }
+    }
 }

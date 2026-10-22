@@ -11,6 +11,7 @@ const sidebars: SidebarsConfig = {
     'voice-activity-detection',
     'sampling',
     'embeddings-and-rag',
+    'decision-models',
     'downloading-models',
   ],
 };

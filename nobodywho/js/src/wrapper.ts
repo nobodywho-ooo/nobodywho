@@ -61,6 +61,13 @@ export type { Options } from "./chat";
 export { SpeechToText } from "./speech_to_text";
 export { VoiceActivityDetection } from "./vad";
 export { Encoder } from "./encoder";
+export { Decision } from "./decision";
+export type {
+  DecisionAnswer,
+  DecisionQuestion,
+  DecisionRequest,
+  DecisionResponse,
+} from "./decision";
 export { CrossEncoder } from "./cross_encoder";
 export { TextToSpeech } from "./text_to_speech";
 export { Prompt } from "./prompt";

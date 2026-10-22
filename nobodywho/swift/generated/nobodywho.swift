@@ -1423,6 +1423,160 @@ public func FfiConverterTypeRustCrossEncoder_lower(_ value: RustCrossEncoder) ->
 
 
 
+public protocol RustDecisionProtocol: AnyObject, Sendable {
+    
+    /**
+     * Run one or more decisions over a state.
+     *
+     * `state_json` is a JSON-encoded string or JSON value (text, JSON object, ...).
+     * `questions_json` is a JSON object mapping question names to
+     * `{"type": "choice" | "score" | "noul", "instructions": ..., "criteria": ...}`.
+     * Returns the `DecisionResponse` as a JSON string.
+     */
+    func decide(stateJson: String, questionsJson: String) async throws  -> String
+    
+}
+open class RustDecision: RustDecisionProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_nobodywho_uniffi_fn_clone_rustdecision(self.handle, $0) }
+    }
+    /**
+     * Create a new decision handle for typed, non-generative decisions with a
+     * Laya decision model. `n_ctx` is the context window (default 1024).
+     */
+public convenience init(model: RustModel, nCtx: UInt32?)throws  {
+    let handle =
+        try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
+    uniffi_nobodywho_uniffi_fn_constructor_rustdecision_new(
+        FfiConverterTypeRustModel_lower(model),
+        FfiConverterOptionUInt32.lower(nCtx),$0
+    )
+}
+    self.init(unsafeFromHandle: handle)
+}
+
+    deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
+        try! rustCall { uniffi_nobodywho_uniffi_fn_free_rustdecision(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Run one or more decisions over a state.
+     *
+     * `state_json` is a JSON-encoded string or JSON value (text, JSON object, ...).
+     * `questions_json` is a JSON object mapping question names to
+     * `{"type": "choice" | "score" | "noul", "instructions": ..., "criteria": ...}`.
+     * Returns the `DecisionResponse` as a JSON string.
+     */
+open func decide(stateJson: String, questionsJson: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_method_rustdecision_decide(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(stateJson),FfiConverterString.lower(questionsJson)
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRustDecision: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = RustDecision
+
+    public static func lift(_ handle: UInt64) throws -> RustDecision {
+        return RustDecision(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: RustDecision) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RustDecision {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: RustDecision, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustDecision_lift(_ handle: UInt64) throws -> RustDecision {
+    return try FfiConverterTypeRustDecision.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustDecision_lower(_ value: RustDecision) -> UInt64 {
+    return FfiConverterTypeRustDecision.lower(value)
+}
+
+
+
+
+
+
 public protocol RustEncoderProtocol: AnyObject, Sendable {
     
     /**
@@ -5865,6 +6019,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json() != 24587) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nobodywho_uniffi_checksum_method_rustdecision_decide() != 31270) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode() != 52601) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -5986,6 +6143,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rustdecision_new() != 3605) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 27902) {

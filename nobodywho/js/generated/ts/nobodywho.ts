@@ -4121,6 +4121,213 @@ const FfiConverterTypeRustCrossEncoder = new FfiConverterObject(
   uniffiTypeRustCrossEncoderObjectFactory,
 );
 
+export interface RustDecisionLike {
+  /**
+   * Run one or more decisions over a state.
+   *
+   * `state_json` is a JSON-encoded string or JSON value (text, JSON object, ...).
+   * `questions_json` is a JSON object mapping question names to
+   * `{"type": "choice" | "score" | "noul", "instructions": ..., "criteria": ...}`.
+   * Returns the `DecisionResponse` as a JSON string.
+   */
+  decide(
+    stateJson: string,
+    questionsJson: string,
+    asyncOpts_?: { signal: AbortSignal },
+  ) /*throws*/ : Promise<string>;
+}
+/**
+ * @deprecated Use `RustDecisionLike` instead.
+ */
+export type RustDecisionInterface = RustDecisionLike;
+
+export class RustDecision
+  extends UniffiAbstractObject
+  implements RustDecisionLike
+{
+  readonly [uniffiTypeNameSymbol] = "RustDecision";
+  readonly [destructorGuardSymbol]: UniffiGcObject;
+  readonly [pointerLiteralSymbol]: UniffiHandle;
+  /**
+   * Create a new decision handle for typed, non-generative decisions with a
+   * Laya decision model. `n_ctx` is the context window (default 1024).
+   */
+  constructor(model: RustModelLike, nCtx: number | undefined) /*throws*/ {
+    super();
+    const pointer = uniffiCaller.rustCallWithError(
+      /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+        FfiConverterTypeNobodyWhoError,
+      ),
+      /*caller:*/ (callStatus) => {
+        return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustdecision_new(
+          FfiConverterTypeRustModel.lower(
+            model,
+            nativeModule().rustbuffer_alloc,
+          ),
+          FfiConverterOptionalUInt32.lower(
+            nCtx,
+            nativeModule().rustbuffer_alloc,
+          ),
+          callStatus,
+        );
+      },
+      /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    this[pointerLiteralSymbol] = pointer;
+    this[destructorGuardSymbol] =
+      uniffiTypeRustDecisionObjectFactory.bless(pointer);
+  }
+
+  /**
+   * Run one or more decisions over a state.
+   *
+   * `state_json` is a JSON-encoded string or JSON value (text, JSON object, ...).
+   * `questions_json` is a JSON object mapping question names to
+   * `{"type": "choice" | "score" | "noul", "instructions": ..., "criteria": ...}`.
+   * Returns the `DecisionResponse` as a JSON string.
+   */
+  async decide(
+    stateJson: string,
+    questionsJson: string,
+    asyncOpts_?: { signal: AbortSignal },
+  ): Promise<string> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+      return await uniffiRustCallAsync(
+        /*rustCaller:*/ uniffiCaller,
+        /*rustFutureFunc:*/ () => {
+          return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustdecision_decide(
+            uniffiTypeRustDecisionObjectFactory.clonePointer(this),
+            FfiConverterString.lower(
+              stateJson,
+              nativeModule().rustbuffer_alloc,
+            ),
+            FfiConverterString.lower(
+              questionsJson,
+              nativeModule().rustbuffer_alloc,
+            ),
+          );
+        },
+        /*pollFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+        /*cancelFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+        /*completeFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+        /*freeFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+        // Async returns always go through the JS-side converter: the
+        // FFI symbol returns the future handle (u64), and the user-level
+        // RustBuffer comes back via the shared `rust_future_complete_*`
+        // export. The bytes the runtime hands back must be deserialized
+        // here using the per-callable return-type converter.
+        // Borrowed view over foreign memory: the call site owns the free,
+        // as on the sync paths. Unconditional — a no-op where buffers are
+        // already JS-owned.
+        /*liftFunc:*/ (__rb) => {
+          try {
+            return FfiConverterString.lift(__rb);
+          } finally {
+            nativeModule().rustbuffer_free(__rb);
+          }
+        },
+        /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+        /*asyncOpts:*/ asyncOpts_,
+        /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+          FfiConverterTypeNobodyWhoError,
+        ),
+      );
+    } catch (__error: any) {
+      if (uniffiIsDebug && __error instanceof Error) {
+        __error.stack = __stack;
+      }
+      throw __error;
+    }
+  }
+
+  uniffiDestroy(): void {
+    const ptr = (this as any)[destructorGuardSymbol];
+    if (ptr !== undefined) {
+      const pointer = uniffiTypeRustDecisionObjectFactory.pointer(this);
+      uniffiTypeRustDecisionObjectFactory.freePointer(pointer);
+      uniffiTypeRustDecisionObjectFactory.unbless(ptr);
+      delete (this as any)[destructorGuardSymbol];
+    }
+  }
+
+  static instanceOf(obj_: any): obj_ is RustDecision {
+    return uniffiTypeRustDecisionObjectFactory.isConcreteType(obj_);
+  }
+}
+
+const uniffiTypeRustDecisionObjectFactory: UniffiObjectFactory<RustDecisionLike> =
+  (() => {
+    return {
+      create(pointer: UniffiHandle): RustDecisionLike {
+        const instance = Object.create(RustDecision.prototype);
+        instance[pointerLiteralSymbol] = pointer;
+        instance[destructorGuardSymbol] = this.bless(pointer);
+        instance[uniffiTypeNameSymbol] = "RustDecision";
+        return instance;
+      },
+
+      bless(p: UniffiHandle): UniffiGcObject {
+        return uniffiCaller.rustCall(
+          /*caller:*/ (status) =>
+            nativeModule().ubrn_uniffi_internal_fn_method_rustdecision_ffi__bless_pointer(
+              p,
+              status,
+            ),
+          /*liftString:*/ FfiConverterString.lift,
+        );
+      },
+
+      unbless(ptr_: UniffiGcObject) {
+        ptr_.markDestroyed();
+      },
+
+      pointer(obj_: RustDecisionLike): UniffiHandle {
+        if ((obj_ as any)[destructorGuardSymbol] === undefined) {
+          throw new UniffiInternalError.UnexpectedNullPointer();
+        }
+        return (obj_ as any)[pointerLiteralSymbol];
+      },
+
+      clonePointer(obj_: RustDecisionLike): UniffiHandle {
+        const pointer = this.pointer(obj_);
+        return uniffiCaller.rustCall(
+          /*caller:*/ (callStatus) =>
+            nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rustdecision(
+              pointer,
+              callStatus,
+            ),
+          /*liftString:*/ FfiConverterString.lift,
+        );
+      },
+
+      freePointer(pointer: UniffiHandle): void {
+        uniffiCaller.rustCall(
+          /*caller:*/ (callStatus) =>
+            nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_rustdecision(
+              pointer,
+              callStatus,
+            ),
+          /*liftString:*/ FfiConverterString.lift,
+        );
+      },
+
+      isConcreteType(obj_: any): obj_ is RustDecisionLike {
+        return (
+          obj_[destructorGuardSymbol] &&
+          obj_[uniffiTypeNameSymbol] === "RustDecision"
+        );
+      },
+    };
+  })();
+const FfiConverterTypeRustDecision = new FfiConverterObject(
+  uniffiTypeRustDecisionObjectFactory,
+);
+
 export interface RustEncoderLike {
   /**
    * Encode text into an embedding vector.
@@ -6784,6 +6991,22 @@ function uniffiEnsureInitialized() {
     );
   }
   if (
+    nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustdecision_new() !==
+    3605
+  ) {
+    throw new UniffiInternalError.ApiChecksumMismatch(
+      "uniffi_nobodywho_uniffi_checksum_constructor_rustdecision_new",
+    );
+  }
+  if (
+    nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustdecision_decide() !==
+    31270
+  ) {
+    throw new UniffiInternalError.ApiChecksumMismatch(
+      "uniffi_nobodywho_uniffi_checksum_method_rustdecision_decide",
+    );
+  }
+  if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() !==
     27902
   ) {
@@ -7179,6 +7402,7 @@ export default Object.freeze({
     FfiConverterTypePendingToolCall,
     FfiConverterTypeRustChat,
     FfiConverterTypeRustCrossEncoder,
+    FfiConverterTypeRustDecision,
     FfiConverterTypeRustEncoder,
     FfiConverterTypeRustModel,
     FfiConverterTypeRustSpeechToText,

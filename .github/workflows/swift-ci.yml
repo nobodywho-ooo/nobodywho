@@ -49,6 +49,8 @@ jobs:
             "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf"
           curl -L -o test-models/mmproj.gguf \
             "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/mmproj-F16.gguf"
+          curl -L --fail -o test-models/Laya-Q8_0.gguf \
+            "https://huggingface.co/ggml-org/Laya-GGUF/resolve/845f314dd047fc2444a5289a4d50c1e1d59e27e1/Laya-Q8_0.gguf"
           # Whisper ONNX — only the files we actually load (fp32 / "default"
           # quantization, matching the SpeechToText tests' quantization="default").
           WHISPER_BASE="https://huggingface.co/onnx-community/whisper-base/resolve/main"
@@ -68,4 +70,5 @@ jobs:
           TEST_MMPROJ: ${{ github.workspace }}/test-models/mmproj.gguf
           TEST_WHISPER_MODEL: ${{ github.workspace }}/test-models/whisper-base
           TEST_AUDIO_FILE: ${{ github.workspace }}/assets/sound.mp3
+          TEST_DECISION_MODEL: ${{ github.workspace }}/test-models/Laya-Q8_0.gguf
         run: swift test --filter NobodyWhoTests
