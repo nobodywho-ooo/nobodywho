@@ -11,6 +11,11 @@
   "license": "EUPL-1.2",
   "homepage": "https://www.nobodywho.ai",
   "bugs": "https://github.com/nobodywho-ooo/nobodywho/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nobodywho-ooo/nobodywho.git",
+    "directory": "nobodywho/js"
+  },
   "keywords": [
     "react-native",
     "expo",
@@ -41,7 +46,7 @@
     "ios": "uniffi-bindgen-react-native build ios",
     "android": "uniffi-bindgen-react-native build android",
     "generate-turbo-module": "uniffi-bindgen-react-native generate jsi turbo-module nobodywho",
-    "generate-bindings": "cd ../uniffi && uniffi-bindgen-react-native generate jsi bindings --library --ts-dir ../react-native/generated/ts --cpp-dir ../react-native/generated/cpp"
+    "generate-bindings": "cd ../uniffi && uniffi-bindgen-react-native generate jsi bindings --library --ts-dir ../js/generated/ts --cpp-dir ../js/generated/cpp"
   },
   "codegenConfig": {
     "name": "NobodywhoSpec",
@@ -50,10 +55,6 @@
     "android": {
       "javaPackageName": "ooo.nobodywho"
     }
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/nobodywho-ooo/nobodywho.git"
   },
   "peerDependencies": {
     "react": "*",

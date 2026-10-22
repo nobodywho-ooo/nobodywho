@@ -14,7 +14,7 @@ on:
       run_kotlin:
         type: boolean
         default: false
-      run_react_native:
+      run_js:
         type: boolean
         default: false
       apple_extended:
@@ -35,7 +35,7 @@ jobs:
           [[ "${{ inputs.run_flutter }}" == "true" ]] && ints+=('"flutter"') || true
           if [[ "${{ inputs.run_swift }}"        == "true" ]] || \
              [[ "${{ inputs.run_kotlin }}"       == "true" ]] || \
-             [[ "${{ inputs.run_react_native }}" == "true" ]]; then
+             [[ "${{ inputs.run_js }}" == "true" ]]; then
             ints+=('"uniffi"')
           fi
           IFS=,
@@ -57,7 +57,7 @@ jobs:
             for t in aarch64-apple-visionos aarch64-apple-visionos-sim \
                      aarch64-apple-watchos aarch64-apple-watchos-sim; do uni["$t"]=1; done
           fi
-          if [[ "${{ inputs.run_react_native }}" == "true" ]]; then
+          if [[ "${{ inputs.run_js }}" == "true" ]]; then
             uni["aarch64-apple-ios"]=1; uni["aarch64-apple-ios-sim"]=1
           fi
           for t in "${!uni[@]}"; do add uniffi "$t"; done
@@ -244,7 +244,7 @@ jobs:
     needs: matrix-gen
     # No run_kotlin: kotlin's CI tests use the Linux uniffi lib and it downloads
     # no macOS artifact; its release dylib comes from swift's build on full runs.
-    if: inputs.run_godot || inputs.run_flutter || inputs.run_swift || inputs.run_react_native || inputs.apple_extended
+    if: inputs.run_godot || inputs.run_flutter || inputs.run_swift || inputs.run_js || inputs.apple_extended
     runs-on: warp-macos-15-arm64-6x
     strategy:
       fail-fast: false
@@ -439,8 +439,8 @@ jobs:
           path: ./nobodywho_flutter.xcframework.zip
 
   # builds an xcframework containing static libraries for React Native iOS
-  build-react-native-xcframework:
-    if: inputs.run_react_native
+  build-js-xcframework:
+    if: inputs.run_js
     runs-on: warp-macos-15-arm64-6x
     needs: [cargo-build-macos]
     steps:
@@ -471,7 +471,7 @@ jobs:
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
         with:
-          name: nobodywho-react-native-xcframework
+          name: nobodywho-js-xcframework
           path: ./NobodyWho.xcframework.zip
 
   # builds an xcframework containing static libraries + headers for Swift SPM
@@ -533,7 +533,7 @@ jobs:
 
   cargo-build-android:
     needs: matrix-gen
-    if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin || inputs.run_react_native
+    if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin || inputs.run_js
     runs-on: warp-ubuntu-latest-x64-4x
     strategy:
       fail-fast: false

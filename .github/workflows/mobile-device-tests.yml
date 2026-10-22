@@ -39,8 +39,8 @@ on:
           - kotlin-released
           - flutter-source
           - flutter-released
-          - react-native-source
-          - react-native-released
+          - js-source
+          - js-released
       device:
         description: "Which device(s) to run on"
         type: choice
@@ -88,8 +88,8 @@ jobs:
       kotlin_released: ${{ steps.pick.outputs.kotlin_released }}
       flutter_source: ${{ steps.pick.outputs.flutter_source }}
       flutter_released: ${{ steps.pick.outputs.flutter_released }}
-      react_native_source: ${{ steps.pick.outputs.react_native_source }}
-      react_native_released: ${{ steps.pick.outputs.react_native_released }}
+      js_source: ${{ steps.pick.outputs.js_source }}
+      js_released: ${{ steps.pick.outputs.js_released }}
     steps:
       - id: pick
         env:
@@ -112,8 +112,8 @@ jobs:
             echo "kotlin_released=$(want kotlin-released released)"
             echo "flutter_source=$(want flutter-source source)"
             echo "flutter_released=$(want flutter-released released)"
-            echo "react_native_source=$(want react-native-source source)"
-            echo "react_native_released=$(want react-native-released released)"
+            echo "js_source=$(want js-source source)"
+            echo "js_released=$(want js-released released)"
           } >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------- Kotlin ---
@@ -540,9 +540,9 @@ jobs:
           service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
   # ---------------------------------------------------------- React Native ---
-  react-native-source:
+  js-source:
     needs: select
-    if: needs.select.outputs.react_native_source == 'true'
+    if: needs.select.outputs.js_source == 'true'
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 90
     steps:
@@ -634,11 +634,11 @@ jobs:
       # tree, and consumers never hit this: npm installs the published
       # package's dependencies into their own tree.
       - name: "Install the binding's dependencies"
-        working-directory: ./nobodywho/react-native
+        working-directory: ./nobodywho/js
         run: npm ci
 
-      # The committed package.json already depends on file:../../react-native,
-      # so `npm ci` links the branch's binding by default. The `react-native-released` job
+      # The committed package.json already depends on file:../../js,
+      # so `npm ci` links the branch's binding by default. The `js-released` job
       # is the one that overrides.
       # We stage the .so we just built where the
       # binding's resolver looks, otherwise it downloads the last released one.
@@ -647,7 +647,7 @@ jobs:
         run: |
           set -euo pipefail
           npm ci
-          DEST=../../react-native/android/src/main/jniLibs/arm64-v8a
+          DEST=../../js/android/src/main/jniLibs/arm64-v8a
           mkdir -p "$DEST"
           cp ../../target/aarch64-linux-android/release/libnobodywho_uniffi.so "$DEST/"
 
@@ -666,9 +666,9 @@ jobs:
           workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-  react-native-released:
+  js-released:
     needs: select
-    if: needs.select.outputs.react_native_released == 'true'
+    if: needs.select.outputs.js_released == 'true'
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 60
     steps:

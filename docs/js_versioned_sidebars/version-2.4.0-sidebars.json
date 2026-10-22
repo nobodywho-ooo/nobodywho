@@ -1,5 +1,5 @@
 {
-  "react-native": [
+  "js": [
     "index",
     "downloading-models",
     "chat",

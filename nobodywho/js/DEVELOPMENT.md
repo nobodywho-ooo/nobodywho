@@ -12,7 +12,7 @@ React Native TurboModule for running LLMs locally on iOS and Android (via Vulkan
 ## Project structure
 
 ```
-react-native/
+js/
 ├── ubrn.config.yaml             # uniffi-bindgen-react-native config
 ├── package.json                 # npm package metadata
 ├── jest.config.js               # Jest test configuration
@@ -78,7 +78,7 @@ There are three layers of generated code. Each layer only needs regeneration for
 **Regenerate when:** Rust API changes — adding/removing/renaming functions, types, errors, or changing their signatures in `uniffi/src/lib.rs`.
 
 ```bash
-cd nobodywho/react-native
+cd nobodywho/js
 cargo build -pnobodywho-uniffi
 # Linux
 npm run generate-bindings -- ../target/debug/libnobodywho_uniffi.so
@@ -98,7 +98,7 @@ This builds the UniFFI crate for the host, reads the UniFFI metadata embedded in
 **Regenerate when:** Module name changes, `codegenConfig` in `package.json` changes, or upgrading `uniffi-bindgen-react-native` version.
 
 ```bash
-cd nobodywho/react-native
+cd nobodywho/js
 npm run generate-turbo-module
 ```
 
@@ -141,20 +141,20 @@ nix develop .#android --command bash -c \
 Then copy the `.so` files to where the Android build expects them:
 
 ```bash
-mkdir -p nobodywho/react-native/android/src/main/jniLibs/{arm64-v8a,x86_64}
+mkdir -p nobodywho/js/android/src/main/jniLibs/{arm64-v8a,x86_64}
 
 # ARM64
 cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
-  nobodywho/react-native/android/src/main/jniLibs/arm64-v8a/
+  nobodywho/js/android/src/main/jniLibs/arm64-v8a/
 
 # x86_64
 cp nobodywho/target/x86_64-linux-android/release/libnobodywho_uniffi.so \
-  nobodywho/react-native/android/src/main/jniLibs/x86_64/
+  nobodywho/js/android/src/main/jniLibs/x86_64/
 ```
 
 For iOS:
 ```bash
-cd nobodywho/react-native
+cd nobodywho/js
 npm run ios -- --release
 ```
 
@@ -174,11 +174,11 @@ This keeps the npm package small (code only, no binaries).
 ### Jest tests (pure TypeScript)
 
 ```bash
-cd nobodywho/react-native
+cd nobodywho/js
 npm test
 ```
 
-These tests run without native code — they test pure TypeScript functions like `convertValue`. They are also run as a nix flake check (`nix build .#checks.x86_64-linux.react-native-jest`).
+These tests run without native code — they test pure TypeScript functions like `convertValue`. They are also run as a nix flake check (`nix build .#checks.x86_64-linux.js-jest`).
 
 ### Testing on Android
 
@@ -187,7 +187,7 @@ These tests run without native code — they test pure TypeScript functions like
 ```bash
 # From project root
 nix develop .#android --command bash -c \
-  'cd nobodywho/react-native/test-app/android && \
+  'cd nobodywho/js/test-app/android && \
    ./gradlew assembleDebug -PreactNativeArchitectures=arm64-v8a'
 ```
 
@@ -197,11 +197,11 @@ Start Metro first, then install and launch:
 
 ```bash
 # Terminal 1: start Metro bundler (must be running before the app launches)
-cd nobodywho/react-native/test-app
+cd nobodywho/js/test-app
 npx react-native start --port 8081
 
 # Terminal 2: install, set up port forwarding, and launch
-adb install -r nobodywho/react-native/test-app/android/app/build/outputs/apk/debug/app-debug.apk
+adb install -r nobodywho/js/test-app/android/app/build/outputs/apk/debug/app-debug.apk
 adb reverse tcp:8081 tcp:8081
 adb shell am start -n com.nobodywhotest/.MainActivity
 ```

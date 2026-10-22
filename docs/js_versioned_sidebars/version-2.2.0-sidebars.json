@@ -1,7 +1,6 @@
 {
-  "react-native": [
+  "js": [
     "index",
-    "downloading-models",
     "chat",
     "tool-calling",
     "vision",

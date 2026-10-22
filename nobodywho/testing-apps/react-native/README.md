@@ -24,14 +24,14 @@ self-contained; it observes the app through UI Automator instead.
 
 ```bash
 npm ci
-npm ci --prefix ../../react-native   # the linked binding's own deps; npm does not install them for us
+npm ci --prefix ../../js   # the linked binding's own deps; npm does not install them for us
 
 # Build this branch's native library and drop it where the binding looks for
 # it — otherwise it downloads the last released .so, and this branch's
 # JavaScript against an old native library fails to link on uniffi's checksum
 # symbols.
 cargo build -p nobodywho-uniffi --target aarch64-linux-android --release
-DEST=../../react-native/android/src/main/jniLibs/arm64-v8a
+DEST=../../js/android/src/main/jniLibs/arm64-v8a
 mkdir -p "$DEST"
 cp ../../target/aarch64-linux-android/release/libnobodywho_uniffi.so "$DEST/"
 
@@ -57,7 +57,7 @@ Run them against a connected device with
 
 ## Building against a released version
 
-`package.json` depends on `file:../../react-native`, so `npm ci` links the
+`package.json` depends on `file:../../js`, so `npm ci` links the
 binding in this repo. To build against the
 published package instead, install it by name. That replaces the link, and the
 binding resolves the released `.so` that matches it, so none of the Rust setup
@@ -72,14 +72,14 @@ cd android
 That mode is what a real consumer does, so it is the one that tells you whether
 what we *shipped* works.
 
-CI does exactly this in the `react-native-released` job, resolving the newest
+CI does exactly this in the `js-released` job, resolving the newest
 published version rather than hardcoding one, and skips it in the
-`react-native-source` job. See `.github/workflows/mobile-device-tests.yml`.
+`js-source` job. See `.github/workflows/mobile-device-tests.yml`.
 
 ## Static checks
 
 ```bash
-just testapp-react-native
+just testapp-js
 ```
 
 It is part of `just check`, and CI runs it on every event from `linting.yml`.

@@ -48,20 +48,18 @@ LIBEXT=$([ "$(uname)" = "Darwin" ] && echo "dylib" || echo "so")
 LIBPATH="target/debug/libnobodywho_uniffi.$LIBEXT"
 
 # Swift
-./target/debug/uniffi-bindgen generate \
-  --library "$LIBPATH" --language swift --out-dir swift/generated
+./target/debug/uniffi-bindgen generate --library "$LIBPATH" --language swift --out-dir swift/generated
 
 # Kotlin
-./target/debug/uniffi-bindgen generate \
-  --library "$LIBPATH" --language kotlin --out-dir kotlin/common/generated
+./target/debug/uniffi-bindgen generate --library "$LIBPATH" --language kotlin --out-dir kotlin/common/generated
 
 # React Native
-npm run --prefix react-native generate-bindings -- "../$LIBPATH"
+npm run --prefix js generate-bindings -- $(realpath "$LIBPATH")
 ```
 
 ### 3b. React Native wrapper
 
-Add a TypeScript wrapper class in `react-native/src/<feature-lowercase>.ts` following the pattern of `react-native/src/speech_to_text.ts`. Export it from `react-native/src/wrapper.ts`.
+Add a TypeScript wrapper class in `js/src/<feature-lowercase>.ts` following the pattern of `js/src/speech_to_text.ts`. Export it from `js/src/wrapper.ts`.
 
 ### 3c. Godot
 

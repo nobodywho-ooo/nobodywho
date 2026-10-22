@@ -9,7 +9,7 @@ const latestReleases: Record<string, string> = {
   kotlin: '5.1.0',
   python: '4.1.0',
   swift: '5.1.0',
-  'react-native': '5.1.0',
+  js: '5.1.0',
   flutter: '5.1.0',
   godot: '12.1.0',
 };
@@ -111,7 +111,7 @@ const config: Config = {
       {
         hashed: true,
         indexBlog: false,
-        docsRouteBasePath: ['docs', 'kotlin', 'python', 'swift', 'react-native', 'flutter', 'godot'],
+        docsRouteBasePath: ['docs', 'kotlin', 'python', 'swift', 'js', 'flutter', 'godot'],
       },
     ],
   ],
@@ -153,11 +153,11 @@ const config: Config = {
     [
       '@docusaurus/plugin-content-docs',
       {
-        id: 'react-native',
-        path: 'docs-react-native',
-        routeBasePath: 'react-native',
-        sidebarPath: './sidebars/react-native.ts',
-        ...sdkDocsConfig('react-native'),
+        id: 'js',
+        path: 'docs-js',
+        routeBasePath: 'js',
+        sidebarPath: './sidebars/js.ts',
+        ...sdkDocsConfig('js'),
       },
     ],
     [
@@ -203,7 +203,7 @@ const config: Config = {
         {to: '/python/', label: 'Python', position: 'left', activeBaseRegex: '/python/', className: 'lang-icon lang-icon--python'},
         {to: '/godot/', label: 'Godot', position: 'left', activeBaseRegex: '/godot/', className: 'lang-icon lang-icon--godot'},
         {to: '/flutter/', label: 'Flutter', position: 'left', activeBaseRegex: '/flutter/', className: 'lang-icon lang-icon--flutter'},
-        {to: '/react-native/', label: 'RN/Expo', position: 'left', activeBaseRegex: '/react-native/', className: 'lang-icon lang-icon--react-native'},
+        {to: '/js/', label: 'RN/Expo', position: 'left', activeBaseRegex: '/js/', className: 'lang-icon lang-icon--react-native'},
         {to: '/swift/', label: 'Swift', position: 'left', activeBaseRegex: '/swift/', className: 'lang-icon lang-icon--swift'},
         {to: '/kotlin/', label: 'Kotlin', position: 'left', activeBaseRegex: '/kotlin/', className: 'lang-icon lang-icon--kotlin'},
         // Right side

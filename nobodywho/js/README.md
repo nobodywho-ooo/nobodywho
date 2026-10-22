@@ -101,7 +101,7 @@ for await (const token of chat.ask("Is water wet?")) {
 const response = await chat.ask("Is water wet?").completed();
 ```
 
-See the [Chat documentation](https://docs.nobodywho.ooo/react-native/chat/) for details.
+See the [Chat documentation](https://docs.nobodywho.ooo/js/chat/) for details.
 
 ## Tool Calling
 
@@ -131,7 +131,7 @@ const chat = await Chat.fromPath({
 const response = await chat.ask("What's the weather in Paris?").completed();
 ```
 
-See the [Tool Calling documentation](https://docs.nobodywho.ooo/react-native/tool-calling/) for more.
+See the [Tool Calling documentation](https://docs.nobodywho.ooo/js/tool-calling/) for more.
 
 ---
 
@@ -148,7 +148,7 @@ const chat = await Chat.fromPath({
 });
 ```
 
-See the [Sampling documentation](https://docs.nobodywho.ooo/react-native/sampling/) for more.
+See the [Sampling documentation](https://docs.nobodywho.ooo/js/sampling/) for more.
 
 ---
 
@@ -184,7 +184,7 @@ const response = await chat
 
 You can pass multiple images/audio files and interleave text between them. If the model performs poorly, try reordering the text, audio and image parts — this can make a noticeable difference. If images consume too much context, increase `contextSize` or preprocess images with compression.
 
-See the [Vision & Hearing documentation](https://docs.nobodywho.ooo/react-native/vision/) for model recommendations and advanced tips.
+See the [Vision & Hearing documentation](https://docs.nobodywho.ooo/js/vision/) for model recommendations and advanced tips.
 
 ---
 
@@ -205,7 +205,7 @@ console.log(text);
 
 You can also transcribe raw PCM buffers with `transcribePcm`, and stream the transcription token by token.
 
-See the [Speech to Text documentation](https://docs.nobodywho.ooo/react-native/speech-to-text/) for more.
+See the [Speech to Text documentation](https://docs.nobodywho.ooo/js/speech-to-text/) for more.
 
 ---
 
@@ -228,7 +228,7 @@ const wav = await tts.synthesize("Hello from NobodyWho!");
 
 NobodyWho supports the Kokoro, Pocket TTS, and Supertonic speech synthesis architectures.
 
-See the [Text to Speech documentation](https://docs.nobodywho.ooo/react-native/text-to-speech/) for more.
+See the [Text to Speech documentation](https://docs.nobodywho.ooo/js/text-to-speech/) for more.
 
 ---
 
@@ -257,4 +257,4 @@ const speech = vad.finish(); // buffered speech, ready to pass to SpeechToText
 
 You can also segment speech out of an existing recording with `segment()`.
 
-See the [Voice Activity Detection documentation](https://docs.nobodywho.ooo/react-native/voice-activity-detection/) for more.
+See the [Voice Activity Detection documentation](https://docs.nobodywho.ooo/js/voice-activity-detection/) for more.

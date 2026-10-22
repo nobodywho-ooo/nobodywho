@@ -7,3 +7,6 @@ __pycache__/
 .mypy_cache/
 .venv/
 */result
+
+# Old js folder location
+react-native/node_modules/

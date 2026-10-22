@@ -228,7 +228,7 @@ jobs:
       working-directory: nobodywho/flutter/nobodywho
 
   # Create GitHub Release with native binaries, then publish to npm.
-  create-github-release-react-native:
+  create-github-release-js:
     needs: [release-notes]
     if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
     runs-on: warp-ubuntu-latest-x64-2x
@@ -239,23 +239,23 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: nobodywho-uniffi-aarch64-linux-android-release
-          path: ./nobodywho-react-native-release
+          path: ./nobodywho-js-release
 
       - name: "Download Android x86_64 artifact"
         uses: actions/download-artifact@v5
         with:
           name: nobodywho-uniffi-x86_64-linux-android-release
-          path: ./nobodywho-react-native-release
+          path: ./nobodywho-js-release
 
       - name: "Download iOS XCFramework"
         uses: actions/download-artifact@v5
         with:
-          name: nobodywho-react-native-xcframework
-          path: ./nobodywho-react-native-release
+          name: nobodywho-js-xcframework
+          path: ./nobodywho-js-release
 
       - name: "Keep only React Native artifacts (.so and xcframework)"
         run: |
-          cd nobodywho-react-native-release
+          cd nobodywho-js-release
           rm -f *.a *.dll *.dylib *.pdb
           ls -la
 
@@ -263,12 +263,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           body: ${{ needs.release-notes.outputs.notes }}
-          files: ./nobodywho-react-native-release/*
+          files: ./nobodywho-js-release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  publish-react-native-npm:
-    needs: [create-github-release-react-native]
+  publish-js-npm:
+    needs: [create-github-release-js]
     if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
     runs-on: warp-ubuntu-latest-x64-2x
     steps:
@@ -281,13 +281,13 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: "Verify Login"
-        working-directory: ./nobodywho/react-native
+        working-directory: ./nobodywho/js
         run: npm whoami
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: "Publish to npm"
-        working-directory: ./nobodywho/react-native
+        working-directory: ./nobodywho/js
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

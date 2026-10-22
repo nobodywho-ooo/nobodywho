@@ -87,7 +87,7 @@ You can test our inference engine on [iOS](https://apps.apple.com/us/app/nobodyw
 |---------|---------|---------|---------------|
 | **Kotlin** | [Maven Central](#quick-start) | Desktop, Android | [docs.nobodywho.ooo/kotlin](https://docs.nobodywho.ooo/kotlin/) |
 | **Swift** | [SPM](#quick-start) | macOS, iOS, visionOS, watchOS | [docs.nobodywho.ooo/swift](https://docs.nobodywho.ooo/swift/) |
-| **React Native / Expo** | [npm](#quick-start) | Desktop, Android, iOS | [docs.nobodywho.ooo/react-native](https://docs.nobodywho.ooo/react-native/) |
+| **React Native / Expo** | [npm](#quick-start) | Desktop, Android, iOS | [docs.nobodywho.ooo/js](https://docs.nobodywho.ooo/js/) |
 | **Flutter** | [pub.dev](#quick-start) | Desktop, Android, iOS | [docs.nobodywho.ooo/flutter](https://docs.nobodywho.ooo/flutter/) |
 | **Python** | [PyPI](#quick-start) | Desktop | [docs.nobodywho.ooo/python](https://docs.nobodywho.ooo/python/) |
 | **Godot** | [AssetLib](#quick-start) | Desktop, Android | [docs.nobodywho.ooo/godot](https://docs.nobodywho.ooo/godot/) |
@@ -227,7 +227,7 @@ const msg = await chat.ask("What is the capital of Denmark?").completed();
 console.log(msg); // The capital of Denmark is Copenhagen.
 ```
 
-[RN / Expo documentation](https://docs.nobodywho.ooo/react-native/) · [NPM](https://www.npmjs.com/package/react-native-nobodywho) · [RN starter app](https://github.com/nobodywho-ooo/react-native-starter-example) · [Expo starter app](https://github.com/nobodywho-ooo/expo-starter-example)
+[RN / Expo documentation](https://docs.nobodywho.ooo/js/) · [NPM](https://www.npmjs.com/package/react-native-nobodywho) · [RN starter app](https://github.com/nobodywho-ooo/react-native-starter-example) · [Expo starter app](https://github.com/nobodywho-ooo/expo-starter-example)
 
 </details>
 

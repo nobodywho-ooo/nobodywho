@@ -12,7 +12,7 @@ const SECTIONS = [
   {id: 'kotlin', label: 'Kotlin', routeBase: '/kotlin'},
   {id: 'python', label: 'Python', routeBase: '/python'},
   {id: 'swift', label: 'Swift', routeBase: '/swift'},
-  {id: 'react-native', label: 'React Native/Expo', routeBase: '/react-native'},
+  {id: 'js', label: 'React Native/Expo', routeBase: '/js'},
   {id: 'flutter', label: 'Flutter', routeBase: '/flutter'},
   {id: 'godot', label: 'Godot', routeBase: '/godot'},
 ];
