@@ -48,10 +48,14 @@ hound = "3"
 safetensors = "0.8.0"
 # SpeechToText audio pipeline: WAV via hound, MP3 via symphonia-bundle-mp3 directly
 symphonia-core = "0.5"
-symphonia-bundle-mp3 = { version = "0.5", default-features = false, features = ["mp3"] }
+symphonia-bundle-mp3 = { version = "0.5", default-features = false, features = [
+    "mp3",
+] }
 rubato = "0.16"
 mel_spec = "0.4"
-tokenizers = { version = "0.23.2", default-features = false, features = ["onig"] }
+tokenizers = { version = "0.23.2", default-features = false, features = [
+    "onig",
+] }
 sentencepiece-rs = "0.2"
 # Shared by SpeechToText (via mel_spec) and TextToSpeech (supertonic); use 0.17 as the workspace default
 ndarray = "0.17"
@@ -67,6 +71,18 @@ espeak-ng = { version = "0.2.0", default-features = false, features = [
     "bundled-data-pt",
 ] }
 yoke = "0.8.3"
+# ort is pinned exactly because its release candidates make breaking changes;
+# bump deliberately and run /full-ci. Keep the CI-built ONNX Runtime in step
+# (`ort_version` in the build-ort action) with ort-sys's prebuilts (dist.tsv).
+ort = { version = "=2.0.0-rc.15", default-features = false, features = [
+    "std",
+    "ndarray",
+    "tracing",
+    "download-binaries",
+    "tls-rustls",
+    "copy-dylibs",
+    "api-20",
+] }
 
 [target.'cfg(any(target_os = "android", target_vendor = "apple"))'.dependencies]
 libc = "0.2"
@@ -84,22 +100,19 @@ llama-cpp-2 = { version = "=0.1.160", default-features = false, features = [
     "vulkan",
     "opencl",
 ] }
-ort = { version = "=2.0.0-rc.14", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
-
-[target.'cfg(not(target_os = "android"))'.dependencies]
-ort = { version = "=2.0.0-rc.14", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation"] }
+windows-sys = { version = "0.61", features = [
+    "Win32_System_SystemInformation",
+] }
 
-# ort is pinned exactly because its release candidates make breaking changes;
-# bump deliberately and run /full-ci. Keep the CI-built ONNX Runtime in step
-# (`ort_version` in the build-ort action) with ort-sys's prebuilts (dist.tsv).
 # `cuda` only where pyke ships a CUDA build: with strict feature matching, asking
 # for it elsewhere (aarch64 Linux) links fine but fails to load at runtime.
 # Keep this cfg in sync with the CUDA cfgs in core/src/onnx.rs.
 [target.'cfg(all(any(target_os = "linux", target_os = "windows"), target_arch = "x86_64"))'.dependencies]
-ort = { version = "=2.0.0-rc.14", default-features = false, features = ["cuda"] }
+ort = { version = "=2.0.0-rc.15", default-features = false, features = [
+    "cuda",
+] }
 
 # Enable Vulkan for x86_64, x86, and aarch64 targets (excluding Apple platforms and Android).
 # Apple platforms use Metal, which is auto-enabled by llama-cpp-rs for all Apple targets

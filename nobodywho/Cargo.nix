@@ -11188,7 +11188,7 @@ rec {
           {
             name = "dirs";
             packageId = "dirs";
-            target = { target, features }: (!("android" == target."os" or null));
+            target = { target, features }: (!(("android" == target."os" or null) || ("emscripten" == target."os" or null)));
           }
           {
             name = "emojis";
@@ -11297,22 +11297,14 @@ rec {
             name = "ort";
             packageId = "ort";
             usesDefaultFeatures = false;
+            features = [ "std" "ndarray" "tracing" "download-binaries" "tls-rustls" "copy-dylibs" "api-20" ];
+          }
+          {
+            name = "ort";
+            packageId = "ort";
+            usesDefaultFeatures = false;
             target = { target, features }: ((("linux" == target."os" or null) || ("windows" == target."os" or null)) && ("x86_64" == target."arch" or null));
             features = [ "cuda" ];
-          }
-          {
-            name = "ort";
-            packageId = "ort";
-            usesDefaultFeatures = false;
-            target = { target, features }: (!("android" == target."os" or null));
-            features = [ "std" "ndarray" "tracing" "download-binaries" "tls-rustls" "copy-dylibs" "api-20" ];
-          }
-          {
-            name = "ort";
-            packageId = "ort";
-            usesDefaultFeatures = false;
-            target = { target, features }: ("android" == target."os" or null);
-            features = [ "std" "ndarray" "tracing" "download-binaries" "tls-rustls" "copy-dylibs" "api-20" ];
           }
           {
             name = "rand";
@@ -12461,9 +12453,9 @@ rec {
       };
       "ort" = rec {
         crateName = "ort";
-        version = "2.0.0-rc.14";
+        version = "2.0.0-rc.15";
         edition = "2024";
-        sha256 = "1sr55ryq502b8bx5xwn5kbya0zabsl04l42hablygb2sq23r5jh8";
+        sha256 = "0g416914cf2b1hvnqkbzy0apzmpqbm3wvk1nzvhg6zqbm6kpmj1p";
         license = "MIT OR Apache-2.0";
         authors = [
           "pyke.io <contact@pyke.io>"
@@ -12570,10 +12562,10 @@ rec {
       };
       "ort-sys" = rec {
         crateName = "ort-sys";
-        version = "2.0.0-rc.14";
+        version = "2.0.0-rc.15";
         edition = "2024";
         links = "onnxruntime";
-        sha256 = "0bzj708lsn5mia5y85v1gxh2h76n2z9bir5zn186d49zalz7dx2a";
+        sha256 = "0ayvqywl0l5vddya582ac9rzpxirzs6zkcy079ddnf0qgx0v08ld";
         build = "build/main.rs";
         libName = "ort_sys";
         license = "MIT OR Apache-2.0";
