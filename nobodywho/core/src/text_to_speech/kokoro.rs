@@ -331,13 +331,13 @@ impl Phonemizer {
 ///    from `Context.getCacheDir()` since neither `dirs::cache_dir()` nor
 ///    `std::env::temp_dir()` give a writable per-app path there.
 /// 2. `dirs::cache_dir()` — per-user cache on desktop platforms (skipped
-///    on Android; the `dirs` crate isn't a dep there).
+///    on Android and Emscripten; the `dirs` crate isn't a dep there).
 /// 3. `std::env::temp_dir()` — last-ditch fallback.
 fn espeak_data_dir() -> PathBuf {
     if let Ok(p) = std::env::var("NOBODYWHO_ESPEAK_DATA_DIR") {
         return PathBuf::from(p);
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "emscripten")))]
     if let Some(d) = dirs::cache_dir() {
         return d.join("nobodywho").join("espeak-ng-data");
     }

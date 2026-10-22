@@ -182,7 +182,16 @@ impl ModelCache {
         )))
     }
 
-    #[cfg(not(target_os = "android"))]
+    /// `dirs` doesn't support Emscripten.
+    ///
+    /// Ideally, we'd probably want to mount IDBFS or NODEFS on `/tmp`, to
+    /// make the model persist between page reloads / node.js invocations.
+    #[cfg(target_os = "emscripten")]
+    fn platform_cache_dir() -> Result<PathBuf, GetCacheDirError> {
+        Ok(std::env::temp_dir())
+    }
+
+    #[cfg(not(any(target_os = "emscripten", target_os = "android")))]
     fn platform_cache_dir() -> Result<PathBuf, GetCacheDirError> {
         dirs::cache_dir().ok_or(GetCacheDirError::NoCacheDir)
     }
