@@ -538,9 +538,9 @@ rec {
       };
       "arbitrary" = rec {
         crateName = "arbitrary";
-        version = "1.4.2";
+        version = "1.5.0";
         edition = "2021";
-        sha256 = "1wcbi4x7i3lzcrkjda4810nqv03lpmvfhb0a85xrq1mbqjikdl63";
+        sha256 = "1v8a080p8z746w8pi7lggaa5791qpk1i9mb313sj2cy3gk4jmiiv";
         license = "MIT OR Apache-2.0";
         authors = [
           "The Rust-Fuzz Project Developers"
@@ -565,9 +565,9 @@ rec {
       };
       "arc-swap" = rec {
         crateName = "arc-swap";
-        version = "1.9.2";
+        version = "1.9.3";
         edition = "2018";
-        sha256 = "02w1n3kiz02ml6is3biqia4bgxcf7dml2m9mrd2v3w5f9nzc0jf0";
+        sha256 = "0vmfc2wjnn7gyjfawvnq6a5pxsbiq1rbzzmra0p6969vv6rn429q";
         libName = "arc_swap";
         license = "MIT OR Apache-2.0";
         authors = [
@@ -580,6 +580,7 @@ rec {
           }
         ];
         features = {
+          "internal-test-strategies" = [ "rwlock-strategy" ];
           "serde" = [ "dep:serde" ];
         };
       };
@@ -772,7 +773,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
             usesDefaultFeatures = false;
             features = [ "clone-impls" "full" "parsing" "printing" "proc-macro" "visit-mut" ];
           }
@@ -1267,9 +1268,9 @@ rec {
       };
       "bashkit" = rec {
         crateName = "bashkit";
-        version = "0.18.1";
+        version = "0.18.2";
         edition = "2024";
-        sha256 = "1gw715mflmxa8pd1sqhgpjd7bkns6j2mbn42zpaivxgrxdkk3s5x";
+        sha256 = "1l0fwj9anb0yypkr7sq74h5vckhb7crvlzmhxbfz9n2d01nl3yiw";
         license = "MIT";
         authors = [
           "Mykhailo Chalyi <mike@chaliy.name>"
@@ -1386,7 +1387,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror 2.0.20";
+            packageId = "thiserror 2.0.21";
           }
           {
             name = "tokio";
@@ -1469,9 +1470,9 @@ rec {
       };
       "bigdecimal" = rec {
         crateName = "bigdecimal";
-        version = "0.4.10";
+        version = "0.4.11";
         edition = "2015";
-        sha256 = "159nc0bs6bbzxrpfxbnn83ccyzq8bc2ia40zd22ssfjvavqnfs2d";
+        sha256 = "0ls69lmy7gs923a9vgpc16j0kxdy2b863pli97zgrpzlrgcg78wg";
         license = "MIT/Apache-2.0";
         authors = [
           "Andrew Kubera"
@@ -1541,7 +1542,7 @@ rec {
           }
           {
             name = "itertools";
-            packageId = "itertools 0.10.5";
+            packageId = "itertools 0.13.0";
             usesDefaultFeatures = false;
           }
           {
@@ -1934,7 +1935,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
           }
         ];
 
@@ -2109,7 +2110,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror 2.0.20";
+            packageId = "thiserror 2.0.21";
           }
         ];
         features = {
@@ -2229,9 +2230,9 @@ rec {
       };
       "cc" = rec {
         crateName = "cc";
-        version = "1.4.7";
+        version = "1.9.0";
         edition = "2021";
-        sha256 = "04z3q2wqsg4qgx4vsqsd01s27svz0bgdymjiyccgbnn24gg3whal";
+        sha256 = "1pz4mvzdqmskrkiyp7hzvmqfnfqnx92a764y5zmlj975r1xgcyw7";
         license = "MIT OR Apache-2.0";
         dependencies = [
           {
@@ -2648,7 +2649,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
             features = [ "full" ];
           }
         ];
@@ -2708,7 +2709,7 @@ rec {
         dependencies = [
           {
             name = "thiserror";
-            packageId = "thiserror 2.0.20";
+            packageId = "thiserror 2.0.21";
             usesDefaultFeatures = false;
           }
         ];
@@ -3135,9 +3136,9 @@ rec {
       };
       "crc32fast" = rec {
         crateName = "crc32fast";
-        version = "1.5.2";
+        version = "1.5.3";
         edition = "2021";
-        sha256 = "0y0f955n2hr5a8rd9nw9sr23nhjc42ddx3bjc47dnlmqssgpk9q1";
+        sha256 = "0m907hccpnpmr4x87ggcq8n5zd3w1d5sqs07q81dqp848kl0d88b";
         license = "MIT OR Apache-2.0";
         authors = [
           "Sam Rijs <srijs@airpost.net>"
@@ -3311,9 +3312,9 @@ rec {
       };
       "ctutils" = rec {
         crateName = "ctutils";
-        version = "0.4.2";
+        version = "0.4.3";
         edition = "2024";
-        sha256 = "17m2s9jv7i780k26cq2fcyslg0pakv9plwdrmygdwha1hfiiambx";
+        sha256 = "0x25mzy56kl9lx2ddcvhfjh6k6qnk54p98fr478q5m3hr4f0xfq3";
         license = "Apache-2.0 OR MIT";
         authors = [
           "RustCrypto Developers"
@@ -3534,10 +3535,10 @@ rec {
       };
       "defmt" = rec {
         crateName = "defmt";
-        version = "1.1.1";
+        version = "1.2.0";
         edition = "2021";
         links = "defmt";
-        sha256 = "1lc8xlfj700xqjmvp7n9hhc1czgpaqkq960iqw6d5fwk9zz3p5g2";
+        sha256 = "1qg3w0w7f0fn74xp60aci37swsjz6hbrqp3pngbm9js0qxd7k874";
         license = "MIT OR Apache-2.0";
         authors = [
           "The Knurling-rs developers"
@@ -3559,9 +3560,9 @@ rec {
       };
       "defmt-macros" = rec {
         crateName = "defmt-macros";
-        version = "1.1.1";
+        version = "1.2.0";
         edition = "2021";
-        sha256 = "1s2zkcbaj1l306ph1n1gsfm6vzc2sah4acl1qc6pw4x2ghpcgnds";
+        sha256 = "0rl3dlnl8lc4dqzdnr6q0vrpjz3qmdca5641334rbi4rpmbb02w4";
         procMacro = true;
         libName = "defmt_macros";
         license = "MIT OR Apache-2.0";
@@ -3583,7 +3584,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 2.0.119";
+            packageId = "syn 3.0.9";
             features = [ "full" "extra-traits" ];
           }
         ];
@@ -3592,9 +3593,9 @@ rec {
       };
       "defmt-parser" = rec {
         crateName = "defmt-parser";
-        version = "1.0.0";
+        version = "1.1.0";
         edition = "2021";
-        sha256 = "0gpfky9sssil5qfaix5wxcwiqk7snszhl5gq3vcwkrxjncs07mhh";
+        sha256 = "1849z1vp502s77sip4wzj6jimjl6x5vr7b2ivp2mds1dzdlqz5bi";
         libName = "defmt_parser";
         license = "MIT OR Apache-2.0";
         authors = [
@@ -3603,7 +3604,7 @@ rec {
         dependencies = [
           {
             name = "thiserror";
-            packageId = "thiserror 2.0.20";
+            packageId = "thiserror 2.0.21";
           }
         ];
         features = {
@@ -3631,7 +3632,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
             features = [ "full" ];
           }
         ];
@@ -3687,7 +3688,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
             usesDefaultFeatures = false;
             features = [ "clone-impls" "derive" "extra-traits" "full" "parsing" "printing" ];
           }
@@ -3698,9 +3699,9 @@ rec {
       };
       "derive_arbitrary" = rec {
         crateName = "derive_arbitrary";
-        version = "1.4.2";
+        version = "1.5.0";
         edition = "2021";
-        sha256 = "0annkmfwfavd978vwwrxvrpykjfdnc3w6q1ln3j7kyfg5pc7nmhy";
+        sha256 = "1b51hbv0w97vh0bd8m0qyc1nmqvldz64si3r4hm40cphspbln0qv";
         procMacro = true;
         license = "MIT OR Apache-2.0";
         authors = [
@@ -3721,7 +3722,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 2.0.119";
+            packageId = "syn 3.0.9";
             features = [ "derive" "parsing" "extra-traits" ];
           }
         ];
@@ -3821,10 +3822,10 @@ rec {
       };
       "derivre" = rec {
         crateName = "derivre";
-        version = "0.3.12";
+        version = "0.3.13";
         edition = "2021";
         crateBin = [];
-        sha256 = "1wvmq507sb9k9dblm1pvgz3ik3mmsh1yv1i0ilz8kjplacwyr4m8";
+        sha256 = "0is3964mblmn0snqm7qpqs8qn8wbdq0714jdiyzizdvhpi5vqkra";
         license = "MIT";
         authors = [
           "Michal Moskal <michal@moskal.me>"
@@ -4020,7 +4021,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
           }
         ];
         features = {
@@ -4040,9 +4041,9 @@ rec {
       };
       "either" = rec {
         crateName = "either";
-        version = "1.18.0";
+        version = "1.19.0";
         edition = "2021";
-        sha256 = "0d7dx31sf8rakcgp63070ngb2vkjynrni866pnx879pawndgnai5";
+        sha256 = "1gjq21g0sgk5ylpj85zafcinwhh3jj91i6drhb4278vw2v17370f";
         license = "MIT OR Apache-2.0";
         features = {
           "default" = [ "std" ];
@@ -4105,9 +4106,9 @@ rec {
       };
       "emojis" = rec {
         crateName = "emojis";
-        version = "0.9.0";
+        version = "0.9.1";
         edition = "2021";
-        sha256 = "1qv6py3070q60vra7w1vfzyi3qv1ry72aqwmxn8lkjb6sp71858b";
+        sha256 = "18klqs5qqir7r83wk5ix4wnf0jdhq4md72dd42y861rk77k7362q";
         license = "(MIT OR Apache-2.0) AND Unicode-3.0";
         authors = [
           "Ross MacArthur <ross@macarthur.io>"
@@ -4140,9 +4141,9 @@ rec {
       };
       "encoding_rs" = rec {
         crateName = "encoding_rs";
-        version = "0.8.41";
+        version = "0.8.42";
         edition = "2024";
-        sha256 = "0al3wawa9jz1rv50dxz83lajadmfkklmlbsj70y27ay9d80g0pkv";
+        sha256 = "0ycnbndly2jw5j69jl1r1lm512h2w9vb1dnjp0px46l7a425x64f";
         license = "(Apache-2.0 OR MIT) AND BSD-3-Clause";
         authors = [
           "Henri Sivonen <hsivonen@hsivonen.fi>"
@@ -4156,12 +4157,6 @@ rec {
             name = "core_detect";
             packageId = "core_detect";
             target = { target, features }: (("x86_64" == target."arch" or null) || ("x86" == target."arch" or null));
-          }
-          {
-            name = "multiversion";
-            packageId = "multiversion";
-            usesDefaultFeatures = false;
-            target = { target, features }: ((("x86_64" == target."arch" or null) || ("x86" == target."arch" or null)) && (!((builtins.elem "avx2" targetFeatures) && (builtins.elem "bmi1" targetFeatures))));
           }
           {
             name = "multiversion_no_op";
@@ -4198,7 +4193,7 @@ rec {
           "rustversion" = [ "dep:rustversion" ];
           "serde" = [ "dep:serde" ];
           "simd-accel" = [ "any_all_workaround" "rustversion" ];
-          "std" = [ "multiversion/std" ];
+          "std" = [ "dep:multiversion" ];
         };
         resolvedDefaultFeatures = [ "alloc" "default" ];
       };
@@ -4431,9 +4426,9 @@ rec {
       };
       "equivalent" = rec {
         crateName = "equivalent";
-        version = "1.0.2";
+        version = "1.0.3";
         edition = "2015";
-        sha256 = "03swzqznragy8n0x31lqc78g2af054jwivp7lkrbrc0khz74lyl7";
+        sha256 = "09nqddaa84mix3vil6r02jlmya3qypi4j45dhzb8yphf83ap9l80";
         license = "Apache-2.0 OR MIT";
 
       };
@@ -5026,9 +5021,9 @@ rec {
       };
       "find-msvc-tools" = rec {
         crateName = "find-msvc-tools";
-        version = "0.1.13";
+        version = "0.1.15";
         edition = "2021";
-        sha256 = "16ykhz2icc0xx8i3vr8fpp6h3djpik2zw5bcxbff9bxba5g909gg";
+        sha256 = "0j5sh4lb7g8xh6kd67s0vz037ah5hlp9f2rbgbg9f41rqmf92rhw";
         libName = "find_msvc_tools";
         license = "MIT OR Apache-2.0";
 
@@ -5835,7 +5830,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
             features = [ "full" ];
           }
         ];
@@ -6006,7 +6001,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
             features = [ "full" ];
           }
         ];
@@ -6560,9 +6555,9 @@ rec {
       };
       "godot" = rec {
         crateName = "godot";
-        version = "0.5.4";
+        version = "0.5.5";
         edition = "2024";
-        sha256 = "17zkx34vmm8jl1ljgclkk7g7qri501mrn542gwc3n29smvxyylj4";
+        sha256 = "1yzdwjm9ksj1335mf1adbbs4rnwz6pr1byd4jfr3q9cc1hxgw7g2";
         license = "MPL-2.0";
         authors = [
           "Bromeon"
@@ -6581,7 +6576,7 @@ rec {
         features = {
           "__codegen-full" = [ "godot-core/codegen-full" "godot-macros/codegen-full" ];
           "__debug-log" = [ "godot-core/debug-log" ];
-          "__trace" = [ "godot-core/trace" ];
+          "__itest" = [ "godot-core/itest" ];
           "api-4-2" = [ "godot-core/api-4-2" ];
           "api-4-3" = [ "godot-core/api-4-3" ];
           "api-4-4" = [ "godot-core/api-4-4" ];
@@ -6609,9 +6604,9 @@ rec {
       };
       "godot-bindings" = rec {
         crateName = "godot-bindings";
-        version = "0.5.4";
+        version = "0.5.5";
         edition = "2024";
-        sha256 = "1vc5rn96hx4v1kfdddssc21ll5k9w478xzj0vj5nzgjk4yj60f3p";
+        sha256 = "1xhw1fjwzk1ixk8c3bhkpybdnb44pf06h948w57c8z7jc39zxrkw";
         libName = "godot_bindings";
         license = "MPL-2.0";
         dependencies = [
@@ -6628,20 +6623,18 @@ rec {
       };
       "godot-cell" = rec {
         crateName = "godot-cell";
-        version = "0.5.4";
+        version = "0.5.5";
         edition = "2024";
-        sha256 = "0b950ny14d564jy2g58w90r5ilxrfwfnyk5d082dllidks0313gi";
+        sha256 = "1i5zjcdx6hiam8mdx2fcjqsjws81zlxdznqaizg2f3qijxanki7d";
         libName = "godot_cell";
         license = "MPL-2.0";
-        features = {
-          "proptest" = [ "dep:proptest" ];
-        };
+
       };
       "godot-codegen" = rec {
         crateName = "godot-codegen";
-        version = "0.5.4";
+        version = "0.5.5";
         edition = "2024";
-        sha256 = "1d8mvz4y9kf2x8msz310ch3hdniky9s44j9f8mdava06ziv511w5";
+        sha256 = "0q1wamfhczxrif8mwvf9v59k3fh6kdkhpjsdnssrqzd4zc1r2h08";
         libName = "godot_codegen";
         license = "MPL-2.0";
         dependencies = [
@@ -6680,9 +6673,9 @@ rec {
       };
       "godot-core" = rec {
         crateName = "godot-core";
-        version = "0.5.4";
+        version = "0.5.5";
         edition = "2024";
-        sha256 = "127yhriw24p4grn6wjwly0gxsilx9yjmvh1npzs5q3plvdr2bljp";
+        sha256 = "142ahx8xrga7kk8qm64cfw0bgcfsp9g04afskvq9grvwph6n7as0";
         libName = "godot_core";
         license = "MPL-2.0";
         dependencies = [
@@ -6735,9 +6728,9 @@ rec {
       };
       "godot-ffi" = rec {
         crateName = "godot-ffi";
-        version = "0.5.4";
+        version = "0.5.5";
         edition = "2024";
-        sha256 = "1llvvclxn2ha8dyiyabl0y4kiiqnm1qsqxhd4i6whm2g3sc36il5";
+        sha256 = "0zzmrggab960nsbccil3z57xs8nxp8dygcicif178b84gh29dhhq";
         libName = "godot_ffi";
         license = "MPL-2.0";
         dependencies = [
@@ -6778,9 +6771,9 @@ rec {
       };
       "godot-macros" = rec {
         crateName = "godot-macros";
-        version = "0.5.4";
+        version = "0.5.5";
         edition = "2024";
-        sha256 = "1w3554krjyahdqaspyxmjd7q11aripkczk3xhbgrirvhp7hrrp1p";
+        sha256 = "0bmmhzp0payrjr7lcc99dp1i847wvarijf3bm62mibfzq1zcmzy9";
         procMacro = true;
         libName = "godot_macros";
         license = "MPL-2.0";
@@ -7166,9 +7159,9 @@ rec {
       };
       "hmac-sha256" = rec {
         crateName = "hmac-sha256";
-        version = "1.1.14";
+        version = "1.1.15";
         edition = "2021";
-        sha256 = "03yn6dbiyy2b05cb80hlp572s2plv4jdjcycx1j9nx7ljz8957gc";
+        sha256 = "0kjdf5bs0pmhafyabpki9g9xpbx5w3picvbjl1as9ckgp6rj1lqs";
         libName = "hmac_sha256";
         license = "ISC";
         authors = [
@@ -7341,9 +7334,9 @@ rec {
       };
       "hyper" = rec {
         crateName = "hyper";
-        version = "1.11.1";
+        version = "1.12.0";
         edition = "2021";
-        sha256 = "0hxyikj5livhmw5q3x3ifyhphh1g2cjsc32nsg1jcyhflpx03d97";
+        sha256 = "173wg6msakx4lha6hxm9z0i1h3bw34q8fk0x57b7flf9li6k4gic";
         license = "MIT";
         authors = [
           "Sean McArthur <sean@seanmonstar.com>"
@@ -7357,11 +7350,6 @@ rec {
           {
             name = "bytes";
             packageId = "bytes";
-          }
-          {
-            name = "futures-channel";
-            packageId = "futures-channel";
-            optional = true;
           }
           {
             name = "futures-core";
@@ -7410,11 +7398,6 @@ rec {
         ];
         devDependencies = [
           {
-            name = "futures-channel";
-            packageId = "futures-channel";
-            features = [ "sink" ];
-          }
-          {
             name = "pin-project-lite";
             packageId = "pin-project-lite";
           }
@@ -7428,7 +7411,7 @@ rec {
           "client" = [ "dep:want" "dep:pin-project-lite" "dep:smallvec" ];
           "ffi" = [ "dep:http-body-util" "dep:futures-util" ];
           "full" = [ "client" "http1" "http2" "server" ];
-          "http1" = [ "dep:atomic-waker" "dep:futures-channel" "dep:futures-core" "dep:httparse" "dep:itoa" ];
+          "http1" = [ "dep:atomic-waker" "dep:futures-core" "dep:httparse" "dep:itoa" ];
           "http2" = [ "dep:atomic-waker" "dep:futures-channel" "dep:futures-core" "dep:h2" ];
           "server" = [ "dep:httpdate" "dep:pin-project-lite" "dep:smallvec" ];
           "tracing" = [ "dep:tracing" ];
@@ -7437,9 +7420,9 @@ rec {
       };
       "hyper-util" = rec {
         crateName = "hyper-util";
-        version = "0.1.20";
-        edition = "2021";
-        sha256 = "186zdc58hmm663csmjvrzgkr6jdh93sfmi3q2pxi57gcaqjpqm4n";
+        version = "0.1.21";
+        edition = "2024";
+        sha256 = "1zwbrhqr9js6r7db3zd8bsmm6ys1i0abgkc7lyw2d4jgd2b3vh6x";
         libName = "hyper_util";
         license = "MIT";
         authors = [
@@ -7491,18 +7474,19 @@ rec {
           {
             name = "tokio";
             packageId = "tokio";
-            features = [ "macros" "test-util" "signal" ];
+            features = [ "macros" "test-util" "signal" "net" "io-util" ];
           }
         ];
         features = {
-          "client" = [ "hyper/client" "tokio/net" "dep:tracing" "dep:futures-channel" "dep:tower-service" ];
-          "client-legacy" = [ "client" "dep:socket2" "tokio/sync" "dep:libc" "dep:futures-util" ];
-          "client-pool" = [ "client" "dep:futures-util" "dep:tower-layer" ];
+          "client" = [ "hyper/client" "dep:tracing" "dep:futures-channel" "dep:tower-service" ];
+          "client-legacy" = [ "client" "tokio/net" "dep:socket2" "tokio/sync" "dep:libc" "dep:futures-util" "dep:httparse" ];
+          "client-pool" = [ "client" "dep:futures-util" "dep:tower-layer" "tokio/sync" ];
           "client-proxy" = [ "client" "dep:base64" "dep:ipnet" "dep:percent-encoding" ];
           "client-proxy-system" = [ "dep:system-configuration" "dep:windows-registry" ];
           "full" = [ "client" "client-legacy" "client-pool" "client-proxy" "client-proxy-system" "server" "server-auto" "server-graceful" "service" "http1" "http2" "tokio" "tracing" ];
           "http1" = [ "hyper/http1" ];
           "http2" = [ "hyper/http2" ];
+          "rt-tracing-exec-force" = [ "tokio" "tracing" ];
           "server" = [ "hyper/server" ];
           "server-auto" = [ "server" "http1" "http2" ];
           "server-graceful" = [ "server" "tokio/sync" ];
@@ -7585,9 +7569,9 @@ rec {
       };
       "icu_collections" = rec {
         crateName = "icu_collections";
-        version = "2.3.0";
+        version = "2.4.0";
         edition = "2024";
-        sha256 = "04x59h6vdq0cnpippim1nr471ivlsnnn470sj1d5v864h48d4s7s";
+        sha256 = "1p85w6wf2bfyv1ffbgzln8n440nczv8kw9k3iknhy56kl110l2gy";
         license = "Unicode-3.0";
         authors = [
           "The ICU4X Project Developers"
@@ -7636,9 +7620,9 @@ rec {
       };
       "icu_locale_core" = rec {
         crateName = "icu_locale_core";
-        version = "2.3.0";
+        version = "2.4.0";
         edition = "2024";
-        sha256 = "1sqdj16wwl7h9y6r7j394av4kpdb7zryz9h169ffwbm9imc2hvnm";
+        sha256 = "1h44m6jbiff814wpllybb93010nhlb7l28acvk82hrbwq5brpli5";
         license = "Unicode-3.0";
         authors = [
           "The ICU4X Project Developers"
@@ -7702,9 +7686,9 @@ rec {
       };
       "icu_locale_fallback" = rec {
         crateName = "icu_locale_fallback";
-        version = "2.3.0";
+        version = "2.4.0";
         edition = "2024";
-        sha256 = "1a9gdzpcqf1wj8pn7kzlzmj2laqmn6wfabr4b3my604lgkjzh6i5";
+        sha256 = "0g54g2m49svh5piax3c4s5r62skn3f9had19nrys72jxp7jrlvj0";
         license = "Unicode-3.0";
         authors = [
           "The ICU4X Project Developers"
@@ -7758,9 +7742,9 @@ rec {
       };
       "icu_locale_fallback_data" = rec {
         crateName = "icu_locale_fallback_data";
-        version = "2.3.0";
+        version = "2.4.0";
         edition = "2024";
-        sha256 = "1a639lmgd6ddivlwp74b9v18p3rzb3wa6a8i1hd8z9lgxhi2mkyy";
+        sha256 = "0z58pb7xfwzwsmlili3kiqkd5f9ciwlgiga03ax3fdjw1jyyncin";
         license = "Unicode-3.0";
         authors = [
           "The ICU4X Project Developers"
@@ -7769,9 +7753,9 @@ rec {
       };
       "icu_normalizer" = rec {
         crateName = "icu_normalizer";
-        version = "2.3.0";
+        version = "2.4.0";
         edition = "2024";
-        sha256 = "0vv43ixk2wmbxrx7kl33cwkhx1wdyb1q3pa18qkyshan4dgwzy8j";
+        sha256 = "16f5hzppvfl136p72ikfdpblljnqjilan8vzzs3mq83g9263njj0";
         license = "Unicode-3.0";
         authors = [
           "The ICU4X Project Developers"
@@ -7824,9 +7808,9 @@ rec {
       };
       "icu_normalizer_data" = rec {
         crateName = "icu_normalizer_data";
-        version = "2.3.0";
+        version = "2.4.0";
         edition = "2024";
-        sha256 = "1811h0ppb7lwq1q2492p5x6lcmlwmhbmkf69fhyvzcz0scgdlqqm";
+        sha256 = "1g4cir7jji6wlv98rkmrqv5a3jz9n46f5jd0gyizfhblzf5hiw10";
         license = "Unicode-3.0";
         authors = [
           "The ICU4X Project Developers"
@@ -7835,9 +7819,9 @@ rec {
       };
       "icu_properties" = rec {
         crateName = "icu_properties";
-        version = "2.3.0";
+        version = "2.4.0";
         edition = "2024";
-        sha256 = "0j51hi8qgf0l6a7qzvnwsc61598w2fpnsklicld6ci9immva4z3y";
+        sha256 = "17rpgbrwk5963yaqizl2xq3przhxdi1qdgwqz1y8y5an3jckva1f";
         license = "Unicode-3.0";
         authors = [
           "The ICU4X Project Developers"
@@ -7897,9 +7881,9 @@ rec {
       };
       "icu_properties_data" = rec {
         crateName = "icu_properties_data";
-        version = "2.3.0";
+        version = "2.4.0";
         edition = "2024";
-        sha256 = "1akw1gp5rcaiz377xzsnkx8f92qax4kh3lfn9y4rcjj6q4wg1475";
+        sha256 = "1kyzmmgm1jqlfcpqr3nc0wqvnhz7a21khq81wlzicayhhapjk3xr";
         license = "Unicode-3.0";
         authors = [
           "The ICU4X Project Developers"
@@ -7908,9 +7892,9 @@ rec {
       };
       "icu_provider" = rec {
         crateName = "icu_provider";
-        version = "2.3.1";
+        version = "2.4.0";
         edition = "2024";
-        sha256 = "0wrydhwprwgyka3r3sw6276syjnlw6fpqr2zsm2srvxv7afvnyyj";
+        sha256 = "05458rwq7bnw05z1b7dfiyda0wdr56rr0481izp8ii9naqqrjc21";
         license = "Unicode-3.0";
         authors = [
           "The ICU4X Project Developers"
@@ -7985,9 +7969,9 @@ rec {
       };
       "icu_segmenter" = rec {
         crateName = "icu_segmenter";
-        version = "2.3.0";
+        version = "2.4.0";
         edition = "2024";
-        sha256 = "1nxkdl0i9yif3m3rpsgj03nwbywnb3gnlaji09fz2ynnrjppml42";
+        sha256 = "0457qxr9gjkqymm4yr740fwp3k169v8kp6zc3ccam0azc3f9bcb1";
         license = "Unicode-3.0";
         authors = [
           "The ICU4X Project Developers"
@@ -8032,6 +8016,12 @@ rec {
             usesDefaultFeatures = false;
           }
           {
+            name = "zerotrie";
+            packageId = "zerotrie";
+            usesDefaultFeatures = false;
+            features = [ "yoke" "zerofrom" ];
+          }
+          {
             name = "zerovec";
             packageId = "zerovec";
             usesDefaultFeatures = false;
@@ -8041,18 +8031,18 @@ rec {
         features = {
           "auto" = [ "lstm" ];
           "compiled_data" = [ "dep:icu_segmenter_data" "dep:icu_locale_fallback" "icu_locale_fallback?/compiled_data" "icu_provider/baked" ];
-          "datagen" = [ "serde" "dep:databake" "potential_utf/databake" "zerovec/databake" "icu_collections/databake" "icu_provider/export" ];
+          "datagen" = [ "serde" "dep:databake" "potential_utf/databake" "zerovec/databake" "zerotrie/databake" "icu_collections/databake" "icu_provider/export" ];
           "default" = [ "compiled_data" "auto" ];
           "lstm" = [ "dep:core_maths" ];
-          "serde" = [ "dep:serde" "potential_utf/serde" "zerovec/serde" "icu_collections/serde" "icu_provider/serde" ];
+          "serde" = [ "dep:serde" "potential_utf/serde" "zerovec/serde" "zerotrie/serde" "icu_collections/serde" "icu_provider/serde" ];
         };
         resolvedDefaultFeatures = [ "compiled_data" ];
       };
       "icu_segmenter_data" = rec {
         crateName = "icu_segmenter_data";
-        version = "2.3.0";
+        version = "2.4.0";
         edition = "2024";
-        sha256 = "1bcqkr53p7s0lv4lk2v3hqa0b8karqlqvy8af48fry90j01kqadf";
+        sha256 = "18xrchfahqfw1yvilba8s8byrqyykwq0f88m953lfmnh98lpsfli";
         license = "Unicode-3.0";
         authors = [
           "The ICU4X Project Developers"
@@ -8438,9 +8428,9 @@ rec {
       };
       "insta" = rec {
         crateName = "insta";
-        version = "1.48.0";
+        version = "1.49.0";
         edition = "2021";
-        sha256 = "10kbxza7vzj4nvkga8r3rfn6z8i3hnh47bnnb1f429n9x3zgiw46";
+        sha256 = "1k91zskbkqjj97rhb7dkpms9py6i6c868frz1g0qcjvy50p3szdn";
         license = "Apache-2.0";
         authors = [
           "Armin Ronacher <armin.ronacher@active-4.com>"
@@ -8616,6 +8606,27 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "use_alloc" "use_std" ];
       };
+      "itertools 0.13.0" = rec {
+        crateName = "itertools";
+        version = "0.13.0";
+        edition = "2018";
+        sha256 = "11hiy3qzl643zcigknclh446qb9zlg4dpdzfkjaa9q9fqpgyfgj1";
+        license = "MIT OR Apache-2.0";
+        authors = [
+          "bluss"
+        ];
+        dependencies = [
+          {
+            name = "either";
+            packageId = "either";
+            usesDefaultFeatures = false;
+          }
+        ];
+        features = {
+          "default" = [ "use_std" ];
+          "use_std" = [ "use_alloc" "either/use_std" ];
+        };
+      };
       "itertools 0.14.0" = rec {
         crateName = "itertools";
         version = "0.14.0";
@@ -8675,9 +8686,9 @@ rec {
       };
       "jiff" = rec {
         crateName = "jiff";
-        version = "0.2.37";
+        version = "0.2.38";
         edition = "2021";
-        sha256 = "1nxgdj2wajw9ml8fcc2zq858k6v9618m22864vh6sy885zvvmc8a";
+        sha256 = "10x38b9qb1b47mq54d9j4ljkpk7i5ygvknn0lf4h1sybbmqhbc5j";
         license = "Unlicense OR MIT";
         authors = [
           "Andrew Gallant <jamslam@gmail.com>"
@@ -8790,9 +8801,9 @@ rec {
       };
       "jiff-static" = rec {
         crateName = "jiff-static";
-        version = "0.2.37";
+        version = "0.2.38";
         edition = "2021";
-        sha256 = "04kjdzg4h4wy38ghm91qva7xg4glr65120c74bk7mmka26hni0ip";
+        sha256 = "0p39a035j9c634llmr8lh1jz7ml8gqrbsla4d3j7wz6gadr83j9c";
         procMacro = true;
         libName = "jiff_static";
         license = "Unlicense OR MIT";
@@ -8929,9 +8940,9 @@ rec {
       };
       "js-sys" = rec {
         crateName = "js-sys";
-        version = "0.3.105";
+        version = "0.3.106";
         edition = "2021";
-        sha256 = "17pr58p55pxbflkjl2wz6pyz854j80nlgavjq4mcwr583q6x4myf";
+        sha256 = "1icwmpjw54lb7vg5926k5y4y5jbiih0zxhwgjwnzn475v90xk0vq";
         libName = "js_sys";
         license = "MIT OR Apache-2.0";
         authors = [
@@ -9233,7 +9244,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror 2.0.20";
+            packageId = "thiserror 2.0.21";
           }
           {
             name = "unicode-normalization";
@@ -9268,9 +9279,9 @@ rec {
       };
       "lazy_static" = rec {
         crateName = "lazy_static";
-        version = "1.5.0";
+        version = "1.5.1";
         edition = "2015";
-        sha256 = "1zk6dqqni0193xg6iijh7i3i44sryglwgvx20spdvwk3r6sbrlmv";
+        sha256 = "1yqaqmp510xw2ldpw88mx9b5s5qj8flb4rw0wd9ks1zpk9j0z1r0";
         license = "MIT OR Apache-2.0";
         authors = [
           "Marvin Löbel <loebel.marvin@gmail.com>"
@@ -9395,9 +9406,9 @@ rec {
       };
       "libc" = rec {
         crateName = "libc";
-        version = "0.2.189";
+        version = "0.2.191";
         edition = "2021";
-        sha256 = "1whjfs375vlng2q6yrbzs73cvp5lm3w1n2gfqajb2vgf7zg3xbry";
+        sha256 = "02i4j7pjh129y92rijaia4576131fa2xjsii1dc3c1fnlv4qgkb5";
         license = "MIT OR Apache-2.0";
         features = {
           "default" = [ "std" ];
@@ -9517,9 +9528,9 @@ rec {
       };
       "litrs" = rec {
         crateName = "litrs";
-        version = "1.0.0";
+        version = "1.0.1";
         edition = "2021";
-        sha256 = "14p0kzzkavnngvybl88nvfwv031cc2qx4vaxpfwsiifm8grdglqi";
+        sha256 = "0w0d0gkx9ixccx9c00rq164ih9ak3jdq0jsivrpbh3czjn1y6i27";
         license = "MIT OR Apache-2.0";
         authors = [
           "Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"
@@ -9567,7 +9578,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror 2.0.20";
+            packageId = "thiserror 2.0.21";
           }
           {
             name = "toktrie";
@@ -9654,9 +9665,9 @@ rec {
       };
       "llguidance" = rec {
         crateName = "llguidance";
-        version = "1.8.0";
+        version = "1.9.1";
         edition = "2021";
-        sha256 = "0rzv3rbhrf5g4006bppn64ciq0yshwrniqphlzkz2yayw7np4zi0";type = [ "staticlib" "rlib" "cdylib" ];
+        sha256 = "1j63j9p6ld215izgrsy3rxkicfhjnaz3smzg546kmrwfdhsy3v84";type = [ "staticlib" "rlib" "cdylib" ];
         license = "MIT";
         dependencies = [
           {
@@ -10514,11 +10525,11 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "log" "os-ext" "os-poll" ];
       };
-      "mio 1.2.3" = rec {
+      "mio 1.2.4" = rec {
         crateName = "mio";
-        version = "1.2.3";
+        version = "1.2.4";
         edition = "2021";
-        sha256 = "1n5ryp7j5fga38z7php5yy9k7ia24rp6cl9gm27zwar6khz4862b";
+        sha256 = "1vl6px9zy0pwhlwnw3cknsqyzkg8bcpiwiq4cgicf2fwgywfv20p";
         license = "MIT";
         authors = [
           "Carl Lerche <me@carllerche.com>"
@@ -10590,7 +10601,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror 2.0.20";
+            packageId = "thiserror 2.0.21";
           }
         ];
         features = {
@@ -10884,63 +10895,6 @@ rec {
           }
         ];
         features = {
-        };
-      };
-      "multiversion" = rec {
-        crateName = "multiversion";
-        version = "0.9.0";
-        edition = "2021";
-        sha256 = "0z1znh5v1ygr0355c5ba9kpvz5l12496k1kxrx1z9hzz2vm4pjml";
-        license = "MIT OR Apache-2.0";
-        authors = [
-          "Caleb Zulawski <caleb.zulawski@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "multiversion-macros";
-            packageId = "multiversion-macros";
-            usesDefaultFeatures = false;
-          }
-        ];
-        features = {
-          "default" = [ "std" ];
-          "nightly" = [ "multiversion-macros/nightly" ];
-          "std" = [ "multiversion-macros/std" ];
-          "target-features" = [ "dep:target-features" ];
-        };
-      };
-      "multiversion-macros" = rec {
-        crateName = "multiversion-macros";
-        version = "0.9.0";
-        edition = "2021";
-        sha256 = "10wwky36cqjd4hk716lmlwypdj5rpffbc07fifqg8ziilwqnhh8d";
-        procMacro = true;
-        libName = "multiversion_macros";
-        license = "MIT OR Apache-2.0";
-        authors = [
-          "Caleb Zulawski <caleb.zulawski@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "proc-macro2";
-            packageId = "proc-macro2";
-          }
-          {
-            name = "quote";
-            packageId = "quote";
-          }
-          {
-            name = "rustversion";
-            packageId = "rustversion";
-          }
-          {
-            name = "syn";
-            packageId = "syn 3.0.6";
-            features = [ "full" "extra-traits" "visit" "visit-mut" "printing" ];
-          }
-        ];
-        features = {
-          "default" = [ "std" ];
         };
       };
       "multiversion_no_op" = rec {
@@ -11355,7 +11309,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror 2.0.20";
+            packageId = "thiserror 2.0.21";
           }
           {
             name = "tokenizers";
@@ -11680,7 +11634,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror 2.0.20";
+            packageId = "thiserror 2.0.21";
           }
           {
             name = "tokio";
@@ -12825,9 +12779,9 @@ rec {
       };
       "pest" = rec {
         crateName = "pest";
-        version = "2.9.2";
+        version = "2.9.4";
         edition = "2021";
-        sha256 = "1a11k95dyrpfrn2ql5lprdh4k31k4hksg83w67vfdlps62iarls5";
+        sha256 = "08xvj2lwj450ki4mmr5s369pfgk5fq6vy8kyki1b7hybm5ha8izx";
         license = "MIT OR Apache-2.0";
         authors = [
           "Dragoș Tiselice <dragostiselice@gmail.com>"
@@ -12836,6 +12790,16 @@ rec {
           {
             name = "memchr";
             packageId = "memchr";
+            optional = true;
+          }
+          {
+            name = "psm";
+            packageId = "psm";
+            optional = true;
+          }
+          {
+            name = "stacker";
+            packageId = "stacker";
             optional = true;
           }
           {
@@ -12849,15 +12813,15 @@ rec {
           "memchr" = [ "dep:memchr" ];
           "miette-error" = [ "std" "pretty-print" "dep:miette" ];
           "pretty-print" = [ "dep:serde" "dep:serde_json" ];
-          "std" = [ "ucd-trie/std" ];
+          "std" = [ "ucd-trie/std" "dep:stacker" "dep:psm" ];
         };
         resolvedDefaultFeatures = [ "default" "memchr" "std" ];
       };
       "pest_derive" = rec {
         crateName = "pest_derive";
-        version = "2.9.2";
+        version = "2.9.4";
         edition = "2021";
-        sha256 = "1ky22vlsbqha1jhx5l31d95gm8l54va38b9zmmr2wjicgxan0jr8";
+        sha256 = "0i7g26dkang3zyl0hvcfdfsaz713i77r70v0n6d53xq8fxllcgi0";
         procMacro = true;
         license = "MIT OR Apache-2.0";
         authors = [
@@ -12884,9 +12848,9 @@ rec {
       };
       "pest_generator" = rec {
         crateName = "pest_generator";
-        version = "2.9.2";
+        version = "2.9.4";
         edition = "2021";
-        sha256 = "029igkh6nsw62bn4325gkjm5c3lf4bjqbkv8jblrwc0ml441z78x";
+        sha256 = "1mflbrhm9abanrgf43fdhhj0psfgyf635kvkzin3v3a518sfcjp8";
         license = "MIT OR Apache-2.0";
         authors = [
           "Dragoș Tiselice <dragostiselice@gmail.com>"
@@ -12911,7 +12875,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 2.0.119";
+            packageId = "syn 3.0.9";
           }
         ];
         features = {
@@ -12923,9 +12887,9 @@ rec {
       };
       "pest_meta" = rec {
         crateName = "pest_meta";
-        version = "2.9.2";
+        version = "2.9.4";
         edition = "2021";
-        sha256 = "1jxd8gbm328lsl3m0z2b1pq9ri60h4f7122i189k5jpwkwdbm4zd";
+        sha256 = "04774dlh7acgf8hzl0w11dbp4q3ay3qwvxfqixcydg1x5grr4zxm";
         license = "MIT OR Apache-2.0";
         authors = [
           "Dragoș Tiselice <dragostiselice@gmail.com>"
@@ -13428,7 +13392,7 @@ rec {
         dependencies = [
           {
             name = "toml_edit";
-            packageId = "toml_edit 0.25.15+spec-1.1.0";
+            packageId = "toml_edit 0.25.17+spec-1.1.0";
             usesDefaultFeatures = false;
             features = [ "parse" ];
           }
@@ -13496,6 +13460,23 @@ rec {
           "default" = [ "proc-macro" ];
         };
         resolvedDefaultFeatures = [ "default" "proc-macro" "span-locations" ];
+      };
+      "psm" = rec {
+        crateName = "psm";
+        version = "0.1.24";
+        edition = "2015";
+        sha256 = "0428cnwx8i9dhkcjwzap0amg9cjk8nhj0xr5hkhm6zl543r9y2r0";
+        license = "MIT OR Apache-2.0";
+        authors = [
+          "Simonas Kazlauskas <psm@kazlauskas.me>"
+        ];
+        buildDependencies = [
+          {
+            name = "cc";
+            packageId = "cc";
+          }
+        ];
+
       };
       "pulp" = rec {
         crateName = "pulp";
@@ -13615,10 +13596,10 @@ rec {
       };
       "pyo3" = rec {
         crateName = "pyo3";
-        version = "0.29.2";
+        version = "0.29.3";
         edition = "2021";
         links = "pyo3-python";
-        sha256 = "12qy2y44mfk21p3q451miv0vibx8540nfrxhp5i2dqvkyknxv226";
+        sha256 = "0m8n3wcwiz33mghwxjkny4b6ji1g1rc16zpx46svjwvv4vx1h3bh";
         license = "MIT OR Apache-2.0";
         authors = [
           "PyO3 Project and Contributors <https://github.com/PyO3>"
@@ -13808,9 +13789,9 @@ rec {
       };
       "pyo3-build-config" = rec {
         crateName = "pyo3-build-config";
-        version = "0.29.2";
+        version = "0.29.3";
         edition = "2021";
-        sha256 = "1s9hx992m7vhdwmxdva4nxmild564kz1gx7rc1p3zl2b3gj2f47l";
+        sha256 = "1nws96j6j37mja0fq8jfhnv6x77mwawxyfgyf47b2swgs32c0gvv";
         libName = "pyo3_build_config";
         license = "MIT OR Apache-2.0";
         authors = [
@@ -13834,10 +13815,10 @@ rec {
       };
       "pyo3-ffi" = rec {
         crateName = "pyo3-ffi";
-        version = "0.29.2";
+        version = "0.29.3";
         edition = "2021";
         links = "python";
-        sha256 = "09xkl9aj170d15qkdrq43rxvhw27qwzs7cy369s0dbgy4rask4g5";
+        sha256 = "0c43d7564azpkhz13sv70pil7wd2qaq7p5yghrqav6pjkphvih6z";
         libName = "pyo3_ffi";
         license = "MIT OR Apache-2.0";
         authors = [
@@ -13872,10 +13853,10 @@ rec {
       };
       "pyo3-introspection" = rec {
         crateName = "pyo3-introspection";
-        version = "0.29.2";
+        version = "0.29.3";
         edition = "2021";
         crateBin = [];
-        sha256 = "1r2rsn7f7bhsfn9zkyig8j7xbms6f6n5blssjkqf9shb7dkckppp";
+        sha256 = "14q7m70vb238kbwb6glhqigmqjpphk6ksfszcpr9srynnsy9pnyp";
         libName = "pyo3_introspection";
         license = "MIT OR Apache-2.0";
         authors = [
@@ -13943,9 +13924,9 @@ rec {
       };
       "pyo3-macros" = rec {
         crateName = "pyo3-macros";
-        version = "0.29.2";
+        version = "0.29.3";
         edition = "2021";
-        sha256 = "072ajah34vd7ilja9f5f8vgg2fr7j7dhs8rw5kplxn0wzil5h8kk";
+        sha256 = "1ilxni4r14kb08qlr92kqncj82qshmj861zdlpx3m9gbnnjfh031";
         procMacro = true;
         libName = "pyo3_macros";
         license = "MIT OR Apache-2.0";
@@ -13980,9 +13961,9 @@ rec {
       };
       "pyo3-macros-backend" = rec {
         crateName = "pyo3-macros-backend";
-        version = "0.29.2";
+        version = "0.29.3";
         edition = "2021";
-        sha256 = "0lj90a4lilgvm5k0c3x457rn1wvy7qm7vm3xflb65yj96ym7a5ap";
+        sha256 = "1cxxn73jgwp68cpxfifp515a4n38v16gy9vigdr5laz82rx8fhv1";
         libName = "pyo3_macros_backend";
         license = "MIT OR Apache-2.0";
         authors = [
@@ -14656,7 +14637,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror 2.0.20";
+            packageId = "thiserror 2.0.21";
           }
         ];
         features = {
@@ -14707,7 +14688,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
           }
         ];
 
@@ -15122,7 +15103,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror 2.0.20";
+            packageId = "thiserror 2.0.21";
           }
         ];
         features = {
@@ -15575,9 +15556,9 @@ rec {
       };
       "rustls" = rec {
         crateName = "rustls";
-        version = "0.23.45";
+        version = "0.23.46";
         edition = "2021";
-        sha256 = "0d6n90q52x5cjyxb6bwcnf9hwg6yb31cwr63rk8n5yfjqwqxfh8d";
+        sha256 = "1pwg7i8drr70374amj96952cils9mpwyijd5rx1mqdp9q3c3pqa8";
         license = "Apache-2.0 OR ISC OR MIT";
         dependencies = [
           {
@@ -15668,9 +15649,9 @@ rec {
       };
       "rustls-webpki" = rec {
         crateName = "rustls-webpki";
-        version = "0.103.15";
+        version = "0.103.16";
         edition = "2021";
-        sha256 = "1hhanq3lz384v4nccacnjfwsyy99n3yc6m6iw8kljz8yicfwzhzk";
+        sha256 = "10djm2f00xzi5qlbcfqjhhn2smk2h9aw8b4l74qncz4xsfvb2hs4";
         libName = "webpki";
         license = "ISC";
         dependencies = [
@@ -15898,7 +15879,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
           }
         ];
 
@@ -16031,7 +16012,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
             usesDefaultFeatures = false;
             features = [ "clone-impls" "derive" "parsing" "printing" "proc-macro" ];
           }
@@ -16042,19 +16023,22 @@ rec {
       };
       "serde_json" = rec {
         crateName = "serde_json";
-        version = "1.0.151";
+        version = "1.0.154";
         edition = "2021";
-        sha256 = "051zww7lvpw147vvwss1ng6w587qyrkzg75fvj08q2dfrmgbahf8";
+        sha256 = "1mjby21g8fxhrsfp73yz8wg6n2f4h23ah0nczds409l53f5wrsg7";
         license = "MIT OR Apache-2.0";
-        authors = [
-          "Erick Tryzelaar <erick.tryzelaar@gmail.com>"
-          "David Tolnay <dtolnay@gmail.com>"
-        ];
         dependencies = [
+          {
+            name = "foldhash";
+            packageId = "foldhash";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
           {
             name = "indexmap";
             packageId = "indexmap";
             optional = true;
+            usesDefaultFeatures = false;
           }
           {
             name = "itoa";
@@ -16092,7 +16076,7 @@ rec {
           "alloc" = [ "serde_core/alloc" ];
           "default" = [ "std" ];
           "indexmap" = [ "dep:indexmap" ];
-          "preserve_order" = [ "indexmap" "std" ];
+          "preserve_order" = [ "indexmap" "alloc" "dep:foldhash" ];
           "std" = [ "memchr/std" "serde_core/std" ];
         };
         resolvedDefaultFeatures = [ "alloc" "default" "float_roundtrip" "indexmap" "preserve_order" "raw_value" "std" "unbounded_depth" ];
@@ -16156,11 +16140,11 @@ rec {
         };
         resolvedDefaultFeatures = [ "serde" ];
       };
-      "serde_spanned 1.1.1" = rec {
+      "serde_spanned 1.1.2" = rec {
         crateName = "serde_spanned";
-        version = "1.1.1";
+        version = "1.1.2";
         edition = "2024";
-        sha256 = "09jzk7i6wihn3d8i3wi4j4n98ghi93c3b8m8k64nxq0ijn3vaqk6";
+        sha256 = "0b0crd16vvp0n81pgh0ldi3apld0ph5ywsrml80y5v2ynnz26xaf";
         license = "MIT OR Apache-2.0";
         dependencies = [
           {
@@ -16400,9 +16384,9 @@ rec {
       };
       "sha2" = rec {
         crateName = "sha2";
-        version = "0.11.0";
+        version = "0.11.1";
         edition = "2024";
-        sha256 = "1x15x22c5yf54ac0np5bfqnq5x0hdw4wqzpi48zwn94ma0bsfss4";
+        sha256 = "06ddr559jvwx17d7847l6i1g4hrlwy39j0yimjwwfskxxfdhdms7";
         license = "MIT OR Apache-2.0";
         authors = [
           "RustCrypto Developers"
@@ -16573,10 +16557,10 @@ rec {
       };
       "siphasher" = rec {
         crateName = "siphasher";
-        version = "1.0.3";
+        version = "1.0.4";
         edition = "2018";
-        sha256 = "0jg6l9xyzca5vy4h6gf8r6p4kk84g98fk95pzig1kq6cr4z8grcf";
-        license = "MIT/Apache-2.0";
+        sha256 = "0mn28y43123jdpskdn6r9wibmn066f7h30zkkqn88bd6hj8zxx1k";
+        license = "MIT OR Apache-2.0";
         authors = [
           "Frank Denis <github@pureftpd.org>"
         ];
@@ -16606,9 +16590,9 @@ rec {
       };
       "smallvec" = rec {
         crateName = "smallvec";
-        version = "1.16.1";
+        version = "1.16.3";
         edition = "2018";
-        sha256 = "14gqvsqdli51r1bii3hfqv5vx1b9r0gic4br0x9fsixmy5b70ims";
+        sha256 = "06z0akmcq2zc9qg22dxda298p50gg3di5ggl3y2nllag8ypwhgav";
         license = "MIT OR Apache-2.0";
         authors = [
           "The Servo Project Developers"
@@ -16672,34 +16656,6 @@ rec {
         features = {
         };
         resolvedDefaultFeatures = [ "all" ];
-      };
-      "socks" = rec {
-        crateName = "socks";
-        version = "0.3.4";
-        edition = "2015";
-        sha256 = "12ymihhib0zybm6n4mrvh39hj1dm0ya8mqnqdly63079kayxphzh";
-        license = "MIT/Apache-2.0";
-        authors = [
-          "Steven Fackler <sfackler@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "byteorder";
-            packageId = "byteorder";
-          }
-          {
-            name = "libc";
-            packageId = "libc";
-            target = { target, features }: (target."unix" or false);
-          }
-          {
-            name = "winapi";
-            packageId = "winapi";
-            target = { target, features }: (target."windows" or false);
-            features = [ "winsock2" ];
-          }
-        ];
-
       };
       "speedate" = rec {
         crateName = "speedate";
@@ -16805,6 +16761,50 @@ rec {
           "std" = [ "alloc" ];
         };
         resolvedDefaultFeatures = [ "alloc" ];
+      };
+      "stacker" = rec {
+        crateName = "stacker";
+        version = "0.1.25";
+        edition = "2021";
+        sha256 = "0rwrws4iyh8cay7pghzf2dy55pprwfn1vm805f5czfh6cza4jzvh";
+        license = "MIT OR Apache-2.0";
+        authors = [
+          "Alex Crichton <alex@alexcrichton.com>"
+          "Simonas Kazlauskas <stacker@kazlauskas.me>"
+        ];
+        dependencies = [
+          {
+            name = "cfg-if";
+            packageId = "cfg-if";
+          }
+          {
+            name = "libc";
+            packageId = "libc";
+          }
+          {
+            name = "psm";
+            packageId = "psm";
+          }
+          {
+            name = "windows-sys";
+            packageId = "windows-sys 0.61.2";
+            target = { target, features }: (target.name == "arm64ec-pc-windows-msvc");
+            features = [ "Win32_System_Memory" "Win32_System_Threading" "Win32_Foundation" ];
+          }
+          {
+            name = "windows-sys";
+            packageId = "windows-sys 0.61.2";
+            target = { target, features }: ((target."windows" or false) && (!("arm64ec" == target."arch" or null)));
+            features = [ "Win32_System_Memory" "Win32_System_Threading" "Win32_Foundation" ];
+          }
+        ];
+        buildDependencies = [
+          {
+            name = "cc";
+            packageId = "cc";
+          }
+        ];
+
       };
       "static_assertions" = rec {
         crateName = "static_assertions";
@@ -17232,11 +17232,11 @@ rec {
         };
         resolvedDefaultFeatures = [ "clone-impls" "default" "derive" "extra-traits" "fold" "full" "parsing" "printing" "proc-macro" "visit-mut" ];
       };
-      "syn 3.0.6" = rec {
+      "syn 3.0.9" = rec {
         crateName = "syn";
-        version = "3.0.6";
+        version = "3.0.9";
         edition = "2021";
-        sha256 = "1vmw7s58rzrs926nv5m06x7qbgswm1aa9iw3s1bj5var47kyi4w5";
+        sha256 = "0fw28lhl90kls24q2h2sp39yjb0lsvz5cwh9fd3f3w3v9kp8v36p";
         license = "MIT OR Apache-2.0";
         authors = [
           "David Tolnay <dtolnay@gmail.com>"
@@ -17302,7 +17302,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
             usesDefaultFeatures = false;
             features = [ "derive" "parsing" "printing" "clone-impls" "visit" "extra-traits" ];
           }
@@ -17456,9 +17456,9 @@ rec {
       };
       "thin-vec" = rec {
         crateName = "thin-vec";
-        version = "0.2.20";
+        version = "0.2.21";
         edition = "2024";
-        sha256 = "0j0p7bqfckv54qv55bz0p229wsc8z8max2rk3h1d51pc8ghxfs25";
+        sha256 = "0gm6kc1z58h5gaw2ad5pbvkpbm6gprkf4dwx757lmjrqhyxbk96n";
         libName = "thin_vec";
         license = "MIT OR Apache-2.0";
         authors = [
@@ -17488,11 +17488,11 @@ rec {
         ];
 
       };
-      "thiserror 2.0.20" = rec {
+      "thiserror 2.0.21" = rec {
         crateName = "thiserror";
-        version = "2.0.20";
+        version = "2.0.21";
         edition = "2021";
-        sha256 = "0kxs6p295jffxhzaxpxv1dwaaf5iqlm6sx8h0djp6ancbxgj71pc";
+        sha256 = "17hq1lh5dyr3bkc7zzjrbrp4qgkvhc48kgq1n5fdxkindaw2rr89";
         license = "MIT OR Apache-2.0";
         authors = [
           "David Tolnay <dtolnay@gmail.com>"
@@ -17500,7 +17500,7 @@ rec {
         dependencies = [
           {
             name = "thiserror-impl";
-            packageId = "thiserror-impl 2.0.20";
+            packageId = "thiserror-impl 2.0.21";
           }
         ];
         features = {
@@ -17535,11 +17535,11 @@ rec {
         ];
 
       };
-      "thiserror-impl 2.0.20" = rec {
+      "thiserror-impl 2.0.21" = rec {
         crateName = "thiserror-impl";
-        version = "2.0.20";
+        version = "2.0.21";
         edition = "2021";
-        sha256 = "1bwjc94gi0xn5jz26h1a8bjj1wdkvvr6jifamyc4mp9n28zcs15w";
+        sha256 = "0945n8agp7kg6n6b35yyjb4g5xv2q22vrw15h6jj1nw76a99flgy";
         procMacro = true;
         libName = "thiserror_impl";
         license = "MIT OR Apache-2.0";
@@ -17557,7 +17557,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
           }
         ];
 
@@ -17628,9 +17628,9 @@ rec {
       };
       "tinystr" = rec {
         crateName = "tinystr";
-        version = "0.8.4";
+        version = "0.8.5";
         edition = "2021";
-        sha256 = "0hzncw8rgk4syla79qscfml46jm7ll1zdp7kdacc42cj8n8prqmi";
+        sha256 = "06l0g5wy57a43bd1qvk92xd5dpnz3qk949vbx3wmhk8m73141j5b";
         license = "Unicode-3.0";
         authors = [
           "The ICU4X Project Developers"
@@ -17791,7 +17791,7 @@ rec {
           }
           {
             name = "thiserror";
-            packageId = "thiserror 2.0.20";
+            packageId = "thiserror 2.0.21";
           }
           {
             name = "unicode-normalization-alignments";
@@ -17822,9 +17822,9 @@ rec {
       };
       "tokio" = rec {
         crateName = "tokio";
-        version = "1.53.1";
+        version = "1.54.1";
         edition = "2021";
-        sha256 = "1v8b3b45pkpbibls75yniqbvx5dlks2708141ljni5mnf6lawb10";
+        sha256 = "18wn0c3yvy6ld8yis0fw6rqkc4rwnmv5mav4fan6zljqa8jx6bxm";
         license = "MIT";
         authors = [
           "Tokio Contributors <team@tokio.rs>"
@@ -17855,13 +17855,13 @@ rec {
           }
           {
             name = "mio";
-            packageId = "mio 1.2.3";
+            packageId = "mio 1.2.4";
             optional = true;
             usesDefaultFeatures = false;
           }
           {
             name = "mio";
-            packageId = "mio 1.2.3";
+            packageId = "mio 1.2.4";
             optional = true;
             usesDefaultFeatures = false;
             target = { target, features }: ((target."tokio_unstable" or false) && ("linux" == target."os" or null));
@@ -17886,7 +17886,7 @@ rec {
             name = "socket2";
             packageId = "socket2";
             optional = true;
-            target = { target, features }: ((!(builtins.elem "wasm" target."family")) || (("wasi" == target."os" or null) && (!("p1" == target."env" or null))));
+            target = { target, features }: ((!(builtins.elem "wasm" target."family")) || ("emscripten" == target."os" or null) || (("wasi" == target."os" or null) && (!("p1" == target."env" or null))));
             features = [ "all" ];
           }
           {
@@ -17964,7 +17964,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
             features = [ "full" ];
           }
         ];
@@ -18018,9 +18018,9 @@ rec {
       };
       "toktrie" = rec {
         crateName = "toktrie";
-        version = "1.8.0";
+        version = "1.9.1";
         edition = "2021";
-        sha256 = "1d80l66iifqc66bj134lb1carmx1hzsjjdkbb68ia1nlwir7a68n";
+        sha256 = "018wrfbxf2gdrnbmc0s89kkl24xkhznlpg83pyjg31lbsq20zn0v";
         license = "MIT";
         dependencies = [
           {
@@ -18136,7 +18136,7 @@ rec {
           }
           {
             name = "serde_spanned";
-            packageId = "serde_spanned 1.1.1";
+            packageId = "serde_spanned 1.1.2";
             usesDefaultFeatures = false;
             features = [ "alloc" ];
           }
@@ -18219,11 +18219,11 @@ rec {
         };
         resolvedDefaultFeatures = [ "alloc" "serde" "std" ];
       };
-      "toml_datetime 1.1.1+spec-1.1.0" = rec {
+      "toml_datetime 1.1.2+spec-1.1.0" = rec {
         crateName = "toml_datetime";
-        version = "1.1.1+spec-1.1.0";
+        version = "1.1.2+spec-1.1.0";
         edition = "2024";
-        sha256 = "1mws2mkkf46l7inn77azhm0vdwxngv9vsbhbl0ah33p2c9gzcr9i";
+        sha256 = "0lrhcmqvhjr259w4f2kijya7fgi0kpmhg9fb3m144v3cj1kxg1ib";
         license = "MIT OR Apache-2.0";
         dependencies = [
           {
@@ -18296,11 +18296,11 @@ rec {
         };
         resolvedDefaultFeatures = [ "display" "parse" "serde" ];
       };
-      "toml_edit 0.25.15+spec-1.1.0" = rec {
+      "toml_edit 0.25.17+spec-1.1.0" = rec {
         crateName = "toml_edit";
-        version = "0.25.15+spec-1.1.0";
+        version = "0.25.17+spec-1.1.0";
         edition = "2024";
-        sha256 = "0556lgzcvgfy16b8sxskr391s6cbfwnb0r4h5i4k6qw5lnaflh0k";
+        sha256 = "174w1b2fjg1jb0wi7384v1m59g7ga79458i022gafjakpddisr73";
         license = "MIT OR Apache-2.0";
         dependencies = [
           {
@@ -18310,7 +18310,7 @@ rec {
           }
           {
             name = "toml_datetime";
-            packageId = "toml_datetime 1.1.1+spec-1.1.0";
+            packageId = "toml_datetime 1.1.2+spec-1.1.0";
           }
           {
             name = "toml_parser";
@@ -18334,9 +18334,9 @@ rec {
       };
       "toml_parser" = rec {
         crateName = "toml_parser";
-        version = "1.1.3+spec-1.1.0";
+        version = "1.1.5+spec-1.1.0";
         edition = "2024";
-        sha256 = "0mjdvihdkmjd4ykh574xgii71hpxw7ns7h4n4bisqpxrz4faqf0x";
+        sha256 = "0k3lljyi4zxchdklaqghkwbl7wkd2ab1w16hlyniqzid0fl979ms";
         license = "MIT OR Apache-2.0";
         dependencies = [
           {
@@ -18367,9 +18367,9 @@ rec {
       };
       "toml_writer" = rec {
         crateName = "toml_writer";
-        version = "1.1.2+spec-1.1.0";
+        version = "1.1.3+spec-1.1.0";
         edition = "2024";
-        sha256 = "1lk6pqf9mac3v1x6282n6a66qx5b18c8f4a23bsd0nk658x3amkx";
+        sha256 = "0w17cps8mfg7wcwyp0gggi9cpgmxldb9pwl55qp8ssq5zj6bvg86";
         license = "MIT OR Apache-2.0";
         features = {
           "default" = [ "std" ];
@@ -18849,9 +18849,9 @@ rec {
       };
       "unicode-ident" = rec {
         crateName = "unicode-ident";
-        version = "1.0.26";
+        version = "1.0.27";
         edition = "2021";
-        sha256 = "0m3915ipi4zz7isncf5k1dz47ys0nq9j7l4l2n2rm03zaxwg8ifj";
+        sha256 = "0qv54hz0sxmspjyr162z3435pnyylzjjhx3j4k1s359pqgb59ix2";
         libName = "unicode_ident";
         license = "(MIT OR Apache-2.0) AND Unicode-3.0";
         authors = [
@@ -18861,11 +18861,11 @@ rec {
       };
       "unicode-normalization" = rec {
         crateName = "unicode-normalization";
-        version = "0.1.25";
+        version = "0.1.26";
         edition = "2018";
-        sha256 = "1s76dcrxw7vs32yhpi0p074apdc3s7lak7809f3qvclwij3zdm2z";
+        sha256 = "0pd8b0kx8kf0zkfzhr1xn3q5kfwwgsn07q8ykaxb722j7nq3zkbm";
         libName = "unicode_normalization";
-        license = "MIT OR Apache-2.0";
+        license = "(MIT OR Apache-2.0) AND Unicode-3.0";
         authors = [
           "kwantam <kwantam@gmail.com>"
           "Manish Goregaokar <manishsmail@gmail.com>"
@@ -19425,9 +19425,9 @@ rec {
       };
       "ureq" = rec {
         crateName = "ureq";
-        version = "3.4.2";
+        version = "3.5.0";
         edition = "2024";
-        sha256 = "1z6pmhf27s54f3sn2ja1rnqsrnbnjq2lr5xzpl5nwwmpx45w4yls";
+        sha256 = "0swn9kwfmakbd7r4cshq7jz2za3r1cmpg2ir3a2nm8sqazq3zsfd";
         license = "MIT OR Apache-2.0";
         authors = [
           "Martin Algesten <martin@algesten.se>"
@@ -19466,11 +19466,6 @@ rec {
             optional = true;
             usesDefaultFeatures = false;
             features = [ "std" ];
-          }
-          {
-            name = "socks";
-            packageId = "socks";
-            optional = true;
           }
           {
             name = "ureq-proto";
@@ -19515,7 +19510,6 @@ rec {
           "rustls" = [ "rustls-no-provider" "_ring" "rustls-webpki-roots" ];
           "rustls-no-provider" = [ "dep:rustls" "_tls" "_rustls" ];
           "rustls-webpki-roots" = [ "dep:webpki-roots" ];
-          "socks-proxy" = [ "dep:socks" ];
           "vendored" = [ "native-tls?/vendored" ];
           "win-system-proxy" = [ "dep:winreg" ];
         };
@@ -19523,9 +19517,9 @@ rec {
       };
       "ureq-proto" = rec {
         crateName = "ureq-proto";
-        version = "0.6.4";
+        version = "0.6.5";
         edition = "2024";
-        sha256 = "1gl32l71mdak562scwp66vpsjr894bbbvdk1ix2rwmnarird2vzq";
+        sha256 = "08p98vprc5bxqy3vm0as5qxa19a3gwasws4m85cpv7886vy865c4";
         libName = "ureq_proto";
         license = "MIT OR Apache-2.0";
         authors = [
@@ -19806,9 +19800,9 @@ rec {
       };
       "wasm-bindgen" = rec {
         crateName = "wasm-bindgen";
-        version = "0.2.128";
+        version = "0.2.129";
         edition = "2021";
-        sha256 = "1gsi4ggm03dqr3j9bcc1sbxzmkw6ykm3cqx4g8xmw31v7niqgjxf";
+        sha256 = "02flhqld01jqb6vbfyx1gb8s78g1pnq2164daxad93y6mhrlzdcv";
         libName = "wasm_bindgen";
         license = "MIT OR Apache-2.0";
         authors = [
@@ -19840,12 +19834,6 @@ rec {
             rename = "rustversion-compat";
           }
         ];
-        devDependencies = [
-          {
-            name = "once_cell";
-            packageId = "once_cell";
-          }
-        ];
         features = {
           "default" = [ "std" ];
           "enable-interning" = [ "std" ];
@@ -19858,9 +19846,9 @@ rec {
       };
       "wasm-bindgen-futures" = rec {
         crateName = "wasm-bindgen-futures";
-        version = "0.4.78";
+        version = "0.4.79";
         edition = "2021";
-        sha256 = "0a6r1q1v2qvi3ypmy0nva3il422iyml1f61i897wbxfdsb9wbx3f";
+        sha256 = "03k1wcg5j3wqk6vgy6gzcq868vsa9k81dlhqissfk0nrw96v7fiw";
         libName = "wasm_bindgen_futures";
         license = "MIT OR Apache-2.0";
         authors = [
@@ -19871,6 +19859,13 @@ rec {
             name = "js-sys";
             packageId = "js-sys";
             usesDefaultFeatures = false;
+          }
+          {
+            name = "tokio";
+            packageId = "tokio";
+            usesDefaultFeatures = false;
+            target = { target, features }: (("emscripten" == target."os" or null) && (target."wasm_bindgen_unstable_tokio" or false));
+            features = [ "rt" "time" ];
           }
           {
             name = "wasm-bindgen";
@@ -19887,9 +19882,9 @@ rec {
       };
       "wasm-bindgen-macro" = rec {
         crateName = "wasm-bindgen-macro";
-        version = "0.2.128";
+        version = "0.2.129";
         edition = "2021";
-        sha256 = "1vdrjrb7yqh8p0r0yr93rlaq9iq05hy1wl9kbsjv7a61wc8xb456";
+        sha256 = "0dc5xq09sy1v9ns1fhb0cnyqz5p1wcjjvkdmxskj9qhnbg1x0a9f";
         procMacro = true;
         libName = "wasm_bindgen_macro";
         license = "MIT OR Apache-2.0";
@@ -19912,9 +19907,9 @@ rec {
       };
       "wasm-bindgen-macro-support" = rec {
         crateName = "wasm-bindgen-macro-support";
-        version = "0.2.128";
+        version = "0.2.129";
         edition = "2021";
-        sha256 = "12p4jm9dr88h1j5sglycizvvxvr05pgmz7aa2v9g47h7y23lh7j1";
+        sha256 = "1dx6w90f14avmhri7ss9lyz03060g6475r4axy3bm7biqf5ill3g";
         libName = "wasm_bindgen_macro_support";
         license = "MIT OR Apache-2.0";
         authors = [
@@ -19935,7 +19930,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
             features = [ "visit" "visit-mut" "full" "extra-traits" ];
           }
           {
@@ -19949,10 +19944,10 @@ rec {
       };
       "wasm-bindgen-shared" = rec {
         crateName = "wasm-bindgen-shared";
-        version = "0.2.128";
+        version = "0.2.129";
         edition = "2021";
         links = "wasm_bindgen";
-        sha256 = "0ghh8hqx038h9c9zj1rlmzlv2k2shh917q756dn054hcipbir541";
+        sha256 = "1ilmp5d3sl8lrq9djhcs90gk66yvk8mgwk4sfrvpvkd75b2wkw13";
         libName = "wasm_bindgen_shared";
         license = "MIT OR Apache-2.0";
         authors = [
@@ -19968,9 +19963,9 @@ rec {
       };
       "web-sys" = rec {
         crateName = "web-sys";
-        version = "0.3.105";
+        version = "0.3.106";
         edition = "2021";
-        sha256 = "1y57whpj5ncrl0cljmfsj5m31jqm66ylad68317yq03g0d5drgcz";
+        sha256 = "195bd1m14w3hsw5fg3sr938mh7y4cb260d0sq6a6brffxjfin9l8";
         libName = "web_sys";
         license = "MIT OR Apache-2.0";
         authors = [
@@ -20494,9 +20489,9 @@ rec {
       };
       "webpki-roots" = rec {
         crateName = "webpki-roots";
-        version = "1.0.9";
+        version = "1.0.10";
         edition = "2021";
-        sha256 = "0apja04243wz3vi26pqjg4sq8cqaac66prj490sgb1crlc4rvkbx";
+        sha256 = "1na80y0p8a3dk62brj7fx1kscjhf52vlxrxzbbbcg3x3r0h8w70w";
         libName = "webpki_roots";
         license = "CDLA-Permissive-2.0";
         dependencies = [
@@ -20570,7 +20565,7 @@ rec {
         features = {
           "debug" = [ "impl-debug" ];
         };
-        resolvedDefaultFeatures = [ "consoleapi" "processenv" "winbase" "winsock2" ];
+        resolvedDefaultFeatures = [ "consoleapi" "processenv" "winbase" ];
       };
       "winapi-i686-pc-windows-gnu" = rec {
         crateName = "winapi-i686-pc-windows-gnu";
@@ -21564,7 +21559,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Wdk" "Wdk_Foundation" "Wdk_Storage" "Wdk_Storage_FileSystem" "Wdk_System" "Wdk_System_IO" "Win32" "Win32_Foundation" "Win32_Globalization" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Com" "Win32_System_Console" "Win32_System_Diagnostics" "Win32_System_Diagnostics_Debug" "Win32_System_IO" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_SystemServices" "Win32_System_Threading" "Win32_System_WindowsProgramming" "Win32_UI" "Win32_UI_Input" "Win32_UI_Input_KeyboardAndMouse" "Win32_UI_Shell" "default" ];
+        resolvedDefaultFeatures = [ "Wdk" "Wdk_Foundation" "Wdk_Storage" "Wdk_Storage_FileSystem" "Wdk_System" "Wdk_System_IO" "Win32" "Win32_Foundation" "Win32_Globalization" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Com" "Win32_System_Console" "Win32_System_Diagnostics" "Win32_System_Diagnostics_Debug" "Win32_System_IO" "Win32_System_Memory" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_SystemServices" "Win32_System_Threading" "Win32_System_WindowsProgramming" "Win32_UI" "Win32_UI_Input" "Win32_UI_Input_KeyboardAndMouse" "Win32_UI_Shell" "default" ];
       };
       "windows-targets 0.48.5" = rec {
         crateName = "windows-targets";
@@ -21944,9 +21939,9 @@ rec {
       };
       "yoke" = rec {
         crateName = "yoke";
-        version = "0.8.3";
+        version = "0.8.4";
         edition = "2021";
-        sha256 = "1xgyj6c2lxj2bp891ynmhws87c6z7yyv2li1v0ss9di40hxf57vh";
+        sha256 = "1cs06ci8h7pdhr3wzwrnslmc0cb9fhd571awsbdvf063yvyg6zj1";
         license = "Unicode-3.0";
         authors = [
           "Manish Goregaokar <manishsmail@gmail.com>"
@@ -21980,9 +21975,9 @@ rec {
       };
       "yoke-derive" = rec {
         crateName = "yoke-derive";
-        version = "0.8.3";
+        version = "0.8.4";
         edition = "2021";
-        sha256 = "0y1a857vmqk2zpq4jj4sxxm7mla18xsrapjldpmvq3g4pql1909k";
+        sha256 = "0wbdvvdv9birwxrr9ynxj0k7as0f0ci7ihhck34yi09nvgibv3pc";
         procMacro = true;
         libName = "yoke_derive";
         license = "Unicode-3.0";
@@ -22000,7 +21995,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
             features = [ "fold" "visit" ];
           }
           {
@@ -22012,9 +22007,9 @@ rec {
       };
       "zerocopy" = rec {
         crateName = "zerocopy";
-        version = "0.8.57";
+        version = "0.8.63";
         edition = "2021";
-        sha256 = "0wr85plmrkz0nh5grbqap23l9ghqq4mq1ip4x759q23dyflh4lfk";
+        sha256 = "1n1fm40mq4adw83hvn56j6rhnph0lldccx11jq01l6863f7izzp5";
         license = "BSD-2-Clause OR Apache-2.0 OR MIT";
         dependencies = [
           {
@@ -22045,9 +22040,9 @@ rec {
       };
       "zerocopy-derive" = rec {
         crateName = "zerocopy-derive";
-        version = "0.8.57";
+        version = "0.8.63";
         edition = "2021";
-        sha256 = "1g5js10p1q1d7wn6b74wjvrjznv34x5cfxpj7jj8s9a4mgsh2v0l";
+        sha256 = "0zqc4g3yf378dkbsr68h1jjx3n0d4k4zvnxf83bv8gr9hfnd6fl6";
         procMacro = true;
         libName = "zerocopy_derive";
         license = "BSD-2-Clause OR Apache-2.0 OR MIT";
@@ -22120,7 +22115,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
             features = [ "fold" "visit" ];
           }
           {
@@ -22132,9 +22127,9 @@ rec {
       };
       "zeroize" = rec {
         crateName = "zeroize";
-        version = "1.9.0";
+        version = "1.9.1";
         edition = "2024";
-        sha256 = "0kpnij2v1ig6g2mhc0bnci0lrdfdhiq40afbc0fahajqc9jiag71";
+        sha256 = "0yb8iykihpl3hfw5c4silw2lklpfxajkaa9yj1qw6jsy5hwq8c71";
         license = "Apache-2.0 OR MIT";
         authors = [
           "The RustCrypto Project Developers"
@@ -22197,9 +22192,9 @@ rec {
       };
       "zerovec" = rec {
         crateName = "zerovec";
-        version = "0.11.8";
+        version = "0.11.9";
         edition = "2021";
-        sha256 = "1n3xlvyba8riys9s8awy4xp533phqycr78nbsmvdkh86g3hn815v";
+        sha256 = "0h3amsfmvqx93grkpy576z5r7nwfxx9bvvd8gq66g8g9rycjg2pm";
         license = "Unicode-3.0";
         authors = [
           "The ICU4X Project Developers"
@@ -22257,9 +22252,9 @@ rec {
       };
       "zerovec-derive" = rec {
         crateName = "zerovec-derive";
-        version = "0.11.6";
+        version = "0.11.7";
         edition = "2021";
-        sha256 = "1ni5j8v99x3fcf3l8kp64b7aq4vf8y22jshfq74xs9mxkp1nzprl";
+        sha256 = "0ypr1gq2nvb4mvwawcgyknbn408dsjcy3qhsrllxjf3pykdksx63";
         procMacro = true;
         libName = "zerovec_derive";
         license = "Unicode-3.0";
@@ -22277,7 +22272,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.6";
+            packageId = "syn 3.0.9";
             features = [ "extra-traits" ];
           }
         ];
@@ -22285,9 +22280,9 @@ rec {
       };
       "zip" = rec {
         crateName = "zip";
-        version = "2.4.2";
+        version = "2.6.1";
         edition = "2021";
-        sha256 = "0l5s7sycj0w42hnkmj6vnrzcp3dn4smffg06a8f5my08x4j67gps";
+        sha256 = "0i276d0kracqv27f5r42p3ha2345f77isv5rp54sw9i52p829jqx";
         build = "src/build.rs";
         license = "MIT";
         authors = [
@@ -22313,11 +22308,6 @@ rec {
             target = { target, features }: ((("arm" == target."arch" or null) && ("32" == target."pointer_width" or null)) || ("mips" == target."arch" or null) || ("powerpc" == target."arch" or null));
           }
           {
-            name = "displaydoc";
-            packageId = "displaydoc";
-            usesDefaultFeatures = false;
-          }
-          {
             name = "flate2";
             packageId = "flate2";
             optional = true;
@@ -22330,10 +22320,6 @@ rec {
           {
             name = "memchr";
             packageId = "memchr";
-          }
-          {
-            name = "thiserror";
-            packageId = "thiserror 2.0.20";
           }
           {
             name = "zopfli";
@@ -22358,10 +22344,12 @@ rec {
           "flate2" = [ "dep:flate2" ];
           "getrandom" = [ "dep:getrandom" ];
           "hmac" = [ "dep:hmac" ];
+          "jiff-02" = [ "dep:jiff" ];
           "lzma" = [ "lzma-rs/stream" ];
           "lzma-rs" = [ "dep:lzma-rs" ];
           "nt-time" = [ "dep:nt-time" ];
           "pbkdf2" = [ "dep:pbkdf2" ];
+          "proc-macro2" = [ "dep:proc-macro2" ];
           "sha1" = [ "dep:sha1" ];
           "time" = [ "dep:time" ];
           "xz" = [ "dep:xz2" ];
@@ -22404,10 +22392,10 @@ rec {
       };
       "zopfli" = rec {
         crateName = "zopfli";
-        version = "0.8.3";
+        version = "0.8.4";
         edition = "2021";
         crateBin = [];
-        sha256 = "0jaj5dyh3mks0805h4ldrsh5pwq4i2jc9dc9zwjm91k3gmwxhp7h";
+        sha256 = "04gv076p88smppwcarzs0wjbbfq55ghsbi0573cq716261fzrxxa";
         license = "Apache-2.0";
         dependencies = [
           {
