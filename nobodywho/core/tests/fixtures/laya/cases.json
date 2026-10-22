@@ -1,0 +1,124 @@
+[
+  {
+    "name": "reference",
+    "request": {
+      "state": "Customer message: I was charged twice for my order last week and nobody has replied.",
+      "questions": {
+        "route": {
+          "type": "choice",
+          "instructions": "Choose the best team for this customer message.",
+          "criteria": {
+            "billing": "payments, charges, refunds, invoices",
+            "shipping": "delivery, tracking, lost or late parcels",
+            "technical": "bugs, errors, login problems"
+          }
+        },
+        "angry": {
+          "type": "noul",
+          "instructions": "Is the customer angry?"
+        },
+        "urgency": {
+          "type": "score",
+          "instructions": "How urgent is this?",
+          "criteria": [
+            "can wait",
+            "this week",
+            "today",
+            "right now"
+          ]
+        }
+      }
+    },
+    "response": {
+      "answers": {
+        "route": {
+          "type": "choice",
+          "choice": "billing",
+          "probabilities": {
+            "billing": 0.9746058479902138,
+            "shipping": 0.014247431251601902,
+            "technical": 0.011146720758184521
+          },
+          "confidence": 0.9619087719853207
+        },
+        "angry": {
+          "type": "noul",
+          "noul": 0.7838174290872092
+        },
+        "urgency": {
+          "type": "score",
+          "score": 1.9137880782775865,
+          "legend": {
+            "0": "can wait",
+            "1": "this week",
+            "2": "today",
+            "3": "right now"
+          },
+          "probabilities": {
+            "0": 0.040065988503382256,
+            "1": 0.45800273527729485,
+            "2": 0.05000848565767681,
+            "3": 0.45192279056164597
+          },
+          "confidence": 0.006079944715648988
+        }
+      },
+      "usage": {
+        "input_tokens": 166,
+        "output_tokens": 0
+      }
+    }
+  },
+  {
+    "name": "structured_json",
+    "request": {
+      "state": {
+        "customer": "José <test>& \"hello\"",
+        "invoice": {
+          "total": 42,
+          "paid": false
+        },
+        "messages": [
+          "Please refund me."
+        ]
+      },
+      "questions": {
+        "route": {
+          "type": "choice",
+          "instructions": {
+            "task": "Select a department for \"José\" <test>&",
+            "context": [
+              "bill",
+              "refund"
+            ]
+          },
+          "criteria": {
+            "zeta": {
+              "description": "billing and refunds"
+            },
+            "alpha": "technical support",
+            "middle": null
+          }
+        }
+      }
+    },
+    "response": {
+      "answers": {
+        "route": {
+          "type": "choice",
+          "choice": "zeta",
+          "probabilities": {
+            "zeta": 0.5633566326598833,
+            "alpha": 0.17578101558006926,
+            "middle": 0.26086235176004735
+          },
+          "confidence": 0.345034948989825
+        }
+      },
+      "usage": {
+        "input_tokens": 91,
+        "output_tokens": 0
+      }
+    }
+  }
+]

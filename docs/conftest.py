@@ -49,6 +49,15 @@ def pytest_markdown_docs_globals():
         model_path,
     )
 
+    decision_model_path = os.environ.get("TEST_DECISION_MODEL")
+    if decision_model_path:
+        _setup_hf_cache_symlink(
+            owner="ggml-org",
+            repo="Laya-GGUF",
+            filename="Laya-Q8_0.gguf",
+            target=decision_model_path,
+        )
+
     # make symlink to TEST_EMBEDDING_MODEL, so we can use "./embedding-model.gguf" literal in docs
     embedding_model_path = os.environ.get("TEST_EMBEDDINGS_MODEL")
     if embedding_model_path and not EMBEDDING_SYMLINK.exists():
@@ -89,6 +98,8 @@ def pytest_markdown_docs_globals():
         "SamplerConfig": nobodywho.SamplerConfig,
         "SamplerBuilder": nobodywho.SamplerBuilder,
         "ContextShiftOptions": nobodywho.ContextShiftOptions,
+        "Decision": nobodywho.Decision,
+        "DecisionAsync": nobodywho.DecisionAsync,
         "Encoder": nobodywho.Encoder,
         "EncoderAsync": nobodywho.EncoderAsync,
         "CrossEncoder": nobodywho.CrossEncoder,

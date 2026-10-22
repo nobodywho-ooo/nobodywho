@@ -545,6 +545,42 @@ pub enum ReadError {
     MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
 }
 
+// Decision errors
+
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+pub enum DecisionError {
+    #[error("Unsupported decision model type: {decision_type}. Only Laya is supported for now.")]
+    #[diagnostic(help("Load a Laya GGUF with '<architecture>.decision.type' set to 'laya'."))]
+    UnsupportedModel { decision_type: String },
+
+    #[error("Invalid decision model: {0}")]
+    InvalidModel(String),
+
+    #[error("Invalid decision request: {0}")]
+    InvalidRequest(String),
+
+    #[error("Could not render the decision template: {0}")]
+    Template(#[from] minijinja::Error),
+
+    #[error("Could not initialize the decision context: {0}")]
+    InitWorker(#[from] InitWorkerError),
+
+    #[error("Could not start the decision worker: {0}")]
+    Thread(#[from] std::io::Error),
+
+    #[error("Could not read the decision input: {0}")]
+    Read(#[from] ReadError),
+
+    #[error("Could not read decision scores: {0}")]
+    Embeddings(#[from] llama_cpp_2::EmbeddingsError),
+
+    #[error("Invalid decision output: {0}")]
+    InvalidOutput(String),
+
+    #[error("Decision worker terminated before responding")]
+    WorkerTerminated,
+}
+
 // CrossEncoderWorker errors
 
 #[derive(Debug, thiserror::Error)]

@@ -67,7 +67,7 @@ fn validate_output_limit(
 static PYTHON_LOGGING_AVAILABLE: AtomicBool = AtomicBool::new(false);
 
 /// `Model` objects contain a GGUF model. It is primarily useful for sharing a single model instance
-/// between multiple `Chat`, `Encoder`, or `CrossEncoder` instances.
+/// between multiple `Chat`, `Encoder`, `CrossEncoder`, or `Decision` instances.
 /// Sharing is efficient because the underlying model data is reference-counted.
 /// There is no `ModelAsync` variant. A regular `Model` can be used with both `Chat` and `ChatAsync`.
 #[pyclass]
@@ -1904,6 +1904,116 @@ impl TokenStreamAsync {
                 Err(e) => Err(pyo3::exceptions::PyRuntimeError::new_err(e)),
             }
         })
+    }
+}
+
+fn decision_request(
+    state: &Bound<'_, PyAny>,
+    questions: &Bound<'_, PyAny>,
+) -> PyResult<nobodywho::decision::DecisionRequest> {
+    Ok(nobodywho::decision::DecisionRequest {
+        state: pythonize::depythonize(state)
+            .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))?,
+        questions: pythonize::depythonize(questions)
+            .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))?,
+    })
+}
+
+fn decision_error(error: nobodywho::errors::DecisionError) -> PyErr {
+    match &error {
+        nobodywho::errors::DecisionError::InvalidRequest(_)
+        | nobodywho::errors::DecisionError::Read(
+            nobodywho::errors::ReadError::InputExceedsContext { .. },
+        ) => pyo3::exceptions::PyValueError::new_err(render_miette(&error)),
+        _ => err(error),
+    }
+}
+
+/// Typed decisions over text or JSON. See `DecisionAsync` for async inference.
+#[pyclass]
+pub struct Decision {
+    decision: Option<nobodywho::decision::Decision>,
+}
+
+impl Drop for Decision {
+    fn drop(&mut self) {
+        let decision = self.decision.take();
+        Python::attach(|py| py.detach(|| drop(decision)));
+    }
+}
+
+#[pymethods]
+impl Decision {
+    #[new]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 1024) -> "Decision")]
+    pub fn new(model: ModelOrPath, n_ctx: u32, py: Python<'_>) -> PyResult<Self> {
+        let model = model.get_inner_model()?;
+        let decision = py
+            .detach(|| nobodywho::decision::Decision::new(model, n_ctx))
+            .map_err(decision_error)?;
+        Ok(Self {
+            decision: Some(decision),
+        })
+    }
+
+    #[pyo3(signature = (*, state: "object", questions: "dict") -> "dict")]
+    pub fn decide(
+        &self,
+        state: Bound<'_, PyAny>,
+        questions: Bound<'_, PyAny>,
+        py: Python<'_>,
+    ) -> PyResult<Py<PyAny>> {
+        let request = decision_request(&state, &questions)?;
+        let response = py
+            .detach(|| {
+                self.decision
+                    .as_ref()
+                    .expect("Decision used after drop")
+                    .decide(request)
+            })
+            .map_err(decision_error)?;
+        response_dict(&response, py)
+    }
+}
+
+/// Async version of `Decision`.
+#[pyclass]
+pub struct DecisionAsync {
+    decision: Option<nobodywho::decision::DecisionAsync>,
+}
+
+impl Drop for DecisionAsync {
+    fn drop(&mut self) {
+        let decision = self.decision.take();
+        Python::attach(|py| py.detach(|| drop(decision)));
+    }
+}
+
+#[pymethods]
+impl DecisionAsync {
+    #[new]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 1024) -> "DecisionAsync")]
+    pub fn new(model: ModelOrPath, n_ctx: u32, py: Python<'_>) -> PyResult<Self> {
+        let model = model.get_inner_model()?;
+        let decision = py
+            .detach(|| nobodywho::decision::DecisionAsync::new(model, n_ctx))
+            .map_err(decision_error)?;
+        Ok(Self {
+            decision: Some(decision),
+        })
+    }
+
+    #[pyo3(signature = (*, state: "object", questions: "dict") -> "dict")]
+    pub async fn decide(&self, state: Py<PyAny>, questions: Py<PyAny>) -> PyResult<Py<PyAny>> {
+        let request = Python::attach(|py| decision_request(state.bind(py), questions.bind(py)))?;
+        let response = self
+            .decision
+            .as_ref()
+            .expect("DecisionAsync used after drop")
+            .decide(request)
+            .await
+            .map_err(decision_error)?;
+        Python::attach(|py| response_dict(&response, py))
     }
 }
 
@@ -5300,6 +5410,10 @@ pub mod nobodywhopython {
     use super::CrossEncoder;
     #[pymodule_export]
     use super::CrossEncoderAsync;
+    #[pymodule_export]
+    use super::Decision;
+    #[pymodule_export]
+    use super::DecisionAsync;
     #[pymodule_export]
     use super::Encoder;
     #[pymodule_export]

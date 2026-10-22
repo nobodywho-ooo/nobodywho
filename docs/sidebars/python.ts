@@ -13,6 +13,7 @@ const sidebars: SidebarsConfig = {
     'sampling',
     'streaming-and-async-api',
     'embeddings-and-rag',
+    'decision-models',
     'logging-and-troubleshooting',
   ],
 };

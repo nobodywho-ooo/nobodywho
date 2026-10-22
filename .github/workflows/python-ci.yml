@@ -365,6 +365,7 @@ jobs:
           mkdir -p models/whisper-base/onnx
           download https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf models/Qwen_Qwen3-0.6B-Q4_K_M.gguf
           download https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf models/bge-small-en-v1.5-q8_0.gguf
+          download https://huggingface.co/ggml-org/Laya-GGUF/resolve/845f314dd047fc2444a5289a4d50c1e1d59e27e1/Laya-Q8_0.gguf models/Laya-Q8_0.gguf
           download https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf models/bge-reranker-v2-m3-Q8_0.gguf
           download https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf models/google_gemma-4-E2B-it-Q4_K_M.gguf
           download https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/mmproj-google_gemma-4-E2B-it-f16.gguf models/mmproj-google_gemma-4-E2B-it-f16.gguf
@@ -391,6 +392,7 @@ jobs:
         env:
           TEST_MODEL: ${{ github.workspace }}/models/Qwen_Qwen3-0.6B-Q4_K_M.gguf
           TEST_EMBEDDINGS_MODEL: ${{ github.workspace }}/models/bge-small-en-v1.5-q8_0.gguf
+          TEST_DECISION_MODEL: ${{ github.workspace }}/models/Laya-Q8_0.gguf
           TEST_CROSSENCODER_MODEL: ${{ github.workspace }}/models/bge-reranker-v2-m3-Q8_0.gguf
           TEST_VISION_MODEL: ${{ github.workspace }}/models/google_gemma-4-E2B-it-Q4_K_M.gguf
           TEST_MMPROJ_MODEL: ${{ github.workspace }}/models/mmproj-google_gemma-4-E2B-it-f16.gguf
@@ -606,6 +608,15 @@ jobs:
           mkdir -p linux/nobodypython/models
           curl -L --fail --progress-bar ${{ matrix.model_link }} -o linux/nobodypython/models/${{ matrix.model_name }}
 
+      - uses: astral-sh/setup-uv@v6
+      - name: Run decision-model wheel smoke test
+        env:
+          TEST_DECISION_MODEL: ${{ github.workspace }}/linux/nobodypython/models/Laya-Q8_0.gguf
+        run: |
+          curl -L --fail https://huggingface.co/ggml-org/Laya-GGUF/resolve/845f314dd047fc2444a5289a4d50c1e1d59e27e1/Laya-Q8_0.gguf -o "$TEST_DECISION_MODEL"
+          uv pip install --python maturinvenv/bin/python pytest pytest-asyncio
+          maturinvenv/bin/python -m pytest nobodywho/python/tests/test_decision.py::test_decision nobodywho/python/tests/test_decision.py::test_decision_async --log-cli-level=5
+
       - name: Run small model in python
         run: |
           source ./maturinvenv/bin/activate
@@ -649,6 +660,16 @@ jobs:
           mkdir -p ${{ github.workspace }}/windows/nobodywho_python/models
           pip install -U "huggingface_hub"
           Invoke-WebRequest ${{ matrix.model_link }} -OutFile "${{ github.workspace }}/windows/nobodywho_python/models/${{ matrix.model_name}}"
+
+      - uses: astral-sh/setup-uv@v6
+      - name: Run decision-model wheel smoke test
+        timeout-minutes: 5
+        env:
+          TEST_DECISION_MODEL: ${{ github.workspace }}/windows/nobodywho_python/models/Laya-Q8_0.gguf
+        run: |
+          Invoke-WebRequest https://huggingface.co/ggml-org/Laya-GGUF/resolve/845f314dd047fc2444a5289a4d50c1e1d59e27e1/Laya-Q8_0.gguf -OutFile $env:TEST_DECISION_MODEL
+          uv pip install --python maturinvenv/Scripts/python.exe pytest pytest-asyncio
+          maturinvenv/Scripts/python -m pytest nobodywho/python/tests/test_decision.py::test_decision nobodywho/python/tests/test_decision.py::test_decision_async -x -o faulthandler_timeout=60 --log-cli-level=5
 
       # uncomment this to get an interactive shell on the github runner
       # - name: Debug with sshx
@@ -698,6 +719,15 @@ jobs:
         run: |
           mkdir -p macos/nobodypython/models
           curl -L --fail --progress-bar ${{ matrix.model_link }} -o macos/nobodypython/models/${{ matrix.model_name }}
+
+      - uses: astral-sh/setup-uv@v6
+      - name: Run decision-model wheel smoke test
+        env:
+          TEST_DECISION_MODEL: ${{ github.workspace }}/macos/nobodypython/models/Laya-Q8_0.gguf
+        run: |
+          curl -L --fail https://huggingface.co/ggml-org/Laya-GGUF/resolve/845f314dd047fc2444a5289a4d50c1e1d59e27e1/Laya-Q8_0.gguf -o "$TEST_DECISION_MODEL"
+          uv pip install --python maturinvenv/bin/python pytest pytest-asyncio
+          maturinvenv/bin/python -m pytest nobodywho/python/tests/test_decision.py::test_decision nobodywho/python/tests/test_decision.py::test_decision_async --log-cli-level=5
 
       - name: Run small model in python
         run: |
