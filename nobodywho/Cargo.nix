@@ -11188,7 +11188,7 @@ rec {
           {
             name = "dirs";
             packageId = "dirs";
-            target = { target, features }: (!("android" == target."os" or null));
+            target = { target, features }: (!(("android" == target."os" or null) || ("emscripten" == target."os" or null)));
           }
           {
             name = "emojis";
