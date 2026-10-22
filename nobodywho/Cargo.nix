@@ -9540,9 +9540,9 @@ rec {
       };
       "llama-cpp-2" = rec {
         crateName = "llama-cpp-2";
-        version = "0.1.159";
+        version = "0.1.160";
         edition = "2021";
-        sha256 = "1jfq7p57sh9lgdbf2x9j51kky7cbq6857j31h5jiv72kdz6s7d7s";
+        sha256 = "1zkk535z954dq26qybz31dbr8nzkfx2vvw2hlljllidpf44rz3mr";
         libName = "llama_cpp_2";
         license = "MIT OR Apache-2.0";
         dependencies = [
@@ -9604,15 +9604,16 @@ rec {
           "system-ggml" = [ "llama-cpp-sys-2/system-ggml" ];
           "system-ggml-static" = [ "llama-cpp-sys-2/system-ggml-static" ];
           "vulkan" = [ "llama-cpp-sys-2/vulkan" ];
+          "webgpu" = [ "llama-cpp-sys-2/webgpu" ];
         };
         resolvedDefaultFeatures = [ "android-static-stdcxx" "common" "llguidance" "mtmd" "opencl" "openmp" "vulkan" ];
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
-        version = "0.1.159";
+        version = "0.1.160";
         edition = "2021";
         links = "llama";
-        sha256 = "17mdx4wxz41n3vnn22qhnyn3p7fs9fd7qxz97wlpkzvhjcyx95hs";
+        sha256 = "16kyjaxvfj877xh0lmqqdapwhrs04dk962bxw0m05v5c482qlbci";
         libName = "llama_cpp_sys_2";
         license = "MIT OR Apache-2.0";
         buildDependencies = [
