@@ -197,6 +197,42 @@ void main() {
       );
     });
 
+    test('decision-models.md:13', () async {
+      final decision = await nobodywho.Decision.fromPath(
+        modelPath: Platform.environment['TEST_DECISION_MODEL'] ?? 'Laya-Q8_0.gguf',
+      );
+      final message = 'I was charged twice. Please refund the duplicate payment.';
+      final questions = {
+        'department': {
+          'type': 'choice',
+          'instructions': 'Which team should handle this?',
+          'criteria': {
+            'billing': 'Payments and refunds',
+            'technical': 'Bugs and login problems',
+          },
+        },
+        'refund': {
+          'type': 'noul',
+          'instructions': 'Is a refund requested?',
+        },
+        'urgency': {
+          'type': 'score',
+          'instructions': 'How urgent is this?',
+          'criteria': ['can wait', 'soon', 'urgent'],
+        },
+      };
+      
+      final result = await decision.decide(
+        state: {'message': message},
+        questions: questions,
+      );
+      final answers = (result as Map)['answers'] as Map;
+      final team = (answers['department'] as Map)['choice'] as String;
+      final refundProbability = (answers['refund'] as Map)['noul'] as double;
+      final urgency = (answers['urgency'] as Map)['score'] as double;
+      print('$team, refund $refundProbability, urgency $urgency');
+    });
+
     test('downloading-models.md:40', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: './model.gguf',
@@ -318,11 +354,11 @@ void main() {
     });
 
     test('embeddings-and-rag.md:175', () async {
-      await _doctest_20();
+      await _doctest_21();
     });
 
     test('embeddings-and-rag.md:225', () async {
-      await _doctest_21();
+      await _doctest_22();
     });
 
     test('embeddings-and-rag.md:272', () async {
@@ -349,7 +385,7 @@ void main() {
     });
 
     test('logging-and-troubleshooting.md:13', () async {
-      await _doctest_26();
+      await _doctest_27();
     });
 
     test('sampling.md:14', () async {
@@ -550,7 +586,7 @@ void main() {
 }
 
 // Extracted from embeddings-and-rag.md:175
-Future<void> _doctest_20() async {
+Future<void> _doctest_21() async {
   // Initialize the cross-encoder for document ranking
   final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
 
@@ -591,7 +627,7 @@ Future<void> _doctest_20() async {
 }
 
 // Extracted from embeddings-and-rag.md:225
-Future<void> _doctest_21() async {
+Future<void> _doctest_22() async {
   final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
   
   final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
@@ -614,7 +650,7 @@ Future<void> _doctest_21() async {
 }
 
 // Extracted from logging-and-troubleshooting.md:13
-Future<void> _doctest_26() async {
+Future<void> _doctest_27() async {
   // Initialize logger.
   Logger.root.level = Level.ALL;
   Logger.root.onRecord.listen((record) {
