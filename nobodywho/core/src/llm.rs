@@ -395,8 +395,9 @@ impl<'a> InferenceEngine<'a> {
         } else {
             1
         };
-        // llama.cpp cannot split non-causal embedding batches into micro-batches.
-        let n_ubatch = if n_seq_max > 1 {
+        // Bidirectional attention needs the whole input in one microbatch.
+        // This includes Laya, even with one sequence and no embedding pooling.
+        let n_ubatch = if use_embeddings {
             planned_n_ctx
         } else {
             ctx_plan.n_ubatch

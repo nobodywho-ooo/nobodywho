@@ -9935,6 +9935,11 @@ rec {
         ];
         dependencies = [
           {
+            name = "indexmap";
+            packageId = "indexmap";
+            optional = true;
+          }
+          {
             name = "memo-map";
             packageId = "memo-map";
           }
@@ -9977,7 +9982,7 @@ rec {
           "urlencode" = [ "percent-encoding" ];
           "v_htmlescape" = [ "dep:v_htmlescape" ];
         };
-        resolvedDefaultFeatures = [ "adjacent_loop_items" "builtins" "debug" "default" "deserialization" "json" "loader" "macros" "multi_template" "serde" "serde_json" "std_collections" ];
+        resolvedDefaultFeatures = [ "adjacent_loop_items" "builtins" "debug" "default" "deserialization" "indexmap" "json" "loader" "macros" "multi_template" "preserve_order" "serde" "serde_json" "std_collections" ];
       };
       "minijinja-contrib" = rec {
         crateName = "minijinja-contrib";
@@ -10735,6 +10740,7 @@ rec {
           {
             name = "indexmap";
             packageId = "indexmap";
+            features = [ "serde" ];
           }
           {
             name = "indicatif";
@@ -10781,7 +10787,7 @@ rec {
           {
             name = "minijinja";
             packageId = "minijinja";
-            features = [ "builtins" "json" "loader" ];
+            features = [ "builtins" "json" "loader" "preserve_order" ];
           }
           {
             name = "minijinja-contrib";
@@ -10861,6 +10867,7 @@ rec {
           {
             name = "serde_json";
             packageId = "serde_json";
+            features = [ "preserve_order" ];
           }
           {
             name = "symphonia-bundle-mp3";

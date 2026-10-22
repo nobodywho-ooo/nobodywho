@@ -79,6 +79,8 @@ EOF
   env.TEST_MODEL = models.TEST_MODEL;
   env.TEST_EMBEDDINGS_MODEL = models.TEST_EMBEDDINGS_MODEL;
   env.TEST_CROSSENCODER_MODEL = models.TEST_CROSSENCODER_MODEL;
+  env.TEST_DECISION_MODEL = models.TEST_DECISION_MODEL;
+  env.TEST_DECISION_CASES = "${../core/src/decision/cases.json}";
   env.TEST_WHISPER_MODEL = models.TEST_WHISPER_MODEL;
   env.TEST_VAD_MODEL = models.TEST_VAD_MODEL;
   env.TEST_AUDIO_FILE = "${../../assets/sound.mp3}";

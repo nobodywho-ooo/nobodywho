@@ -2,6 +2,7 @@ pub mod chat;
 pub mod content;
 pub mod cpu;
 pub mod crossencoder;
+pub mod decision;
 pub mod encoder;
 pub mod errors;
 mod host_memory;

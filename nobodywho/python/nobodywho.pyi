@@ -991,6 +991,26 @@ class CrossEncoderAsync:
         """
 
 @final
+class Decision:
+    """
+    Typed decisions over text or JSON. See `DecisionAsync` for async inference.
+    """
+    def __new__(
+        cls, /, model: "Model | os.PathLike | str", n_ctx: int = 1024
+    ) -> "Decision": ...
+    def decide(self, /, *, state: "object", questions: "dict") -> "dict": ...
+
+@final
+class DecisionAsync:
+    """
+    Async version of `Decision`.
+    """
+    def __new__(
+        cls, /, model: "Model | os.PathLike | str", n_ctx: int = 1024
+    ) -> "DecisionAsync": ...
+    async def decide(self, /, *, state: "object", questions: "dict") -> "dict": ...
+
+@final
 class Encoder:
     """
     `Encoder` will let you generate vector representations of text.
@@ -1107,7 +1127,7 @@ class Image:
 class Model:
     """
     `Model` objects contain a GGUF model. It is primarily useful for sharing a single model instance
-    between multiple `Chat`, `Encoder`, or `CrossEncoder` instances.
+    between multiple `Chat`, `Encoder`, `CrossEncoder`, or `Decision` instances.
     Sharing is efficient because the underlying model data is reference-counted.
     There is no `ModelAsync` variant. A regular `Model` can be used with both `Chat` and `ChatAsync`.
     """
