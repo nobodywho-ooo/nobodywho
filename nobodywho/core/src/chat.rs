@@ -47,13 +47,13 @@ use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::hash::Hasher;
 use std::mem;
 use std::num::NonZeroUsize;
 use std::ops::ControlFlow;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use tracing::{debug, error, info, trace, warn};
 use yoke::{Yoke, Yokeable};
 
@@ -636,7 +636,7 @@ impl ChatBuilder {
     /// different thread, but most constructors such as Python's `__new__` are
     /// not async-able anyhow, so the effort is not really worth it.
     pub fn build_async(self) -> Result<ChatHandleAsync, InitWorkerError> {
-        Ok(self.build()?.into_async())
+        ChatHandleAsync::new(self.model, self.config)
     }
 }
 
@@ -644,54 +644,84 @@ impl ChatBuilder {
 ///
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
 pub struct ChatHandle {
-    guard: WorkerGuard<ChatMsg>,
+    chat: Arc<tokio::sync::Mutex<Chat>>,
+    should_stop: Arc<AtomicBool>,
+    /// The currently in-progress generation, if any.
+    ///
+    /// Held here so that we can flush it when required, to unlock the mutex
+    /// guard on the `Chat` that it's holding internally.
+    current_stream: tokio::sync::Mutex<Weak<tokio::sync::Mutex<CompletionStreamState>>>,
 }
 
 impl ChatHandle {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
     pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Self, InitWorkerError> {
-        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
-
-        let mut worker = Chat::new(model, config)?;
-        let should_stop = Arc::clone(&worker.should_stop);
-
-        let join_handle = std::thread::spawn(move || {
-            while let Ok(msg) = msg_rx.recv() {
-                process_worker_msg(&mut worker, msg);
-            }
-        });
-
+        let chat = Chat::new(model, config)?;
+        let should_stop = Arc::clone(&chat.should_stop);
         Ok(Self {
-            guard: WorkerGuard::new(msg_tx, join_handle, Some(should_stop)),
+            chat: Arc::new(tokio::sync::Mutex::new(chat)),
+            should_stop,
+            current_stream: tokio::sync::Mutex::new(Weak::new()),
         })
     }
 
-    pub fn into_async(self) -> ChatHandleAsync {
-        ChatHandleAsync {
-            guard: Arc::new(self.guard),
+    /// Synchronously flush / complete the in-progress generation.
+    ///
+    /// After this, the chat should be unlocked (or at least not deadlocked),
+    /// so it should be safe to lock again.
+    fn flush(&self) {
+        let state = self.current_stream.blocking_lock();
+        if let Some(state) = state.upgrade() {
+            let mut stream = CompletionStream { state };
+            stream.flush();
         }
+    }
+
+    /// Flush in-progress generation and lock the chat.
+    ///
+    /// This is probably not the best API we could design, but it does handle
+    /// cases like the following without crashing and deadlocking:
+    /// ```python
+    /// chat = Chat(...)
+    /// resp = chat.ask("xyz")
+    /// for token in resp:
+    ///     print(token)
+    ///     chat.set_system_prompt("foo")
+    /// ```
+    ///
+    /// At least in the sense that the chat history etc. remains in a valid
+    /// state. We do this by blocking inside `set_system_prompt` until the
+    /// response is fully generated.
+    ///
+    /// This is mostly done to keep compatibility with the "spawn a worker
+    /// thread and forget about it" approach that we used to do. Ideally, we
+    /// should probably handle this in some other way (maybe by cancelling
+    /// generation?)
+    fn flush_and_lock(&self) -> tokio::sync::MutexGuard<'_, Chat> {
+        self.flush();
+        self.chat.blocking_lock()
     }
 
     /// Send a message and collect tokens as they arrive.
     ///
     /// # Example
     /// ```
-    /// # use nobodywho::chat::ChatHandleAsync;
-    /// # async fn example(chat: &ChatHandleAsync) -> Result<(), nobodywho::errors::CompletionError> {
+    /// # use nobodywho::chat::ChatHandle;
+    /// # fn example(chat: &ChatHandle) -> Result<(), nobodywho::errors::CompleteError> {
     /// let mut stream = chat.ask("Tell me a story");
-    /// while let Some(token) = stream.next_token().await? {
+    /// while let Some(token) = stream.next_token()? {
     ///     print!("{}", token);
     /// }
     /// # Ok(())
     /// # }
     /// ```
     pub fn ask(&self, prompt: impl Promptable) -> TokenStream {
-        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(ChatMsg::Turn {
-            input: TurnInput::Ask(prompt.to_prompt()),
-            output: TurnOutput::Text(output_tx),
-        });
-        TokenStream::new(output_rx)
+        self.flush();
+        let mut chat = Arc::clone(&self.chat).blocking_lock_owned();
+        let generator = chat.ask(prompt.to_prompt()).expect("TODO: Surface this");
+        let stream = CompletionStream::new(chat, generator, None, true);
+        *self.current_stream.blocking_lock() = Arc::downgrade(&stream.state);
+        TokenStream::new(stream)
     }
 
     /// Answer a full message list, which replaces the chat history.
@@ -708,7 +738,7 @@ impl ChatHandle {
     /// # Example
     /// ```
     /// # use nobodywho::chat::{ChatHandle, Message, Options};
-    /// # fn example(chat: &ChatHandle) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(chat: &ChatHandle) -> Result<(), nobodywho::errors::CompleteError> {
     /// let mut stream = chat.complete(
     ///     vec![
     ///         Message::new_system("You are terse.".to_string()),
@@ -726,20 +756,9 @@ impl ChatHandle {
         &self,
         messages: Vec<Message>,
         options: Options,
-    ) -> Result<TokenStream, InvalidHistoryError> {
-        let messages = History::new(messages)?;
-        check_answerable(&messages)?;
-        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(ChatMsg::Turn {
-            input: TurnInput::Complete {
-                messages,
-                options,
-                max_tokens: None,
-                execute_tools: true,
-            },
-            output: TurnOutput::Text(output_tx),
-        });
-        Ok(TokenStream::new(output_rx))
+    ) -> Result<TokenStream, CompleteError> {
+        let stream = self.completion_stream(messages, options, None, true)?;
+        Ok(TokenStream::new(stream))
     }
 
     pub fn completion_stream(
@@ -748,33 +767,16 @@ impl ChatHandle {
         options: Options,
         max_tokens: Option<usize>,
         execute_tools: bool,
-    ) -> Result<CompletionStream, InvalidHistoryError> {
-        Ok(CompletionStream(completion_receiver(
-            &self.guard,
-            messages,
-            options,
-            max_tokens,
-            execute_tools,
-        )?))
-    }
+    ) -> Result<CompletionStream, CompleteError> {
+        let messages = History::new(messages)?;
+        check_answerable(&messages)?;
 
-    /// Send a setter message and block until the worker answers. The outer error
-    /// is the worker being gone, the inner one is the worker rejecting the value.
-    fn set_and_wait_blocking<F>(
-        &self,
-        make_msg: F,
-        label: &str,
-    ) -> Result<(), crate::errors::SetterError>
-    where
-        F: FnOnce(SetterReply) -> ChatMsg,
-    {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        let msg = make_msg(output_tx);
-        self.guard.send(msg);
-        // block until processed
-        output_rx
-            .blocking_recv()
-            .ok_or_else(|| crate::errors::SetterError::WorkerTerminated(label.into()))?
+        self.flush();
+        let mut chat = Arc::clone(&self.chat).blocking_lock_owned();
+        let generator = chat.complete(messages, options)?;
+        let stream = CompletionStream::new(chat, generator, max_tokens, execute_tools);
+        *self.current_stream.blocking_lock() = Arc::downgrade(&stream.state);
+        Ok(stream)
     }
 
     /// Reset the chat conversation with a new system prompt and tools.
@@ -783,48 +785,23 @@ impl ChatHandle {
         system_prompt: Option<String>,
         tools: Vec<Tool>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(
-            |output_tx| ChatMsg::ResetChat {
-                system_prompt,
-                tools,
-                output_tx,
-            },
-            "reset_chat",
-        )
+        self.flush_and_lock().reset_chat(system_prompt, tools)
     }
 
     /// Reset the chat conversation history.
     pub fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(
-            |output_tx| ChatMsg::SetChatHistory {
-                messages: Vec::new(),
-                output_tx,
-            },
-            "reset_history",
-        )
+        self.flush_and_lock().set_chat_history(Vec::new())
     }
 
     /// Update the available tools for the model to use.
     pub fn set_tools(&self, tools: Vec<Tool>) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(
-            |output_tx| ChatMsg::SetTools { tools, output_tx },
-            "set_tools",
-        )
+        self.flush_and_lock().set_tools(tools)
     }
 
     /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
     #[deprecated(note = "Use set_template_variable(\"enable_thinking\", value) instead")]
-    pub fn set_allow_thinking(
-        &self,
-        allow_thinking: bool,
-    ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(
-            |output_tx| ChatMsg::SetThinking {
-                allow_thinking,
-                output_tx,
-            },
-            "set_allow_thinking",
-        )
+    pub fn set_allow_thinking(&self, allow_thinking: bool) -> Result<(), SetterError> {
+        self.set_template_variable("enable_thinking".to_string(), allow_thinking)
     }
 
     /// Set a single template variable.
@@ -833,14 +810,8 @@ impl ChatHandle {
         name: String,
         value: bool,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(
-            |output_tx| ChatMsg::SetTemplateVariable {
-                name,
-                value,
-                output_tx,
-            },
-            "set_template_variable",
-        )
+        self.flush_and_lock().set_template_variable(name, value);
+        Ok(()) // TODO: Remove
     }
 
     /// Set all template variables, replacing any existing ones.
@@ -848,26 +819,16 @@ impl ChatHandle {
         &self,
         variables: std::collections::HashMap<String, bool>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(
-            |output_tx| ChatMsg::SetTemplateVariables {
-                variables,
-                output_tx,
-            },
-            "set_template_variables",
-        )
+        self.flush_and_lock().set_template_variables(variables);
+        Ok(()) // TODO: Remove
     }
 
     /// Get all template variables.
     pub fn get_template_variables(
         &self,
     ) -> Result<std::collections::HashMap<String, bool>, crate::errors::GetterError> {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetTemplateVariables { output_tx });
-        output_rx
-            .blocking_recv()
-            .ok_or(crate::errors::GetterError::GetterError(
-                "get_template_variables".into(),
-            ))
+        // TODO: Remove Result
+        Ok(self.flush_and_lock().get_template_variables())
     }
 
     /// Update the sampler configuration for inference.
@@ -875,18 +836,12 @@ impl ChatHandle {
         &self,
         sampler_config: SamplerConfig,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(
-            |output_tx| ChatMsg::SetSamplerConfig {
-                sampler_config,
-                output_tx,
-            },
-            "set_sampler_config",
-        )
+        self.flush_and_lock().set_sampler_config(sampler_config)
     }
 
     /// Stop the current generation if one is in progress.
     pub fn stop_generation(&self) {
-        self.guard.stop();
+        self.should_stop.store(true, Ordering::Relaxed);
     }
 
     /// Get the chat history (lower-level API).
@@ -895,13 +850,8 @@ impl ChatHandle {
     /// — see [`get_system_prompt`](Self::get_system_prompt). A system message
     /// placed mid-conversation is part of the history, and does show up here.
     pub fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetChatHistory { output_tx });
-        output_rx
-            .blocking_recv()
-            .ok_or(crate::errors::GetterError::GetterError(
-                "get_chat_history".into(),
-            ))
+        // TODO: Remove Result
+        Ok(self.flush_and_lock().get_chat_history())
     }
 
     /// Set the chat history (lower-level API).
@@ -912,32 +862,19 @@ impl ChatHandle {
         &self,
         messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(
-            |output_tx| ChatMsg::SetChatHistory {
-                messages,
-                output_tx,
-            },
-            "set_chat_history",
-        )
+        self.flush_and_lock().set_chat_history(messages)
     }
-    /// Get the sampler config
+
+    /// Get the sampler config.
     pub fn get_sampler_config(&self) -> Result<SamplerConfig, crate::errors::GetterError> {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetSamplerConfig { output_tx });
-        output_rx
-            .blocking_recv()
-            .ok_or(crate::errors::GetterError::GetterError(
-                "get_sampler_config".into(),
-            ))
+        // TODO: Remove Result
+        Ok(self.flush_and_lock().get_sampler_config())
     }
 
     /// Get context usage statistics.
     pub fn get_stats(&self) -> Result<ChatStats, crate::errors::GetterError> {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetStats { output_tx });
-        output_rx
-            .blocking_recv()
-            .ok_or(crate::errors::GetterError::GetterError("get_stats".into()))
+        // TODO: Remove Result
+        Ok(self.flush_and_lock().get_stats())
     }
 
     /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
@@ -945,13 +882,8 @@ impl ChatHandle {
     /// The counters reset at the start of each generation.
     /// Returns `None` when no drafts were proposed in the last generation.
     pub fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetMtpAcceptanceRate { output_tx });
-        output_rx
-            .blocking_recv()
-            .ok_or(crate::errors::GetterError::GetterError(
-                "mtp_acceptance_rate".into(),
-            ))
+        // TODO: Remove Result
+        Ok(self.flush_and_lock().mtp_acceptance_rate())
     }
 
     /// Update the system prompt without resetting chat history.
@@ -984,13 +916,8 @@ impl ChatHandle {
         &self,
         system_prompt: Option<String>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(
-            |output_tx| ChatMsg::SetSystemPrompt {
-                system_prompt,
-                output_tx,
-            },
-            "set_system_prompt",
-        )
+        self.flush_and_lock().set_system_prompt(system_prompt);
+        Ok(()) // TODO: Remove
     }
 
     /// Set how old turns are forgotten when the context is full; `None` disables it.
@@ -998,34 +925,19 @@ impl ChatHandle {
         &self,
         options: Option<ContextShiftOptions>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(
-            |output_tx| ChatMsg::SetContextShift { options, output_tx },
-            "set_context_shift",
-        )
+        self.flush_and_lock().set_context_shift(options)
     }
 
     /// Get the system prompt
     pub fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::GetSystemPrompt { output_tx });
-        output_rx
-            .blocking_recv()
-            .ok_or(crate::errors::GetterError::GetterError(
-                "get_system_prompt".into(),
-            ))
+        // TODO: Remove Result
+        Ok(self.flush_and_lock().get_system_prompt())
     }
 
     /// Tokenize a prompt and return token IDs. Text tokens are `Some(id)`, media embedding
     /// slots are `None` (one per slot consumed in the context window).
     pub fn tokenize(&self, prompt: impl Promptable) -> Result<Vec<Option<i32>>, TokenizeError> {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::Tokenize {
-            prompt: prompt.to_prompt(),
-            output_tx,
-        });
-        output_rx
-            .blocking_recv()
-            .ok_or(TokenizeError::WorkerTerminated)?
+        self.flush_and_lock().tokenize(prompt.to_prompt())
     }
 }
 
@@ -1038,6 +950,24 @@ pub struct ChatHandleAsync {
 }
 
 impl ChatHandleAsync {
+    /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
+    pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Self, InitWorkerError> {
+        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
+
+        let mut worker = Chat::new(model, config)?;
+        let should_stop = Arc::clone(&worker.should_stop);
+
+        let join_handle = std::thread::spawn(move || {
+            while let Ok(msg) = msg_rx.recv() {
+                process_worker_msg(&mut worker, msg);
+            }
+        });
+
+        Ok(Self {
+            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, Some(should_stop))),
+        })
+    }
+
     /// Send a message and collect tokens as they arrive.
     ///
     /// # Example
@@ -1114,13 +1044,19 @@ impl ChatHandleAsync {
         max_tokens: Option<usize>,
         execute_tools: bool,
     ) -> Result<CompletionStreamAsync, InvalidHistoryError> {
-        Ok(CompletionStreamAsync(completion_receiver(
-            &self.guard,
-            messages,
-            options,
-            max_tokens,
-            execute_tools,
-        )?))
+        let messages = History::new(messages)?;
+        check_answerable(&messages)?;
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel(32);
+        self.guard.send(ChatMsg::Turn {
+            input: TurnInput::Complete {
+                messages,
+                options,
+                max_tokens,
+                execute_tools,
+            },
+            output: TurnOutput::Completion(output_tx),
+        });
+        Ok(CompletionStreamAsync::new(output_rx))
     }
 
     /// Send a setter message and wait for the worker's answer. The outer error
@@ -1416,8 +1352,6 @@ impl ChatHandleAsync {
     }
 }
 
-/// A stream of tokens from the model.
-pub type TokenStream = crate::stream::TokenStream<crate::errors::CompletionError>;
 /// A stream of tokens from the model, async version.
 pub type TokenStreamAsync = crate::stream::TokenStreamAsync<crate::errors::CompletionError>;
 
@@ -1470,12 +1404,12 @@ enum ExternalCompletionOutput {
     Error(crate::errors::CompletionError),
 }
 
-struct CompletionReceiver {
+pub struct CompletionStreamAsync {
     rx: tokio::sync::mpsc::Receiver<ExternalCompletionOutput>,
     done: bool,
 }
 
-impl CompletionReceiver {
+impl CompletionStreamAsync {
     fn new(rx: tokio::sync::mpsc::Receiver<ExternalCompletionOutput>) -> Self {
         Self { rx, done: false }
     }
@@ -1501,15 +1435,7 @@ impl CompletionReceiver {
         }
     }
 
-    fn next(&mut self) -> Result<Option<CompletionChunk>, crate::errors::CompletionError> {
-        if self.done {
-            return Ok(None);
-        }
-        let output = self.rx.blocking_recv();
-        self.handle(output)
-    }
-
-    async fn next_async(
+    pub async fn next(
         &mut self,
     ) -> Result<Option<CompletionChunk>, crate::errors::CompletionError> {
         if self.done {
@@ -1517,50 +1443,6 @@ impl CompletionReceiver {
         }
         let output = self.rx.recv().await;
         self.handle(output)
-    }
-}
-
-fn completion_receiver(
-    guard: &WorkerGuard<ChatMsg>,
-    messages: Vec<Message>,
-    options: Options,
-    max_tokens: Option<usize>,
-    execute_tools: bool,
-) -> Result<CompletionReceiver, InvalidHistoryError> {
-    let messages = History::new(messages)?;
-    check_answerable(&messages)?;
-    let (output_tx, output_rx) = tokio::sync::mpsc::channel(32);
-    guard.send(ChatMsg::Turn {
-        input: TurnInput::Complete {
-            messages,
-            options,
-            max_tokens,
-            execute_tools,
-        },
-        output: TurnOutput::Completion(output_tx),
-    });
-    Ok(CompletionReceiver::new(output_rx))
-}
-
-pub struct CompletionStream(CompletionReceiver);
-
-impl CompletionStream {
-    #[allow(
-        clippy::should_implement_trait,
-        reason = "Matches the async stream API; errors are separate from end-of-stream"
-    )]
-    pub fn next(&mut self) -> Result<Option<CompletionChunk>, crate::errors::CompletionError> {
-        self.0.next()
-    }
-}
-
-pub struct CompletionStreamAsync(CompletionReceiver);
-
-impl CompletionStreamAsync {
-    pub async fn next(
-        &mut self,
-    ) -> Result<Option<CompletionChunk>, crate::errors::CompletionError> {
-        self.0.next_async().await
     }
 }
 
@@ -1796,16 +1678,14 @@ fn process_worker_msg(worker_state: &mut Chat, msg: ChatMsg) {
 
             loop {
                 match generator.next(worker_state, max_tokens, execute_tools) {
-                    Ok(ControlFlow::Continue(text)) => {
-                        for text in text.into_iter().filter(|t| !t.is_empty()) {
-                            trace!(text, "Sending out token:");
-                            if !output.send(CompletionChunk::Token(text)) {
-                                // Nobody is receiving any more, so stop generating.
-                                return;
-                            }
+                    Ok(CompletionChunk::Token(text)) => {
+                        trace!(text, "Sending out token:");
+                        if !output.send(CompletionChunk::Token(text)) {
+                            // Nobody is receiving any more, so stop generating.
+                            return;
                         }
                     }
-                    Ok(ControlFlow::Break(response)) => {
+                    Ok(CompletionChunk::Done(response)) => {
                         let _ = output.send(CompletionChunk::Done(response));
                         return;
                     }
@@ -2316,7 +2196,7 @@ impl Chat {
         Ok(())
     }
 
-    pub fn ask(&mut self, prompt: Prompt) -> Result<TurnGenerator, SayError> {
+    pub fn ask(&mut self, prompt: Prompt) -> Result<CompletionGenerator, SayError> {
         // reset the stop flag
         self.should_stop.store(false, Ordering::Relaxed);
 
@@ -2327,7 +2207,7 @@ impl Chat {
         self.register_media(&mut content)?;
         self.add_user_message(content);
 
-        Ok(TurnGenerator::new(self)?)
+        Ok(CompletionGenerator::new(self)?)
     }
 
     /// Load each media part's file, register its bitmap and write the bitmap id
@@ -2413,7 +2293,7 @@ impl Chat {
         &mut self,
         mut messages: History,
         options: Options,
-    ) -> Result<TurnGenerator, CompleteError> {
+    ) -> Result<CompletionGenerator, CompleteError> {
         self.should_stop.store(false, Ordering::Relaxed);
         let hoisted = messages.take_system_prompt();
         self.reload_media(&mut messages)?;
@@ -2425,7 +2305,7 @@ impl Chat {
         }
         self.messages = messages;
 
-        Ok(TurnGenerator::new(self)?)
+        Ok(CompletionGenerator::new(self)?)
     }
 
     /// Re-read the media files referenced by `messages` and relink the parts to
@@ -2834,7 +2714,7 @@ impl TurnGenerator {
     fn new(chat: &mut Chat) -> Result<Self, ContextSyncError> {
         let generator = ResponseGenerator::new(chat)?;
 
-        Ok(TurnGenerator {
+        Ok(Self {
             generator,
             usage: CompletionUsage {
                 prompt_tokens: 0,
@@ -2909,6 +2789,50 @@ impl TurnGenerator {
         //  that the model cannot generate a tool call in a single token).
         self.next(chat, max_tokens, execute_tools)
     }
+}
+
+/// Convert responses from [`TurnGenerator`] into [`CompletionChunk`]s.
+#[derive(Debug)]
+struct CompletionGenerator {
+    generator: TurnGenerator,
+    pending_text: VecDeque<String>,
+}
+
+impl CompletionGenerator {
+    fn new(chat: &mut Chat) -> Result<Self, ContextSyncError> {
+        let generator = TurnGenerator::new(chat)?;
+
+        Ok(Self {
+            generator,
+            pending_text: VecDeque::new(),
+        })
+    }
+
+    fn next(
+        &mut self,
+        chat: &mut Chat,
+        max_tokens: Option<usize>,
+        execute_tools: bool,
+    ) -> Result<CompletionChunk, GenerateResponseError> {
+        // Loop until we get a text token.
+        loop {
+            if let Some(text) = self.pending_text.pop_front() {
+                return Ok(CompletionChunk::Token(text));
+            }
+
+            let res = self.generator.next(chat, max_tokens, execute_tools)?;
+            match res {
+                ControlFlow::Continue(tokens) => {
+                    self.pending_text
+                        .extend(tokens.into_iter().filter(|t| !t.is_empty()));
+                    continue;
+                }
+                ControlFlow::Break(response) => {
+                    return Ok(CompletionChunk::Done(response));
+                }
+            }
+        }
+    }
 
     /// Run generation in a loop, and return the final response once it's done.
     #[cfg(test)]
@@ -2920,8 +2844,165 @@ impl TurnGenerator {
     ) -> Result<CompletionResponse, GenerateResponseError> {
         loop {
             match self.next(chat, max_tokens, execute_tools)? {
-                ControlFlow::Continue(_) => continue,
-                ControlFlow::Break(response) => return Ok(response),
+                CompletionChunk::Token(_) => continue,
+                CompletionChunk::Done(response) => return Ok(response),
+            }
+        }
+    }
+}
+
+/// A wrapper over [`CompletionGenerator`] that stores the [`Chat`] in a
+/// mutex, and allows flushing the generation from another place (or thread).
+#[derive(Debug)]
+pub struct CompletionStream {
+    state: Arc<tokio::sync::Mutex<CompletionStreamState>>,
+}
+
+/// The state of the completion stream.
+///
+/// Once `Done`, the chat is unlocked. This is important because GC-ed
+/// languages like Python may keep a reference to this alive for longer than
+/// would normally be desired, and then we'd end up with a deadlock.
+#[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
+enum CompletionStreamState {
+    Generating {
+        /// Lock the chat; this ensures that it hasn't been modified in
+        /// between calls to [`CompletionGenerator::next`].
+        ///
+        /// We also put it in a `SyncWrapper` to make this type `Send` +
+        /// `Sync`. This is needed because [`Chat`] isn't `Sync` itself.
+        ///
+        /// FIXME(MSRV 1.101): Replace with the new [`std::sync::SyncView`].
+        chat: sync_wrapper::SyncWrapper<tokio::sync::OwnedMutexGuard<Chat>>,
+        generator: CompletionGenerator,
+        max_tokens: Option<usize>,
+        execute_tools: bool,
+    },
+    Done {
+        /// Pending results in case generation was flushed.
+        pending: VecDeque<Result<CompletionChunk, GenerateResponseError>>,
+    },
+}
+
+impl CompletionStream {
+    fn new(
+        chat: tokio::sync::OwnedMutexGuard<Chat>,
+        generator: CompletionGenerator,
+        max_tokens: Option<usize>,
+        execute_tools: bool,
+    ) -> Self {
+        let state = CompletionStreamState::Generating {
+            chat: sync_wrapper::SyncWrapper::new(chat),
+            generator,
+            max_tokens,
+            execute_tools,
+        };
+        Self {
+            state: Arc::new(tokio::sync::Mutex::new(state)),
+        }
+    }
+
+    /// Block and finish generation on the current thread / stack frame.
+    fn flush(&mut self) {
+        let mut state = self.state.blocking_lock();
+        match &mut *state {
+            CompletionStreamState::Generating {
+                chat,
+                generator,
+                max_tokens,
+                execute_tools,
+            } => {
+                let mut pending = VecDeque::new();
+                loop {
+                    match generator.next(chat.get_mut(), *max_tokens, *execute_tools) {
+                        Ok(CompletionChunk::Token(token)) => {
+                            pending.push_back(Ok(CompletionChunk::Token(token)));
+                        }
+                        Ok(CompletionChunk::Done(resp)) => {
+                            pending.push_back(Ok(CompletionChunk::Done(resp)));
+                            break;
+                        }
+                        Err(e) => {
+                            pending.push_back(Err(e));
+                            break;
+                        }
+                    }
+                }
+                // Change the state here, unlocks the chat mutex.
+                *state = CompletionStreamState::Done { pending };
+            }
+            CompletionStreamState::Done { .. } => {}
+        }
+    }
+
+    /// Return the next token piece, or `None` when generation is finished.
+    #[allow(clippy::should_implement_trait)]
+    pub fn next(&mut self) -> Result<Option<CompletionChunk>, GenerateResponseError> {
+        let mut state = self.state.blocking_lock();
+        match &mut *state {
+            CompletionStreamState::Generating {
+                chat,
+                generator,
+                max_tokens,
+                execute_tools,
+            } => match generator.next(chat.get_mut(), *max_tokens, *execute_tools) {
+                Ok(CompletionChunk::Token(token)) => Ok(Some(CompletionChunk::Token(token))),
+                Ok(CompletionChunk::Done(resp)) => {
+                    *state = CompletionStreamState::Done {
+                        pending: VecDeque::new(),
+                    };
+                    Ok(Some(CompletionChunk::Done(resp)))
+                }
+                Err(e) => {
+                    *state = CompletionStreamState::Done {
+                        pending: VecDeque::new(),
+                    };
+                    Err(e)
+                }
+            },
+            CompletionStreamState::Done { pending } => {
+                if let Some(next) = pending.pop_front() {
+                    next.map(Some)
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+    }
+}
+
+/// Blocking token stream. Call [`next_token`](Self::next_token) to drive
+/// token-by-token, or [`completed`](Self::completed) to collect the full text.
+#[derive(Debug)]
+pub struct TokenStream {
+    stream: CompletionStream,
+    done: Option<String>,
+}
+
+impl TokenStream {
+    fn new(stream: CompletionStream) -> Self {
+        Self { stream, done: None }
+    }
+
+    /// Return the next token piece, or `None` when generation is finished.
+    pub fn next_token(&mut self) -> Result<Option<String>, GenerateResponseError> {
+        match self.stream.next()? {
+            Some(CompletionChunk::Token(text)) => Ok(Some(text)),
+            Some(CompletionChunk::Done(response)) => {
+                self.done = Some(response.content);
+                Ok(None)
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Drain all tokens and return the full output text.
+    pub fn completed(&mut self) -> Result<String, GenerateResponseError> {
+        loop {
+            match self.next_token()? {
+                Some(_) => continue,
+                None => return Ok(self.done.clone().expect("done should be set here")),
             }
         }
     }
@@ -3202,14 +3283,12 @@ mod tests {
 
         let response = loop {
             match generator.next(&mut worker, None, true)? {
-                ControlFlow::Continue(text) => {
-                    for text in text {
-                        if text.contains("5") {
-                            should_stop.store(true, Ordering::Relaxed);
-                        }
+                CompletionChunk::Token(text) => {
+                    if text.contains("5") {
+                        should_stop.store(true, Ordering::Relaxed);
                     }
                 }
-                ControlFlow::Break(response) => break response.content,
+                CompletionChunk::Done(response) => break response.content,
             }
         };
 
@@ -4208,6 +4287,236 @@ mod tests {
         );
     }
 
+    /// Pull `n` tokens out of a stream, asserting that generation is not
+    /// finished yet.
+    fn take_tokens(stream: &mut TokenStream, n: usize) -> String {
+        let mut text = String::new();
+        for _ in 0..n {
+            let token = stream
+                .next_token()
+                .unwrap()
+                .expect("generation should not have finished yet");
+            text.push_str(&token);
+        }
+        text
+    }
+
+    /// Starting a new generation while another one is still in progress
+    /// finishes the first one, stores it in the history, and builds the
+    /// second one on top of it.
+    #[test]
+    fn test_ask_while_generating_finishes_previous() {
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(2048)
+            .with_template_variable("enable_thinking".to_string(), false)
+            .with_sampler(SamplerPresets::greedy())
+            .build()
+            .expect("chat build failed in test");
+
+        let mut first = chat.ask("What is the capital of Denmark? Answer in a full sentence.");
+        let prefix = take_tokens(&mut first, 3);
+
+        // Start the next turn without finishing the first one.
+        let mut second = chat.ask("What language do they speak there?");
+
+        // The first stream is still usable: it yields the rest of the tokens
+        // that were generated when it got flushed.
+        let mut rest = String::new();
+        while let Some(token) = first.next_token().unwrap() {
+            rest.push_str(&token);
+        }
+        let first_resp = first.completed().unwrap();
+        assert_eq!(
+            format!("{prefix}{rest}"),
+            first_resp,
+            "the streamed tokens should add up to the full first response"
+        );
+        assert!(first_resp.contains("Copenhagen"), "{first_resp}");
+        // Draining again is a no-op.
+        assert_eq!(first.next_token().unwrap(), None);
+
+        let second_resp = second.completed().unwrap();
+        assert!(
+            second_resp.contains("Danish"),
+            "the second turn should build on the first: {second_resp}"
+        );
+
+        let history = chat.get_chat_history().unwrap();
+        assert_eq!(history.len(), 4, "{history:?}");
+        assert!(history[0].is_user());
+        assert!(history[0].content().contains("Denmark"));
+        assert!(history[1].is_assistant());
+        assert_eq!(history[1].content(), first_resp);
+        assert!(history[2].is_user());
+        assert!(history[2].content().contains("language"));
+        assert!(history[3].is_assistant());
+        assert_eq!(history[3].content(), second_resp);
+    }
+
+    /// Interrupting a generation by starting a new one must give the same
+    /// result as letting it finish first.
+    #[test]
+    fn test_ask_while_generating_matches_sequential() {
+        let model = test_utils::load_test_model();
+        let build = || {
+            ChatBuilder::new(Arc::clone(&model))
+                .with_context_size(2048)
+                .with_template_variable("enable_thinking".to_string(), false)
+                .with_sampler(SamplerPresets::greedy())
+                .build()
+                .expect("chat build failed in test")
+        };
+
+        let interrupted = build();
+        let mut first = interrupted.ask("What is the capital of Denmark?");
+        take_tokens(&mut first, 2);
+        let second = interrupted
+            .ask("What language do they speak there?")
+            .completed()
+            .unwrap();
+        let first = first.completed().unwrap();
+
+        let sequential = build();
+        let expected_first = sequential
+            .ask("What is the capital of Denmark?")
+            .completed()
+            .unwrap();
+        let expected_second = sequential
+            .ask("What language do they speak there?")
+            .completed()
+            .unwrap();
+
+        assert_eq!(first, expected_first);
+        assert_eq!(second, expected_second);
+        assert_eq!(
+            serde_json::to_value(interrupted.get_chat_history().unwrap()).unwrap(),
+            serde_json::to_value(sequential.get_chat_history().unwrap()).unwrap(),
+        );
+    }
+
+    /// Dropping a half-consumed stream does not lose the turn: the next
+    /// generation still finishes it and builds on it.
+    #[test]
+    fn test_ask_after_dropping_unfinished_stream() {
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(2048)
+            .with_template_variable("enable_thinking".to_string(), false)
+            .with_sampler(SamplerPresets::greedy())
+            .build()
+            .expect("chat build failed in test");
+
+        {
+            let mut first = chat.ask("What is the capital of Denmark?");
+            take_tokens(&mut first, 2);
+        }
+
+        let second = chat
+            .ask("What language do they speak there?")
+            .completed()
+            .unwrap();
+        assert!(second.contains("Danish"), "{second}");
+
+        let history = chat.get_chat_history().unwrap();
+        assert_eq!(history.len(), 4, "{history:?}");
+        assert!(
+            history[1].content().contains("Copenhagen"),
+            "the dropped turn should have been finished: {history:?}"
+        );
+    }
+
+    /// Several generations in a row, each interrupted by the next.
+    #[test]
+    fn test_ask_repeatedly_while_generating() {
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(2048)
+            .with_template_variable("enable_thinking".to_string(), false)
+            .with_sampler(SamplerPresets::greedy())
+            .build()
+            .expect("chat build failed in test");
+
+        let mut a = chat.ask("What is the capital of Denmark?");
+        take_tokens(&mut a, 1);
+        let mut b = chat.ask("What is the capital of Germany?");
+        take_tokens(&mut b, 1);
+        let c = chat
+            .ask("Which of the two cities did I ask about first? Answer with just the city name.")
+            .completed()
+            .unwrap();
+
+        let a = a.completed().unwrap();
+        let b = b.completed().unwrap();
+        assert!(a.contains("Copenhagen"), "{a}");
+        assert!(b.contains("Berlin"), "{b}");
+        assert!(c.contains("Copenhagen"), "{c}");
+
+        let history = chat.get_chat_history().unwrap();
+        assert_eq!(history.len(), 6, "{history:?}");
+        assert_eq!(history[1].content(), a);
+        assert_eq!(history[3].content(), b);
+        assert_eq!(history[5].content(), c);
+    }
+
+    /// Calling a getter mid-generation finishes the generation first, so the
+    /// history it sees is complete.
+    #[test]
+    fn test_get_chat_history_while_generating() {
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(2048)
+            .with_template_variable("enable_thinking".to_string(), false)
+            .with_sampler(SamplerPresets::greedy())
+            .build()
+            .expect("chat build failed in test");
+
+        let mut first = chat.ask("What is the capital of Denmark?");
+        let prefix = take_tokens(&mut first, 2);
+
+        let history = chat.get_chat_history().unwrap();
+        assert_eq!(history.len(), 2, "{history:?}");
+        assert!(history[1].is_assistant());
+        let full = history[1].content();
+        assert!(full.starts_with(&prefix), "{prefix:?} vs {full:?}");
+        assert!(full.contains("Copenhagen"), "{full}");
+        assert_eq!(first.completed().unwrap(), full);
+    }
+
+    /// Stopping a generation and then starting a new one: the stopped turn is
+    /// cut short, and the new one runs normally.
+    #[test]
+    fn test_stop_then_ask_while_generating() {
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(2048)
+            .with_template_variable("enable_thinking".to_string(), false)
+            .with_sampler(SamplerPresets::greedy())
+            .build()
+            .expect("chat build failed in test");
+
+        let mut first = chat.ask("Count from 1 to 50, separated by commas.");
+        take_tokens(&mut first, 3);
+        chat.stop_generation();
+
+        let second = chat
+            .ask("What is the capital of Denmark?")
+            .completed()
+            .unwrap();
+        assert!(second.contains("Copenhagen"), "{second}");
+
+        let first = first.completed().unwrap();
+        assert!(
+            !first.contains("50"),
+            "generation should have stopped: {first}"
+        );
+
+        let history = chat.get_chat_history().unwrap();
+        assert_eq!(history.len(), 4, "{history:?}");
+        assert_eq!(history[1].content(), first);
+        assert_eq!(history[3].content(), second);
+    }
+
     fn user(content: &str) -> Message {
         Message::new_user(content.to_string())
     }
@@ -4479,7 +4788,6 @@ mod tests {
             function: Arc::new(|_| String::new()),
         };
 
-        // The history is valid, so the rejection comes back through the stream.
         let err = chat
             .complete(
                 vec![user("Say hi.")],
@@ -4487,8 +4795,6 @@ mod tests {
                     .with_sampler(SamplerPresets::greedy())
                     .with_tools(vec![bad_tool]),
             )
-            .expect("the history itself is fine")
-            .completed()
             .expect_err("an uncompilable tool schema should be rejected");
         eprintln!("rejected as expected: {err}");
 
@@ -4511,12 +4817,14 @@ mod tests {
 
         assert!(matches!(
             chat.complete(vec![], Options::new()),
-            Err(InvalidHistoryError::Empty)
+            Err(CompleteError::InvalidHistory(InvalidHistoryError::Empty))
         ));
 
         assert!(matches!(
             chat.complete(vec![user("Hi"), assistant("Aye, ")], Options::new()),
-            Err(InvalidHistoryError::DoesNotEndInUserOrTool { role: "assistant" })
+            Err(CompleteError::InvalidHistory(
+                InvalidHistoryError::DoesNotEndInUserOrTool { role: "assistant" }
+            ))
         ));
 
         // The system prompt is stored as text, so media in it would flatten to a
@@ -4532,7 +4840,9 @@ mod tests {
                 ],
                 Options::new()
             ),
-            Err(InvalidHistoryError::MediaInSystemMessage)
+            Err(CompleteError::InvalidHistory(
+                InvalidHistoryError::MediaInSystemMessage
+            ))
         ));
 
         // Media is rejected in a mid-conversation system message too: that one
@@ -4551,7 +4861,9 @@ mod tests {
                 ],
                 Options::new()
             ),
-            Err(InvalidHistoryError::MediaInSystemMessage)
+            Err(CompleteError::InvalidHistory(
+                InvalidHistoryError::MediaInSystemMessage
+            ))
         ));
     }
 
@@ -4983,7 +5295,7 @@ mod tests {
             .await
             .unwrap();
 
-        let mut stream = CompletionStreamAsync(CompletionReceiver::new(receiver));
+        let mut stream = CompletionStreamAsync::new(receiver);
         assert_eq!(
             stream.next().await.unwrap(),
             Some(CompletionChunk::Token("hello".into()))
@@ -5081,7 +5393,7 @@ mod tests {
                 );
             }
             // MTP verifies its drafts in batches, which llama.cpp counts as prompt tokens.
-            let _response = TurnGenerator::new(&mut chat)
+            let _response = CompletionGenerator::new(&mut chat)
                 .unwrap()
                 .response(&mut chat, Some(64), true)
                 .unwrap();
