@@ -266,3 +266,82 @@ class IntegrationTest {
         assertEquals("slow async pong", (toolResponse as Message.Tool).content.text)
     }
 }
+
+class DecisionTest {
+
+    private fun requireEnv(name: String): String {
+        val value = System.getenv(name)
+        Assume.assumeNotNull(value)
+        return value!!
+    }
+
+    private val referenceState =
+        "Customer message: I was charged twice for my order last week and nobody has replied."
+
+    private val referenceQuestions = mapOf(
+        "route" to DecisionQuestion.Choice(
+            instructions = "Choose the best team for this customer message.",
+            criteria = mapOf(
+                "billing" to "payments, charges, refunds, invoices",
+                "shipping" to "delivery, tracking, lost or late parcels",
+                "technical" to "bugs, errors, login problems",
+            ),
+        ),
+        "angry" to DecisionQuestion.Noul(instructions = "Is the customer angry?"),
+        "urgency" to DecisionQuestion.Score(
+            instructions = "How urgent is this?",
+            criteria = listOf("can wait", "this week", "today", "right now"),
+        ),
+    )
+
+    @Test
+    fun testDecide() = runBlocking {
+        val model = Model.load(modelPath = requireEnv("TEST_DECISION_MODEL"), useGpu = false)
+        val decision = Decision(model = model, contextSize = 1024u)
+        val response = decision.decide(state = referenceState, questions = referenceQuestions)
+
+        assertEquals(referenceQuestions.keys, response.answers.keys)
+
+        val route = response.answers["route"] as DecisionAnswer.Choice
+        assertTrue(route.probabilities.containsKey(route.choice))
+        assertTrue(abs(route.probabilities.values.sum() - 1.0) < 0.01)
+        assertTrue(route.confidence in 0.0..1.0)
+
+        val angry = response.answers["angry"] as DecisionAnswer.Noul
+        assertTrue(angry.noul in 0.0..1.0)
+
+        val urgency = response.answers["urgency"] as DecisionAnswer.Score
+        assertTrue(urgency.score in 0.0..(urgency.legend.size - 1).toDouble())
+
+        assertTrue(response.usage.inputTokens > 0)
+        assertTrue(response.usage.outputTokens >= 0)
+    }
+
+    @Test
+    fun testStateFormats() = runBlocking {
+        val model = Model.load(modelPath = requireEnv("TEST_DECISION_MODEL"), useGpu = false)
+        Decision(model = model).use { decision ->
+            val states = listOf(
+                "Customer said: \"Refund C:\\orders\\123\"\nPlease help.",
+                mapOf("message" to referenceState),
+                listOf(referenceState),
+            )
+            for (state in states) {
+                val response = decision.decide(state = state, questions = referenceQuestions)
+                assertEquals(referenceQuestions.keys, response.answers.keys)
+                assertTrue(response.usage.inputTokens > 0)
+            }
+        }
+    }
+
+    @Test
+    fun testEmptyQuestionsRejected() = runBlocking<Unit> {
+        val model = Model.load(modelPath = requireEnv("TEST_DECISION_MODEL"), useGpu = false)
+        try {
+            Decision(model = model).decide(state = referenceState, questions = emptyMap())
+            fail("empty questions were accepted")
+        } catch (e: Exception) {
+            // expected
+        }
+    }
+}

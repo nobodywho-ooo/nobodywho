@@ -135,6 +135,46 @@ abstract class CrossEncoder implements RustOpaqueInterface {
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderWorkerError>>
 abstract class CrossEncoderWorkerError implements RustOpaqueInterface {}
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Decision>>
+abstract class Decision implements RustOpaqueInterface {
+  /// Run the questions over a state.
+  ///
+  /// `state` is any JSON value (text, object, array). `questions` maps question
+  /// names to `{"type": "choice" | "score" | "noul", "instructions": ..., "criteria": ...}`.
+  /// Returns `{"answers": {...}, "usage": {...}}`.
+  Future<Object?> decide({required Object? state, required Object? questions});
+
+  /// Load a Laya decision model from a local path, HuggingFace path, or HTTPS URL.
+  ///
+  /// Args:
+  ///     model_path: Path or URL to a Laya GGUF file.
+  ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
+  ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
+  ///         final emit on completion. Not invoked for cached/local files.
+  ///     n_ctx: Context window. Defaults to 1024.
+  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+  static Future<Decision> fromPath({
+    required String modelPath,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
+    int nCtx = 1024,
+    bool useGpu = true,
+  }) => NobodyWho.instance.api.crateDecisionFromPath(
+    modelPath: modelPath,
+    onDownloadProgress: onDownloadProgress,
+    nCtx: nCtx,
+    useGpu: useGpu,
+  );
+
+  /// Create a decision handle for typed, non-generative decisions.
+  ///
+  /// Args:
+  ///     model: A loaded Laya decision model.
+  ///     n_ctx: Context window. Defaults to 1024.
+  factory Decision({required Model model, int nCtx = 1024}) =>
+      NobodyWho.instance.api.crateDecisionNew(model: model, nCtx: nCtx);
+}
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Encoder>>
 abstract class Encoder implements RustOpaqueInterface {
   Future<Float32List> encode({required String text});

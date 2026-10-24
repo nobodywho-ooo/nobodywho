@@ -6,6 +6,7 @@ use tracing_subscriber::prelude::*;
 mod chat;
 mod convert;
 mod crossencoder;
+mod decision;
 mod encoder;
 mod model;
 mod prompt;

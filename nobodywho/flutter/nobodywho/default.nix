@@ -48,6 +48,7 @@ flutter.buildFlutterApplication {
     export TEST_MODEL="${models.TEST_MODEL}"
     export TEST_EMBEDDINGS_MODEL="${models.TEST_EMBEDDINGS_MODEL}"
     export TEST_CROSSENCODER_MODEL="${models.TEST_CROSSENCODER_MODEL}"
+    export TEST_DECISION_MODEL="${models.TEST_DECISION_MODEL}"
     export TEST_WHISPER_MODEL="${models.TEST_WHISPER_MODEL}"
     export TEST_AUDIO_FILE="${../../../assets/sound.mp3}"
     # Populate the HuggingFace download cache so doctests that hardcode the

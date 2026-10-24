@@ -1180,6 +1180,62 @@ pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> f32 {
     nobodywho::encoder::cosine_similarity(&a, &b)
 }
 
+// ---------- RustDecision ----------
+// Wrapper intended to be wrapped again in the target language (e.g. as `Decision`).
+
+#[derive(uniffi::Object)]
+pub struct RustDecision {
+    inner: nobodywho::decision::DecisionAsync,
+}
+
+fn decision_error(e: nobodywho::errors::DecisionError) -> NobodyWhoError {
+    NobodyWhoError::Error {
+        message: nobodywho::render_miette(&e),
+    }
+}
+
+#[uniffi::export]
+impl RustDecision {
+    /// Create a new decision handle for typed, non-generative decisions with a
+    /// Laya decision model. `n_ctx` is the context window (default 1024).
+    #[uniffi::constructor]
+    pub fn new(model: &RustModel, n_ctx: Option<u32>) -> Result<Arc<Self>, NobodyWhoError> {
+        let inner = nobodywho::decision::DecisionAsync::new(
+            Arc::clone(&model.inner),
+            n_ctx.unwrap_or(1024),
+        )
+        .map_err(decision_error)?;
+        Ok(Arc::new(Self { inner }))
+    }
+
+    /// Run one or more decisions over a state.
+    ///
+    /// `state_json` is a JSON-encoded string or JSON value (text, JSON object, ...).
+    /// `questions_json` is a JSON object mapping question names to
+    /// `{"type": "choice" | "score" | "noul", "instructions": ..., "criteria": ...}`.
+    /// Returns the `DecisionResponse` as a JSON string.
+    pub async fn decide(
+        &self,
+        state_json: String,
+        questions_json: String,
+    ) -> Result<String, NobodyWhoError> {
+        let request = nobodywho::decision::DecisionRequest {
+            state: serde_json::from_str(&state_json).map_err(|e| NobodyWhoError::Error {
+                message: format!("invalid state JSON: {e}"),
+            })?,
+            questions: serde_json::from_str(&questions_json).map_err(|e| {
+                NobodyWhoError::Error {
+                    message: format!("invalid questions JSON: {e}"),
+                }
+            })?,
+        };
+        let response = self.inner.decide(request).await.map_err(decision_error)?;
+        serde_json::to_string(&response).map_err(|e| NobodyWhoError::Error {
+            message: e.to_string(),
+        })
+    }
+}
+
 /// A cached `.gguf` model and its on-disk size.
 #[derive(uniffi::Record, Clone)]
 pub struct CachedModel {
