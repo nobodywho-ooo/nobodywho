@@ -1039,6 +1039,10 @@ pub enum InvalidHistoryError {
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum CompleteError {
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    InvalidHistory(#[from] InvalidHistoryError),
+
     #[error("Multimodal error: {0}")]
     Multimodal(#[from] MultimodalError),
 

@@ -3465,6 +3465,7 @@ dependencies = [
  "serde_json",
  "symphonia-bundle-mp3",
  "symphonia-core",
+ "sync_wrapper",
  "tempfile",
  "thiserror 2.0.20",
  "tokenizers",
