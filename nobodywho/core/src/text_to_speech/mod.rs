@@ -157,6 +157,10 @@ impl TextToSpeech {
         config: TextToSpeechConfig,
         device: TextToSpeechDevice,
     ) -> Result<Self, TextToSpeechError> {
+        // FIXME(madsmtm): ONNX Runtime is not yet available on Emscripten.
+        if cfg!(target_os = "emscripten") {
+            return Err(TextToSpeechError::WasmUnsupported);
+        }
         let mut architecture = architecture::load_architecture(config, device)?;
         let (msg_tx, msg_rx) = mpsc::channel::<SynthRequest>();
         let join = std::thread::spawn(move || {

@@ -326,6 +326,9 @@ impl WhisperBackend {
         }
         #[cfg(target_os = "emscripten")]
         {
+            let _ = window;
+            let _ = self.encoder;
+            let _ = self.n_mels;
             Err(SpeechToTextError::Transcription(
                 "encoding is not yet supported on Emscripten".into(),
             ))
