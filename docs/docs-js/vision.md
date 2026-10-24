@@ -69,15 +69,14 @@ const chat = await Chat.fromPath({
   projectionModelPath: "/path/to/mmproj.gguf",
 });
 
-const response = await chat
-  .ask(
-    new Prompt([
-      Prompt.Text("Tell me what you see in the image and what you hear in the audio."),
-      Prompt.Image("/path/to/dog.png"),
-      Prompt.Audio("/path/to/sound.mp3"),
-    ]),
-  )
-  .completed();
+const stream = await chat.ask(
+  new Prompt([
+    Prompt.Text("Tell me what you see in the image and what you hear in the audio."),
+    Prompt.Image("/path/to/dog.png"),
+    Prompt.Audio("/path/to/sound.mp3"),
+  ]),
+);
+const response = await stream.completed();
 ```
 
 That should be it! Beware though, that consuming images and audio can quickly drain the context,
@@ -89,18 +88,17 @@ and larger context sizes may be needed for smooth usage.
 is expressed as a list of content parts — the shape the OpenAI and Anthropic libraries use:
 
 ```typescript
-await chat
-  .complete([
-    {
-      role: "user",
-      content: [
-        { type: "text", text: "Tell me what you see in the image." },
-        { type: "image", path: "./dog.png" },
-        { type: "text", text: "Answer in one word." },
-      ],
-    },
-  ])
-  .completed();
+const stream = await chat.complete([
+  {
+    role: "user",
+    content: [
+      { type: "text", text: "Tell me what you see in the image." },
+      { type: "image", path: "./dog.png" },
+      { type: "text", text: "Answer in one word." },
+    ],
+  },
+]);
+await stream.completed();
 ```
 
 Parts are `{ type: "text", text }`, `{ type: "image", path }` and `{ type: "audio", path }`. The

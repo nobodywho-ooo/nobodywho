@@ -166,22 +166,22 @@ abstract class NobodyWhoApi extends BaseApi {
 
   String crateModelSource({required Model that});
 
-  RustTokenStream crateRustChatAsk({
+  Future<RustTokenStream> crateRustChatAsk({
     required RustChat that,
     required String message,
   });
 
-  RustTokenStream crateRustChatAskWithJsonPrompt({
+  Future<RustTokenStream> crateRustChatAskWithJsonPrompt({
     required RustChat that,
     required String json,
   });
 
-  RustTokenStream crateRustChatAskWithPrompt({
+  Future<RustTokenStream> crateRustChatAskWithPrompt({
     required RustChat that,
     required List<ContentPart> parts,
   });
 
-  RustTokenStream crateRustChatComplete({
+  Future<RustTokenStream> crateRustChatComplete({
     required RustChat that,
     required List<Message> messages,
     SamplerConfig? sampler = null,
@@ -1260,25 +1260,30 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       const TaskConstMeta(debugName: "Model_source", argNames: ["that"]);
 
   @override
-  RustTokenStream crateRustChatAsk({
+  Future<RustTokenStream> crateRustChatAsk({
     required RustChat that,
     required String message,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat(
             that,
             serializer,
           );
           sse_encode_String(message, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 15,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTokenStream,
-          decodeErrorData: null,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustChatAskConstMeta,
         argValues: [that, message],
@@ -1293,25 +1298,30 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   );
 
   @override
-  RustTokenStream crateRustChatAskWithJsonPrompt({
+  Future<RustTokenStream> crateRustChatAskWithJsonPrompt({
     required RustChat that,
     required String json,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat(
             that,
             serializer,
           );
           sse_encode_String(json, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 16,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTokenStream,
-          decodeErrorData: null,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustChatAskWithJsonPromptConstMeta,
         argValues: [that, json],
@@ -1327,25 +1337,30 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       );
 
   @override
-  RustTokenStream crateRustChatAskWithPrompt({
+  Future<RustTokenStream> crateRustChatAskWithPrompt({
     required RustChat that,
     required List<ContentPart> parts,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat(
             that,
             serializer,
           );
           sse_encode_list_content_part(parts, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTokenStream,
-          decodeErrorData: null,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustChatAskWithPromptConstMeta,
         argValues: [that, parts],
@@ -1360,16 +1375,16 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   );
 
   @override
-  RustTokenStream crateRustChatComplete({
+  Future<RustTokenStream> crateRustChatComplete({
     required RustChat that,
     required List<Message> messages,
     SamplerConfig? sampler = null,
     Map<String, bool>? templateVariables = null,
     List<RustTool>? tools = null,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat(
             that,
@@ -1385,7 +1400,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             tools,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 18,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -8903,13 +8923,13 @@ class RustChatImpl extends RustOpaque implements RustChat {
         NobodyWho.instance.api.rust_arc_decrement_strong_count_RustChatPtr,
   );
 
-  RustTokenStream ask(String message) =>
+  Future<RustTokenStream> ask(String message) =>
       NobodyWho.instance.api.crateRustChatAsk(that: this, message: message);
 
   /// Send a raw JSON prompt and get a stream of response tokens.
   /// The JSON string is parsed and passed as a structured content field.
   /// Called by the Dart SDK layer — the json argument is always valid JSON.
-  RustTokenStream askWithJsonPrompt({required String json}) => NobodyWho
+  Future<RustTokenStream> askWithJsonPrompt({required String json}) => NobodyWho
       .instance
       .api
       .crateRustChatAskWithJsonPrompt(that: this, json: json);
@@ -8918,10 +8938,11 @@ class RustChatImpl extends RustOpaque implements RustChat {
   ///
   /// Args:
   ///     parts: List of PromptPart (text or image) making up the prompt
-  RustTokenStream askWithPrompt({required List<ContentPart> parts}) => NobodyWho
-      .instance
-      .api
-      .crateRustChatAskWithPrompt(that: this, parts: parts);
+  Future<RustTokenStream> askWithPrompt({required List<ContentPart> parts}) =>
+      NobodyWho.instance.api.crateRustChatAskWithPrompt(
+        that: this,
+        parts: parts,
+      );
 
   /// Answer a full list of messages, replacing the chat history.
   ///
@@ -8933,7 +8954,7 @@ class RustChatImpl extends RustOpaque implements RustChat {
   ///
   /// The trailing arguments follow the same rule for the chat's other settings:
   /// what you pass stays set, what you leave out is kept.
-  RustTokenStream complete({
+  Future<RustTokenStream> complete({
     required List<Message> messages,
     SamplerConfig? sampler = null,
     Map<String, bool>? templateVariables = null,

@@ -44,11 +44,11 @@ type Part = TextPart | ImagePart | AudioPart;
  *   Prompt.Image("./penguin.png"),
  * ]);
  *
- * const stream = chat.ask(prompt);
+ * const stream = await chat.ask(prompt);
  *
  * // JSON-structured prompt
  * const jsonPrompt = Prompt.fromJson({ role: "user", content: "Hello" });
- * const stream = chat.ask(jsonPrompt);
+ * const stream = await chat.ask(jsonPrompt);
  * ```
  */
 export class Prompt {

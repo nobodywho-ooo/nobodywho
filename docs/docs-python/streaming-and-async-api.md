@@ -23,14 +23,15 @@ Still, bear in mind that for the individual tokens, you are waiting synchronousl
 
 ## Async API
 
-If you don't want to wait synchronously, swap out the `Chat` object for a `ChatAsync`. All of the API stays the same, so either you can opt for a full, completed message:
+If you don't want to wait synchronously, swap out the `Chat` object for a `ChatAsync`. The API stays the same, except that `ask()` and `complete()` must be awaited; they return the stream after prefilling the context, and raise straight away if prefill fails. Then either you can opt for a full, completed message:
 ```python
 import asyncio
 from nobodywho import ChatAsync
 
 async def main():
     chat = ChatAsync('./model.gguf')
-    response = await chat.ask('How are you?').completed()
+    stream = await chat.ask('How are you?')
+    response = await stream.completed()
     print(response)
 
 asyncio.run(main())
@@ -42,7 +43,7 @@ from nobodywho import ChatAsync
 
 async def main():
     chat = ChatAsync('./model.gguf')
-    response = chat.ask('How are you?')
+    response = await chat.ask('How are you?')
     async for token in response:
         print(token, end="", flush=True)
 

@@ -7,7 +7,7 @@ import NobodyWhoGenerated
 /// so it can be used with `for try await`.
 ///
 /// ```swift
-/// let stream = chat.ask("Hello!")
+/// let stream = try await chat.ask("Hello!")
 /// for try await token in stream {
 ///     print(token, terminator: "")
 /// }

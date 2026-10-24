@@ -54,7 +54,7 @@ async def test_async_model_loading():
 async def test_async_streaming(chat_async):
     """Test async streaming from demo_async.py"""
     prompt: str = "What is the capital of Denmark?"
-    token_stream: nobodywho.TokenStreamAsync = chat_async.ask(prompt)
+    token_stream: nobodywho.TokenStreamAsync = await chat_async.ask(prompt)
 
     tokens = []
     while token := await token_stream.next_token():
@@ -68,7 +68,7 @@ async def test_async_streaming(chat_async):
 @pytest.mark.asyncio
 async def test_async_completed(chat_async):
     """Test async complete from demo_async.py"""
-    response_stream: nobodywho.TokenStreamAsync = chat_async.ask(
+    response_stream: nobodywho.TokenStreamAsync = await chat_async.ask(
         "What is the capital of Denmark?"
     )
     response: str = await response_stream.completed()
@@ -80,7 +80,7 @@ async def test_async_completed(chat_async):
 @pytest.mark.asyncio
 async def test_async_iterator(chat_async):
     """Test async complete from demo_async.py"""
-    response_stream: nobodywho.TokenStreamAsync = chat_async.ask(
+    response_stream: nobodywho.TokenStreamAsync = await chat_async.ask(
         "What is the capital of Denmark?"
     )
     assert isinstance(response_stream, nobodywho.TokenStreamAsync)
@@ -103,7 +103,7 @@ async def test_multiple_prompts(chat_async):
     prompts = ["Hello", "What is 2+2?", "Goodbye"]
 
     for prompt in prompts:
-        response_stream: nobodywho.TokenStreamAsync = chat_async.ask(prompt)
+        response_stream: nobodywho.TokenStreamAsync = await chat_async.ask(prompt)
         response = await response_stream.completed()
         assert len(response) > 0
 
@@ -752,14 +752,21 @@ def test_complete_keeps_inline_system_message(chat):
 
 
 @pytest.mark.asyncio
+async def test_async_complete_rejects_invalid_messages(chat_async):
+    with pytest.raises(ValueError):
+        await chat_async.complete([])
+
+
+@pytest.mark.asyncio
 async def test_async_complete(chat_async):
     messages = [{"role": "user", "content": "What is the capital of Denmark?"}]
 
-    response = await chat_async.complete(messages).completed()
+    stream = await chat_async.complete(messages)
+    response = await stream.completed()
     assert "copenhagen" in response.lower()
 
     response_str = ""
-    async for token in chat_async.complete(messages):
+    async for token in await chat_async.complete(messages):
         response_str += token
     assert "copenhagen" in response_str.lower()
 

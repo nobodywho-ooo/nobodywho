@@ -126,15 +126,16 @@ impl NobodyWhoChat {
     }
 
     /// Start generating a response. `prompt` is a String or a
-    /// `NobodyWhoPrompt` (for multimodal input). Returns a per-call token
-    /// stream, or null on a bad prompt type (with a `godot_error!`).
+    /// `NobodyWhoPrompt` (for multimodal input). Resolves (await it) to a
+    /// per-call token stream after prefilling the context, or to null if the
+    /// prompt is invalid or prefill fails (with a
+    /// `godot_error!`).
     ///
     /// Pull tokens via `next_token()`, or await the full text via
     /// `completed()`.
     ///
-    /// Calling this from inside one of this chat's own tools queues the ask
-    /// behind the current generation — but do **not** await its stream from
-    /// inside the tool (the worker won't reach it until the tool returns).
+    /// Must not be called from inside one of this chat's own tools: the
+    /// worker can't start the turn until the tool returns.
     #[func]
     fn ask(&self, prompt: Variant) -> Variant {
         let core_prompt = match parse_prompt(&prompt) {
@@ -144,12 +145,20 @@ impl NobodyWhoChat {
                 return Variant::nil();
             }
         };
-        NobodyWhoTokenStream::wrap_chat(self.handle.ask(core_prompt)).to_variant()
+        let handle = self.handle.clone();
+        self.guarded("ask", async move {
+            let stream = handle
+                .ask(core_prompt)
+                .await
+                .map_err(|e| nobodywho::render_miette(&e))?;
+            Ok(NobodyWhoTokenStream::wrap_chat(stream).to_variant())
+        })
     }
 
-    /// Answer a full message list, which replaces the chat history. Returns
-    /// a per-call token stream like `ask()`, or null on a bad message list
-    /// (with a `godot_error!`).
+    /// Answer a full message list, which replaces the chat history. Resolves
+    /// (await it) to a per-call token stream like `ask()`, or to null on a bad
+    /// message list or if prefill fails (with a
+    /// `godot_error!`).
     ///
     /// `messages` is an Array of message dicts (`{role, content, ...}`). The
     /// list is the whole conversation: it must be non-empty and end in a user
@@ -195,13 +204,14 @@ impl NobodyWhoChat {
                 return Variant::nil();
             }
         };
-        match self.handle.complete(msgs, options) {
-            Ok(stream) => NobodyWhoTokenStream::wrap_chat(stream).to_variant(),
-            Err(e) => {
-                godot_error!("complete: {}", nobodywho::render_miette(&e));
-                Variant::nil()
-            }
-        }
+        let handle = self.handle.clone();
+        self.guarded("complete", async move {
+            let stream = handle
+                .complete(msgs, options)
+                .await
+                .map_err(|e| nobodywho::render_miette(&e))?;
+            Ok(NobodyWhoTokenStream::wrap_chat(stream).to_variant())
+        })
     }
 
     /// Stop the current generation early. Chat-scoped: with queued concurrent
@@ -753,7 +763,7 @@ fn build_core_tools(
 /// A thin lazy wrapper around core's `TokenStreamAsync` (mirrors the Python
 /// binding): the stream only advances when you pull.
 /// ```gdscript
-/// var stream = chat.ask("Tell me about Denmark.")
+/// var stream = await chat.ask("Tell me about Denmark.")
 /// while true:
 ///     var tok = await stream.next_token()   # String; null when done
 ///     if tok == null: break

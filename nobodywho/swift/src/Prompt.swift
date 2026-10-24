@@ -8,11 +8,11 @@ import NobodyWhoGenerated
 ///     Prompt.text("Tell me what you see."),
 ///     Prompt.image("./photo.png"),
 /// ])
-/// let stream = chat.ask(prompt)
+/// let stream = try await chat.ask(prompt)
 ///
 /// // JSON-structured prompt
 /// let jsonPrompt = try Prompt.fromJson(["role": "user", "content": "Hello"])
-/// let stream = chat.ask(jsonPrompt)
+/// let stream = try await chat.ask(jsonPrompt)
 /// ```
 public class Prompt {
     let parts: [NobodyWhoGenerated.ContentPart]?

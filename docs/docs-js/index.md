@@ -57,7 +57,8 @@ import { Chat } from "react-native-nobodywho";
 const chat = await Chat.fromPath({
   modelPath: "huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
 });
-const response = await chat.ask("Is water wet?").completed();
+const stream = await chat.ask("Is water wet?");
+const response = await stream.completed();
 console.log(response); // Yes, indeed, water is wet!
 ```
 

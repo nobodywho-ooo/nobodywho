@@ -34,7 +34,7 @@ var prompt = await NobodyWhoPrompt.create([
     NobodyWhoPrompt.text("What's in this picture?"),
     NobodyWhoPrompt.image("res://dog.png"),
 ])
-var stream = chat.ask(prompt)
+var stream = await chat.ask(prompt)
 print(await stream.completed())
 ```
 
@@ -81,7 +81,7 @@ For a single prompt, round-trip it explicitly:
 
 ```gdscript
 var prompt = await NobodyWhoPrompt.from_json(saved_prompt_dict)
-var stream = chat.ask(prompt)
+var stream = await chat.ask(prompt)
 ```
 
 :::info

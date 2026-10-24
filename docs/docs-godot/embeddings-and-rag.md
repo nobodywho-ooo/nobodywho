@@ -143,7 +143,8 @@ func answer_lore_question(question: String) -> String:
     await chat.set_system_prompt(
         "Answer questions using this lore: " + knowledge[best_idx]
     )
-    return await chat.ask(question).completed()
+    var stream = await chat.ask(question)
+    return await stream.completed()
 ```
 
 ## Recommended Models

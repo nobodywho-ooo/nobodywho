@@ -560,31 +560,48 @@ impl RustChat {
     }
 
     /// Send a message and get a token stream for the response.
-    pub fn ask(&self, message: String) -> Arc<RustTokenStream> {
+    pub async fn ask(&self, message: String) -> Result<Arc<RustTokenStream>, NobodyWhoError> {
         info!("RustChat::ask called with message: {}", message);
-        Arc::new(RustTokenStream {
-            inner: tokio::sync::Mutex::new(self.inner.ask(message)),
-        })
+        let stream = self
+            .inner
+            .ask(message)
+            .await
+            .map_err(|e| NobodyWhoError::Error {
+                message: nobodywho::render_miette(&e),
+            })?;
+        Ok(Arc::new(RustTokenStream {
+            inner: tokio::sync::Mutex::new(stream),
+        }))
     }
 
     /// Send a multimodal prompt (text + images/audio) and get a token stream.
     ///
     /// `parts` is an ordered list of `ContentPart` items.
     /// Image and audio parts should contain a local file-system path.
-    pub fn ask_with_prompt(&self, parts: Vec<ContentPart>) -> Arc<RustTokenStream> {
+    pub async fn ask_with_prompt(
+        &self,
+        parts: Vec<ContentPart>,
+    ) -> Result<Arc<RustTokenStream>, NobodyWhoError> {
         let prompt = nobodywho::tokenizer::Prompt::parts(
             parts.iter().map(uniffi_part_to_core).collect::<Vec<_>>(),
         );
-        Arc::new(RustTokenStream {
-            inner: tokio::sync::Mutex::new(self.inner.ask(prompt)),
-        })
+        let stream = self
+            .inner
+            .ask(prompt)
+            .await
+            .map_err(|e| NobodyWhoError::Error {
+                message: nobodywho::render_miette(&e),
+            })?;
+        Ok(Arc::new(RustTokenStream {
+            inner: tokio::sync::Mutex::new(stream),
+        }))
     }
 
     /// Send a JSON-encoded prompt and get a token stream.
     ///
     /// `json` must be a valid JSON string. The wrapper layer is responsible for
     /// serializing native objects (dicts, arrays, etc.) to JSON before calling this.
-    pub fn ask_with_json_prompt(
+    pub async fn ask_with_json_prompt(
         &self,
         json: String,
     ) -> Result<Arc<RustTokenStream>, NobodyWhoError> {
@@ -593,8 +610,15 @@ impl RustChat {
                 message: e.to_string(),
             })?;
         let prompt = nobodywho::tokenizer::Prompt::from_json(value);
+        let stream = self
+            .inner
+            .ask(prompt)
+            .await
+            .map_err(|e| NobodyWhoError::Error {
+                message: nobodywho::render_miette(&e),
+            })?;
         Ok(Arc::new(RustTokenStream {
-            inner: tokio::sync::Mutex::new(self.inner.ask(prompt)),
+            inner: tokio::sync::Mutex::new(stream),
         }))
     }
 
@@ -608,7 +632,7 @@ impl RustChat {
     /// is appended, and the next `ask` continues from there.
     ///
     /// `options` follows the same rule for the chat's other settings.
-    pub fn complete(
+    pub async fn complete(
         &self,
         messages: Vec<Message>,
         options: Options,
@@ -618,6 +642,7 @@ impl RustChat {
         let stream = self
             .inner
             .complete(core_messages?, uniffi_options_to_core(options))
+            .await
             .map_err(|e| NobodyWhoError::Error {
                 message: nobodywho::render_miette(&e),
             })?;

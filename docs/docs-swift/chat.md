@@ -70,15 +70,16 @@ The `chat.ask()` function is central to NobodyWho. This function sends your mess
 
 ```swift
 let chat = try await Chat.fromPath(modelPath: "/path/to/model.gguf")
-let response = chat.ask("Is water wet?")
+let response = try await chat.ask("Is water wet?")
 ```
 
-The return type of `ask` is a `TokenStream`, which conforms to `AsyncSequence`.
-If you want to start reading the response as soon as possible, you can iterate over it using `for await`.
+`ask` returns a `TokenStream` after prefilling the context, and throws if prefill fails.
+`TokenStream` conforms to `AsyncSequence`.
+If you want to start reading the response as soon as possible, you can iterate over it using `for try await`.
 Each token is either an individual word or a fragment of a word.
 
 ```swift
-for await token in response {
+for try await token in response {
     print(token, terminator: "")
 }
 ```
@@ -334,7 +335,7 @@ let chat = try await Chat.fromPath(
     modelPath: "/path/to/model.gguf",
     templateVariables: ["enable_thinking": true]
 )
-let response = chat.ask("Solve this logic puzzle: ...")
+let response = try await chat.ask("Solve this logic puzzle: ...")
 ```
 
 When `enable_thinking` is enabled, these models will show their reasoning process before providing the final answer.

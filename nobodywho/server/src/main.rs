@@ -395,6 +395,7 @@ async fn start_completion(
         state
             .chat
             .completion_stream(messages, options, Some(max_tokens), false)
+            .await
             .map_err(|error| (StatusCode::BAD_REQUEST, error.to_string()))?
     };
 

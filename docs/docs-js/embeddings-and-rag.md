@@ -176,7 +176,8 @@ const chat = await Chat.fromPath({
 });
 
 // The chat will automatically search the knowledge base when needed
-const response = await chat.ask("What is your return policy?").completed();
+const stream = await chat.ask("What is your return policy?");
+const response = await stream.completed();
 console.log(response);
 ```
 

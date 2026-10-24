@@ -244,7 +244,7 @@ for token in chat.ask("How are you?"):
     print(token, end="", flush=True)
 ```
 
-For non-blocking inference, swap `Chat` for `ChatAsync` — the API is identical, and you can `await` a full response or stream tokens with `async for`:
+For non-blocking inference, swap `Chat` for `ChatAsync` — the API is the same, except that `ask()` and `complete()` must be awaited to start the response. You can then `await` the full response or stream tokens with `async for`:
 
 ```python
 import asyncio
@@ -252,7 +252,7 @@ from nobodywho import ChatAsync
 
 async def main():
     chat = ChatAsync("./model.gguf")
-    async for token in chat.ask("How are you?"):
+    async for token in await chat.ask("How are you?"):
         print(token, end="", flush=True)
 
 asyncio.run(main())

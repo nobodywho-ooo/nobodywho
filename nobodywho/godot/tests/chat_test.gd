@@ -170,7 +170,7 @@ func _test_sampler_constraints(runner: Node, chat) -> void:
 	var regex_cfg := NobodyWhoSamplerBuilder.new().top_k(1).regex("zqxjvkw").dist()
 	await chat.set_sampler_config(regex_cfg)
 
-	var stream = chat.call("ask", "Please tell me what the capital city of Denmark is.")
+	var stream = await chat.call("ask", "Please tell me what the capital city of Denmark is.")
 	var response: String = await stream.call("completed")
 	if response == "zqxjvkw":
 		runner.ok("sampler_constraints: regex literal forced through top_k(1)")
@@ -189,7 +189,7 @@ func _test_sampler_constraints(runner: Node, chat) -> void:
 	var schema_cfg: Variant = NobodyWhoSamplerBuilder.new().json_schema(schema).temperature(0.8).dist()
 	await chat.set_sampler_config(schema_cfg)
 
-	stream = chat.call("ask", "Give me the capital of Denmark as JSON with a 'capital' field.")
+	stream = await chat.call("ask", "Give me the capital of Denmark as JSON with a 'capital' field.")
 	var json_response: String = await stream.call("completed")
 	var parsed = JSON.parse_string(json_response)
 	if parsed is Dictionary and parsed.has("capital"):
@@ -200,7 +200,7 @@ func _test_sampler_constraints(runner: Node, chat) -> void:
 	# Bare json() preset — any valid JSON object.
 	await chat.reset_history()
 	await chat.set_sampler_config(NobodyWhoSamplerPresets.json())
-	stream = chat.ask("Give me the capital of Denmark as a JSON object.")
+	stream = await chat.ask("Give me the capital of Denmark as a JSON object.")
 	var any_json = JSON.parse_string(await stream.completed())
 	if any_json is Dictionary:
 		runner.ok("sampler_constraints: json() preset gave valid JSON")
@@ -214,7 +214,7 @@ func _test_sampler_constraints(runner: Node, chat) -> void:
 		await chat.set_sampler_config(NobodyWhoSamplerPresets.greedy())
 
 		# Control: with no bias, counting emits the " 3" token.
-		stream = chat.ask("Count from 1 to 5, separated by spaces.")
+		stream = await chat.ask("Count from 1 to 5, separated by spaces.")
 		var control: String = await stream.completed()
 		var control_ids = await chat.tokenize(control)
 		if not (control_ids as Array).has(three_ids[0]):
@@ -230,7 +230,7 @@ func _test_sampler_constraints(runner: Node, chat) -> void:
 			return
 		await chat.set_sampler_config(lb_builder.greedy())
 		await chat.reset_history()
-		stream = chat.ask("Count from 1 to 5, separated by spaces.")
+		stream = await chat.ask("Count from 1 to 5, separated by spaces.")
 		var banned_response: String = await stream.completed()
 		var banned_ids = await chat.tokenize(banned_response)
 		if not (banned_ids as Array).has(three_ids[0]):
@@ -247,7 +247,7 @@ func _test_sampler_constraints(runner: Node, chat) -> void:
 			.top_n_sigma(1.5) \
 			.dist()
 	await chat.set_sampler_config(dt_cfg)
-	stream = chat.ask("Say one word.")
+	stream = await chat.ask("Say one word.")
 	var _dt_response: String = await stream.completed()
 	runner.ok("sampler_constraints: dynamic_temperature + top_n_sigma chain generated")
 
@@ -261,7 +261,7 @@ func _test_complete(runner: Node, chat) -> void:
 	# A leading system message becomes the system prompt; the list is the
 	# whole conversation, and the response is appended to it.
 	await chat.reset_history()
-	var stream = chat.complete([
+	var stream = await chat.complete([
 		{"role": "system", "content": "You answer with a single word."},
 		{"role": "user", "content": "What is the capital of France?"},
 	], {})
@@ -285,7 +285,7 @@ func _test_complete(runner: Node, chat) -> void:
 		runner.fail("complete: history wrong after complete (prompt=%s): %s" % [prompt, str(hist)])
 
 	# Per-turn settings: pass a sampler, it stays set after the turn.
-	stream = chat.complete(
+	stream = await chat.complete(
 		[{"role": "user", "content": "Name one fruit."}],
 		{"sampler": NobodyWhoSamplerPresets.temperature(0.456)},
 	)
@@ -302,7 +302,7 @@ func _test_complete(runner: Node, chat) -> void:
 
 	# An empty list is rejected (the godot_error! is the expected noise).
 	await chat.reset_history()
-	var bad = chat.complete([], {})
+	var bad = await chat.complete([], {})
 	if bad == null:
 		runner.ok("complete: rejects an empty message list")
 	else:

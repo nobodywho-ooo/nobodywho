@@ -374,23 +374,19 @@ interface NativeModuleInterface {
   ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask(
     uniffiSelf: bigint,
     message: Uint8Array,
-    uniffi_out_err: UniffiRustCallStatus,
   ): bigint;
   ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(
     uniffiSelf: bigint,
     json: Uint8Array,
-    uniffi_out_err: UniffiRustCallStatus,
   ): bigint;
   ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(
     uniffiSelf: bigint,
     parts: Uint8Array,
-    uniffi_out_err: UniffiRustCallStatus,
   ): bigint;
   ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_complete(
     uniffiSelf: bigint,
     messages: Uint8Array,
     options: Uint8Array,
-    uniffi_out_err: UniffiRustCallStatus,
   ): bigint;
   ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(
     uniffiSelf: bigint,

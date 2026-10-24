@@ -253,18 +253,18 @@ abstract class Model implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>>
 abstract class RustChat implements RustOpaqueInterface {
-  RustTokenStream ask(String message);
+  Future<RustTokenStream> ask(String message);
 
   /// Send a raw JSON prompt and get a stream of response tokens.
   /// The JSON string is parsed and passed as a structured content field.
   /// Called by the Dart SDK layer — the json argument is always valid JSON.
-  RustTokenStream askWithJsonPrompt({required String json});
+  Future<RustTokenStream> askWithJsonPrompt({required String json});
 
   /// Send a multimodal prompt (text + images) and get a stream of response tokens.
   ///
   /// Args:
   ///     parts: List of PromptPart (text or image) making up the prompt
-  RustTokenStream askWithPrompt({required List<ContentPart> parts});
+  Future<RustTokenStream> askWithPrompt({required List<ContentPart> parts});
 
   /// Answer a full list of messages, replacing the chat history.
   ///
@@ -276,7 +276,7 @@ abstract class RustChat implements RustOpaqueInterface {
   ///
   /// The trailing arguments follow the same rule for the chat's other settings:
   /// what you pass stays set, what you leave out is kept.
-  RustTokenStream complete({
+  Future<RustTokenStream> complete({
     required List<Message> messages,
     SamplerConfig? sampler = null,
     Map<String, bool>? templateVariables = null,

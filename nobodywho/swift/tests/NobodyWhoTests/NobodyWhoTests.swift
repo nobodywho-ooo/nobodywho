@@ -74,7 +74,7 @@ final class NobodyWhoTests: XCTestCase {
         // Streaming
         try await chat.resetContext(systemPrompt: "Reply briefly.")
         var tokens: [String] = []
-        for try await token in chat.ask("Say hi") {
+        for try await token in try await chat.ask("Say hi") {
             tokens.append(token)
         }
         XCTAssertFalse(tokens.isEmpty)
@@ -120,12 +120,15 @@ final class NobodyWhoTests: XCTestCase {
         XCTAssertEqual(history.count, messages.count + 1)
 
         // An invalid conversation is rejected at the call site
-        XCTAssertThrowsError(
-            try chat.complete([
+        do {
+            _ = try await chat.complete([
                 .user("Hi"),
                 .assistant("Aye, "),
             ])
-        )
+            XCTFail("Expected a trailing assistant message to be rejected")
+        } catch {
+            // expected
+        }
 
         // Options stick: what they set stays set, what they omit is kept
         _ = try await chat.complete(

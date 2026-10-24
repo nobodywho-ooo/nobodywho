@@ -95,9 +95,8 @@ const chat = await Chat.fromPath({
   tools: [getCurrentDirTool, listFilesTool, getFileSizeTool],
 });
 
-const response = await chat
-  .ask("What is the biggest file in my current directory?")
-  .completed();
+const stream = await chat.ask("What is the biggest file in my current directory?");
+const response = await stream.completed();
 console.log(response);
 ```
 

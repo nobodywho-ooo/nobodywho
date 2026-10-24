@@ -1086,6 +1086,10 @@ pub enum InvalidHistoryError {
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum CompleteError {
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    InvalidHistory(#[from] InvalidHistoryError),
+
     #[error("Multimodal error: {0}")]
     Multimodal(#[from] MultimodalError),
 
@@ -1277,5 +1281,5 @@ pub enum CompletionError {
 
     #[error(transparent)]
     #[diagnostic(transparent)]
-    WorkerError(Box<dyn miette::Diagnostic + Send + Sync + 'static>),
+    GenerateResponse(GenerateResponseError),
 }

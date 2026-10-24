@@ -125,7 +125,7 @@ func _test_vision(runner: Node) -> void:
 	await _test_history_path_resolution(runner, chat, image_path)
 
 	# Bad-type dispatch: ask(123) and tokenize(123) return null + godot_error!.
-	var bad_ask = chat.ask(123)
+	var bad_ask = await chat.ask(123)
 	if bad_ask == null:
 		runner.ok("prompt vision: ask(non-string/non-prompt) returns null")
 	else:
@@ -139,7 +139,7 @@ func _test_vision(runner: Node) -> void:
 
 	# Text-only prompt via NobodyWhoPrompt behaves like a plain string ask.
 	var text_prompt = NobodyWhoPrompt.create([NobodyWhoPrompt.text("Say only the word: hello")])
-	var stream = chat.ask(text_prompt)
+	var stream = await chat.ask(text_prompt)
 	if stream == null:
 		runner.fail("prompt vision: text-only ask(prompt) returned null")
 		return
@@ -170,7 +170,7 @@ func _test_vision(runner: Node) -> void:
 		runner.fail("prompt vision: tokenize(image prompt) expected Array, got %s" % str(ids))
 
 	# Full multimodal generation. Loose check: non-empty response.
-	var vstream = chat.ask(img_prompt)
+	var vstream = await chat.ask(img_prompt)
 	if vstream == null:
 		runner.fail("prompt vision: multimodal ask returned null")
 		return

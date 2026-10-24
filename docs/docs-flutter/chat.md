@@ -35,10 +35,10 @@ The `Chat.ask()` function is central to NobodyWho. This function sends your mess
 ```dart
 import "dart:io"
 final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
-final response = chat.ask("Is water wet?");
+final response = await chat.ask("Is water wet?");
 ```
 
-The return type of `ask` is a `TokenStream`.
+`ask` returns a `Future<TokenStream>`, which completes after prefilling the context, and throws if prefill fails.
 If you want to start reading the response as soon as possible, you can just iterate over the `TokenStream`.
 Each token is either an individual word or fragments of a word.
 
@@ -319,7 +319,7 @@ final chat = await nobodywho.Chat.fromPath(
   modelPath: "./model.gguf",
   templateVariables: {"enable_thinking": true}
 );
-final response = chat.ask("Solve this logic puzzle: ...");
+final response = await chat.ask("Solve this logic puzzle: ...");
 ```
 
 When `enable_thinking` is enabled, these models will show their reasoning process before providing the final answer.

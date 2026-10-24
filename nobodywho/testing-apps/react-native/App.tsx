@@ -65,7 +65,8 @@ async function runChecks(): Promise<void> {
   const chat = await openChat();
 
   // Completion
-  const response = await chat.ask('Say hello').completed();
+  let stream = await chat.ask('Say hello');
+  const response = await stream.completed();
   if (!response) {
     throw new Error('completion was empty');
   }
@@ -73,7 +74,7 @@ async function runChecks(): Promise<void> {
   // Streaming
   await chat.resetContext({systemPrompt: 'Reply briefly.'});
   let tokenCount = 0;
-  for await (const _token of chat.ask('Say hi')) {
+  for await (const _token of await chat.ask('Say hi')) {
     tokenCount++;
   }
   if (tokenCount === 0) {
@@ -91,7 +92,8 @@ async function runChecks(): Promise<void> {
     systemPrompt: 'Use the ping tool now.',
     tools: [pingTool],
   });
-  await chat.ask('Ping the server').completed();
+  stream = await chat.ask('Ping the server');
+  await stream.completed();
 
   const history = await chat.getChatHistory();
   const toolMessage = history.find(m => m.role === 'tool');
@@ -106,17 +108,17 @@ async function runChecks(): Promise<void> {
   assertEquals(content, 'pong', 'tool response');
 
   // Completion options stick, and are kept by a call that omits them
-  await chat
-    .complete([{role: 'user', content: 'Say hi.'}], {
-      templateVariables: {enable_thinking: true},
-    })
-    .completed();
+  stream = await chat.complete([{role: 'user', content: 'Say hi.'}], {
+    templateVariables: {enable_thinking: true},
+  });
+  await stream.completed();
   assertEquals(
     (await chat.getTemplateVariables()).enable_thinking,
     true,
     'complete() options did not set the template variable',
   );
-  await chat.complete([{role: 'user', content: 'Say hi again.'}]).completed();
+  stream = await chat.complete([{role: 'user', content: 'Say hi again.'}]);
+  await stream.completed();
   assertEquals(
     (await chat.getTemplateVariables()).enable_thinking,
     true,

@@ -988,6 +988,7 @@ mod tests {
         chat.set_sampler_config(cfg).expect("set sampler config");
         let response = chat
             .ask("Say hello.")
+            .unwrap()
             .completed()
             .expect("generation with grammar-first unlikely literal failed");
 
@@ -1010,6 +1011,7 @@ mod tests {
             .expect("set sampler config");
         let response = chat
             .ask("Return {\"hello\": \"world\"}.")
+            .unwrap()
             .completed()
             .expect("generation with json preset failed");
 
@@ -1101,6 +1103,7 @@ mod tests {
         chat.set_sampler_config(cfg).expect("set sampler config");
         let response = chat
             .ask("Say hello.")
+            .unwrap()
             .completed()
             .expect("generation with a builder-added constraint failed");
 

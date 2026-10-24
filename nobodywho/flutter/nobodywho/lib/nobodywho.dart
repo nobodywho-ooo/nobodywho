@@ -47,7 +47,7 @@ final class AudioPart extends PromptPart {
 /// Example:
 /// ```dart
 /// final prompt = Prompt([TextPart("Describe this image:"), ImagePart("/path/to/img.jpg")]);
-/// final stream = chat.ask(prompt);
+/// final stream = await chat.askWithPrompt(prompt);
 /// ```
 class Prompt {
   final List<PromptPart> parts;
@@ -588,6 +588,13 @@ class TokenStream extends Stream<String> {
   Future<String> completed() => _tokenStream.completed();
 }
 
+/// Lets `await chat.ask("...").completed()` be written without first awaiting
+/// the [TokenStream] itself.
+extension FutureTokenStream on Future<TokenStream> {
+  /// Wait for the response to start, then for the complete response.
+  Future<String> completed() async => (await this).completed();
+}
+
 // Wrapper for the RustChat class. This is necessary to use the functionality
 // gained by wrapping RustTool and RustTokenStream.
 class Chat {
@@ -695,25 +702,27 @@ class Chat {
 
   /// Ask with a text and get a stream of response tokens.
   ///
+  /// Completes after prefilling the context, or throws if prefill fails.
+  ///
   /// ```dart
-  /// chat.ask("Hello!")
+  /// await chat.ask("Hello!")
   /// ```
-  TokenStream ask(String message) {
-    return TokenStream._(_chat.ask(message));
+  Future<TokenStream> ask(String message) async {
+    return TokenStream._(await _chat.ask(message));
   }
 
   /// Ask with a text or a multimodal prompt (text and/or images) and get a stream of
   /// response tokens.
   ///
   /// ```dart
-  /// chat.askWithPrompt(Prompt([TextPart("Describe this image"), ImagePart("photo.jpg")]))
+  /// await chat.askWithPrompt(Prompt([TextPart("Describe this image"), ImagePart("photo.jpg")]))
   /// ```
-  TokenStream askWithPrompt(Prompt prompt) {
+  Future<TokenStream> askWithPrompt(Prompt prompt) async {
     if (prompt._jsonString case final json?) {
-      return TokenStream._(_chat.askWithJsonPrompt(json: json));
+      return TokenStream._(await _chat.askWithJsonPrompt(json: json));
     }
     return TokenStream._(
-      _chat.askWithPrompt(parts: _convertPromptParts(prompt.parts)),
+      await _chat.askWithPrompt(parts: _convertPromptParts(prompt.parts)),
     );
   }
 
@@ -729,20 +738,23 @@ class Chat {
   /// The named arguments follow the same rule for the chat's other settings:
   /// what you pass stays set, what you leave out is kept.
   ///
+  /// Completes after prefilling the context, or throws if the message list is
+  /// invalid or prefill fails.
+  ///
   /// ```dart
-  /// chat.complete([
+  /// await chat.complete([
   ///   userMessage("Who first walked on the moon?"),
   ///   assistantMessage("Neil Armstrong."),
   ///   userMessage("Which year?"),
   /// ], templateVariables: {"enable_thinking": false})
   /// ```
-  TokenStream complete(
+  Future<TokenStream> complete(
     List<nobodywho.Message> messages, {
     nobodywho.SamplerConfig? sampler,
     Map<String, bool>? templateVariables,
     List<Tool>? tools,
-  }) {
-    return TokenStream._(_chat.complete(
+  }) async {
+    return TokenStream._(await _chat.complete(
       messages: messages,
       sampler: sampler,
       templateVariables: templateVariables,

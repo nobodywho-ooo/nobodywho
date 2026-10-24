@@ -93,12 +93,13 @@ const chat = await Chat.fromPath({
 });
 
 // Stream tokens
-for await (const token of chat.ask("Is water wet?")) {
+for await (const token of await chat.ask("Is water wet?")) {
   console.log(token);
 }
 
 // Or get the full response
-const response = await chat.ask("Is water wet?").completed();
+const stream = await chat.ask("Is water wet?");
+const response = await stream.completed();
 ```
 
 See the [Chat documentation](https://docs.nobodywho.ooo/js/chat/) for details.
@@ -128,7 +129,8 @@ const chat = await Chat.fromPath({
   tools: [getWeather],
 });
 
-const response = await chat.ask("What's the weather in Paris?").completed();
+const stream = await chat.ask("What's the weather in Paris?");
+const response = await stream.completed();
 ```
 
 See the [Tool Calling documentation](https://docs.nobodywho.ooo/js/tool-calling/) for more.
@@ -171,15 +173,14 @@ const chat = await Chat.fromPath({
   projectionModelPath: "/path/to/mmproj.gguf",
 });
 
-const response = await chat
-  .ask(
-    new Prompt([
-      Prompt.Text("Tell me what you see in the image and what you hear in the audio."),
-      Prompt.Image("/path/to/dog.png"),
-      Prompt.Audio("/path/to/sound.mp3"),
-    ]),
-  )
-  .completed();
+const stream = await chat.ask(
+  new Prompt([
+    Prompt.Text("Tell me what you see in the image and what you hear in the audio."),
+    Prompt.Image("/path/to/dog.png"),
+    Prompt.Audio("/path/to/sound.mp3"),
+  ]),
+);
+const response = await stream.completed();
 ```
 
 You can pass multiple images/audio files and interleave text between them. If the model performs poorly, try reordering the text, audio and image parts — this can make a noticeable difference. If images consume too much context, increase `contextSize` or preprocess images with compression.

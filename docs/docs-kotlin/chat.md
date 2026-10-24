@@ -37,7 +37,7 @@ val chat = Chat.fromPath(modelPath = "./model.gguf")
 val stream = chat.ask("Is water wet?")
 ```
 
-The return type is a `TokenStream`. If you want to read the response as it generates, collect it as a Flow:
+`ask` is a `suspend` function: it returns a `TokenStream` after prefilling the context, and throws if prefill fails. If you want to read the response as it generates, collect it as a Flow:
 
 ```kotlin
 chat.ask("Is water wet?").asFlow().collect { token ->
