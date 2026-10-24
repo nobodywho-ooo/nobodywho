@@ -51,7 +51,6 @@ symphonia-bundle-mp3 = { version = "0.5", default-features = false, features = [
     "mp3",
 ] }
 rubato = "0.16"
-mel_spec = "0.4"
 tokenizers = { version = "0.23.2", default-features = false, features = [
     "onig",
 ] }
@@ -132,6 +131,7 @@ dirs = "7.0.0"
 [target.'cfg(not(target_os = "emscripten"))'.dependencies]
 tokio = { version = "1.43.0", features = ["rt-multi-thread"] }
 ureq = { version = "3", features = ["rustls"] }
+mel_spec = "0.4" # FIXME(madsmtm): Make this compile on Emscripten
 
 # Unifies host bitflags features (uniffi enables `std`) so llama-cpp-sys-2 is only built once.
 [build-dependencies]

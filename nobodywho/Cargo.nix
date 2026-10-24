@@ -11210,6 +11210,7 @@ rec {
           {
             name = "mel_spec";
             packageId = "mel_spec";
+            target = { target, features }: (!("emscripten" == target."os" or null));
           }
           {
             name = "miette";

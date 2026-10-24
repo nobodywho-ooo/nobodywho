@@ -10,7 +10,6 @@
 use crate::errors::{HuggingFaceError, SpeechToTextError};
 use crate::onnx::Device;
 use crate::speech_to_text::architecture::SpeechToTextArchitectureImpl;
-use mel_spec::prelude::*;
 use ort::memory::Allocator;
 use ort::session::Session;
 use ort::value::{DynValue, Tensor};
@@ -315,12 +314,22 @@ impl WhisperBackend {
     // -----------------------------------------------------------------------
 
     fn encode(&mut self, window: &[f32]) -> Result<Vec<f32>, SpeechToTextError> {
-        let mel = compute_mel(window, self.n_mels);
-        let features = Tensor::from_array(([1usize, self.n_mels, N_MEL_FRAMES], mel))?;
-        let enc_out = self
-            .encoder
-            .run(ort::inputs!["input_features" => features])?;
-        Ok(enc_out[0].try_extract_tensor::<f32>()?.1.to_vec())
+        // FIXME(madsmtm): Make `mel_spec` compile on Emscripten
+        #[cfg(not(target_os = "emscripten"))]
+        {
+            let mel = compute_mel(window, self.n_mels);
+            let features = Tensor::from_array(([1usize, self.n_mels, N_MEL_FRAMES], mel))?;
+            let enc_out = self
+                .encoder
+                .run(ort::inputs!["input_features" => features])?;
+            Ok(enc_out[0].try_extract_tensor::<f32>()?.1.to_vec())
+        }
+        #[cfg(target_os = "emscripten")]
+        {
+            Err(SpeechToTextError::Transcription(
+                "encoding is not yet supported on Emscripten".into(),
+            ))
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -505,8 +514,11 @@ fn token_id(tokenizer: &Tokenizer, token: &str) -> Result<u32, SpeechToTextError
     })
 }
 
+#[cfg(not(target_os = "emscripten"))]
 fn compute_mel(window: &[f32], n_mels: usize) -> Vec<f32> {
-    let mel = Spectrogram::compute_mel_spectrogram_cpu(window, 400, 160, n_mels, 16_000.0);
+    let mel = mel_spec::stft::Spectrogram::compute_mel_spectrogram_cpu(
+        window, 400, 160, n_mels, 16_000.0,
+    );
     let n_frames = mel.len().min(N_MEL_FRAMES);
     let mut out = vec![0.0f32; n_mels * N_MEL_FRAMES];
     for t in 0..n_frames {
