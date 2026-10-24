@@ -10823,6 +10823,13 @@ rec {
             features = [ "cuda" ];
           }
           {
+            name = "ort";
+            packageId = "ort";
+            usesDefaultFeatures = false;
+            target = { target, features }: ("emscripten" == target."os" or null);
+            features = [ "alternative-backend" ];
+          }
+          {
             name = "rand";
             packageId = "rand 0.10.3";
           }
@@ -12061,7 +12068,7 @@ rec {
           "webgpu" = [ "ort-sys/webgpu" ];
           "xnnpack" = [ "ort-sys/xnnpack" ];
         };
-        resolvedDefaultFeatures = [ "api-17" "api-18" "api-19" "api-20" "copy-dylibs" "cuda" "download-binaries" "ndarray" "std" "tls-rustls" "tls-rustls-no-provider" "tracing" ];
+        resolvedDefaultFeatures = [ "alternative-backend" "api-17" "api-18" "api-19" "api-20" "copy-dylibs" "cuda" "download-binaries" "ndarray" "std" "tls-rustls" "tls-rustls-no-provider" "tracing" ];
       };
       "ort-sys" = rec {
         crateName = "ort-sys";
@@ -12119,7 +12126,7 @@ rec {
           "tls-rustls-no-provider" = [ "__tls" "ureq?/rustls-no-provider" ];
           "webgpu" = [ "dep:glob" ];
         };
-        resolvedDefaultFeatures = [ "__tls" "api-17" "api-18" "api-19" "api-20" "copy-dylibs" "cuda" "download-binaries" "std" "tls-rustls" "tls-rustls-no-provider" ];
+        resolvedDefaultFeatures = [ "__tls" "api-17" "api-18" "api-19" "api-20" "copy-dylibs" "cuda" "disable-linking" "download-binaries" "std" "tls-rustls" "tls-rustls-no-provider" ];
       };
       "os_display" = rec {
         crateName = "os_display";

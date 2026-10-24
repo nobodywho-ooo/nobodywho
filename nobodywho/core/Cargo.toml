@@ -133,6 +133,12 @@ dirs = "7.0.0"
 tokio = { version = "1.43.0", features = ["rt-multi-thread"] }
 ureq = { version = "3", features = ["rustls"] }
 
+[target.'cfg(target_os = "emscripten")'.dependencies]
+# FIXME(madsmtm): Use `ort-web` or compile ONNX for Emscripten (possibly pre-compiled by ort-sys too?)
+#
+# For now, we just disable it. This will fail at runtime if the user calls any of these APIs.
+ort = { version = "=2.0.0-rc.15", default-features = false, features = ["alternative-backend"] }
+
 # Unifies host bitflags features (uniffi enables `std`) so llama-cpp-sys-2 is only built once.
 [build-dependencies]
 bitflags = { version = "2", features = ["std"] }
