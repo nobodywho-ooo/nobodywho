@@ -8,7 +8,7 @@ misaki-rs = { version = "0.6.0", default-features = false }
 encoding_rs = "0.8.34"
 thiserror = "2.0.3"
 miette = { version = "7.6.0", features = ["fancy"] }
-minijinja = { version = "2.11.0", features = ["builtins", "json", "loader"] }
+minijinja = { version = "2.11.0", features = ["builtins", "json", "loader", "preserve_order"] }
 minijinja-contrib = { version = "2.11.0", features = ["pycompat"] }
 monty = "0.0.23"
 monty-types = "0.0.23"
@@ -34,12 +34,12 @@ tokio-stream = "0.1.17"
 tracing = { version = "0.1.41", features = ["log"] }
 tracing-subscriber = "0.3.19"
 regex = "1.11.1"
-serde_json = "1.0.140"
+serde_json = { version = "1.0.140", features = ["preserve_order"] }
 nom = "8.0.0"
 rand = "0.10.2"
 futures = "0.3.31"
 ahash = "0.8.12"
-indexmap = "2.13.0"
+indexmap = { version = "2.13.0", features = ["serde"] }
 ureq = { version = "3", features = ["rustls"] }
 indicatif = "0.18"
 walkdir = "2.5"

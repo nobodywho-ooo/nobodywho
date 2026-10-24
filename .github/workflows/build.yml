@@ -163,17 +163,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      - name: Free disk space for Windows builds
+        shell: pwsh
+        run: |
+          # These desktop builds do not use the preinstalled Android SDK/NDKs.
+          if (Test-Path -LiteralPath 'C:\Android') {
+            Remove-Item -LiteralPath 'C:\Android' -Recurse -Force
+          }
+          Get-PSDrive -Name C
+
       - name: "Cache Cargo Home"
         uses: actions/cache@v5
         with:
           # The build moves sources to C:/ and compiles into --target-dir C:/t
           # (see the build step). Cache C:/t, not nobodywho/target (empty here).
+          # Only restore an exact lockfile match: old artifacts plus a rebuild
+          # exhaust the Windows runner's disk, especially with Flutter and ORT.
           path: |
             ~/.cargo
             C:/t
           key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
