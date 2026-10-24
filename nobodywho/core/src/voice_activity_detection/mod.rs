@@ -78,6 +78,10 @@ impl VoiceActivityDetection {
         config: VoiceActivityDetectionConfig,
         device: Device,
     ) -> Result<Self, VoiceActivityDetectionError> {
+        // FIXME(madsmtm): ONNX Runtime is not yet available on Emscripten.
+        if cfg!(target_os = "emscripten") {
+            return Err(VoiceActivityDetectionError::WasmUnsupported);
+        }
         if config.sample_rate == 0 {
             return Err(VoiceActivityDetectionError::Init(
                 "sample_rate must be non-zero".into(),
