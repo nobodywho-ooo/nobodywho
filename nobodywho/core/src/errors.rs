@@ -800,6 +800,11 @@ pub enum TextToSpeechError {
     #[diagnostic(code(nobodywho::tts_invalid_config))]
     InvalidConfig { message: String },
 
+    // ── Platform support ─────────────────────────────────────────────
+    #[error("TextToSpeech is not supported on WebAssembly")]
+    #[diagnostic(code(nobodywho::tts_wasm_unsupported))]
+    WasmUnsupported,
+
     // ── Worker thread plumbing ───────────────────────────────────────
     #[error("TextToSpeech worker thread is no longer running")]
     #[diagnostic(code(nobodywho::tts_worker_dead))]
@@ -832,6 +837,9 @@ pub enum SpeechToTextError {
     #[error("Error initializing SpeechToText: {0}")]
     Init(String),
 
+    #[error("SpeechToText is not supported on WebAssembly")]
+    WasmUnsupported,
+
     #[error("Error during transcription: {0}")]
     Transcription(String),
 
@@ -854,6 +862,9 @@ impl From<HuggingFaceError> for SpeechToTextError {
 pub enum VoiceActivityDetectionError {
     #[error("Error initializing VAD: {0}")]
     Init(String),
+
+    #[error("Voice activity detection is not supported on WebAssembly")]
+    WasmUnsupported,
 
     #[error("ONNX Runtime error: {0}")]
     Ort(#[from] ort::Error),

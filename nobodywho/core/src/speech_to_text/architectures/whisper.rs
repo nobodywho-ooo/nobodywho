@@ -10,7 +10,6 @@
 use crate::errors::{HuggingFaceError, SpeechToTextError};
 use crate::onnx::Device;
 use crate::speech_to_text::architecture::SpeechToTextArchitectureImpl;
-use mel_spec::prelude::*;
 use ort::memory::Allocator;
 use ort::session::Session;
 use ort::value::{DynValue, Tensor};
@@ -506,7 +505,9 @@ fn token_id(tokenizer: &Tokenizer, token: &str) -> Result<u32, SpeechToTextError
 }
 
 fn compute_mel(window: &[f32], n_mels: usize) -> Vec<f32> {
-    let mel = Spectrogram::compute_mel_spectrogram_cpu(window, 400, 160, n_mels, 16_000.0);
+    let mel = mel_spec::stft::Spectrogram::compute_mel_spectrogram_cpu(
+        window, 400, 160, n_mels, 16_000.0,
+    );
     let n_frames = mel.len().min(N_MEL_FRAMES);
     let mut out = vec![0.0f32; n_mels * N_MEL_FRAMES];
     for t in 0..n_frames {
