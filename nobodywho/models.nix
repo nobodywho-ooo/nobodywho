@@ -11,6 +11,11 @@ rec
     url = "https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf";
     sha256 = "sha256-7Djo2hQllrqpExJK5QVQ3ihLaRa/WVd+8vDLlmDC9RQ=";
   };
+  TEST_DECISION_MODEL = fetchurl {
+    name = "Laya-Q8_0.gguf";
+    url = "https://huggingface.co/ggml-org/Laya-GGUF/resolve/845f314dd047fc2444a5289a4d50c1e1d59e27e1/Laya-Q8_0.gguf";
+    sha256 = "sha256-wGUoxXRtO7i6pyonk4vpWrv9CyJvhHHoqeNl7QuwZtI=";
+  };
   TEST_CROSSENCODER_MODEL = fetchurl {
     name = "bge-reranker-v2-m3-Q8_0.gguf";
     url = "https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf";

@@ -391,8 +391,8 @@ Instantiating `Model` is also useful, when enabling GPU acceleration. This can b
 ```python
 Model('./model.gguf', use_gpu_if_available=True)
 ```
-So far, NobodyWho relies purely on [Vulkan](https://www.vulkan.org), however support
-of more architectures is planned (for details check out our [issues](https://github.com/nobodywho-ooo/nobodywho/issues) or join us on [Discord](https://discord.gg/qhaMc2qCYB)).
+NobodyWho supports [Vulkan](https://www.vulkan.org) and Metal, depending on
+the platform and build (for details check out our [issues](https://github.com/nobodywho-ooo/nobodywho/issues) or join us on [Discord](https://discord.gg/qhaMc2qCYB)).
 
 ## Speculative decoding (MTP)
 

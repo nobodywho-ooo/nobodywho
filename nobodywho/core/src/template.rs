@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use llama_cpp_2::mtmd::MtmdBitmap;
-use minijinja::{Environment, Template, Value};
+use minijinja::{Environment, Template};
 use regex::Regex;
 use tracing::{debug, trace, warn};
 
@@ -17,7 +17,7 @@ fn strftime_now(format_str: &str) -> String {
     chrono::Local::now().format(format_str).to_string()
 }
 
-static MINIJINJA_ENV: LazyLock<Environment> = LazyLock::new(|| {
+pub(crate) static MINIJINJA_ENV: LazyLock<Environment> = LazyLock::new(|| {
     let mut env = Environment::new();
     env.add_function(
         "raise_exception",
@@ -139,30 +139,22 @@ impl ChatTemplate {
 
         let template = self.get_template()?;
 
-        // Build context with all template variables merged in
-        // We build a Vec of (key, value) pairs and then create the context from it
-        let renderable = Self::messages_for_template(messages);
-
-        let mut context_pairs: Vec<(String, Value)> = vec![
-            ("messages".to_string(), Value::from_serialize(&renderable)),
-            (
-                "add_generation_prompt".to_string(),
-                Value::from(add_generation_prompt),
-            ),
-            ("bos_token".to_string(), Value::from(self.bos_token.clone())),
-            ("eos_token".to_string(), Value::from(self.eos_token.clone())),
-            ("tools".to_string(), Value::from_serialize(&ctx.tools)),
-        ];
-
-        // Add all template variables
+        let mut context = serde_json::json!({
+            "messages": Self::messages_for_template(messages),
+            "add_generation_prompt": add_generation_prompt,
+            "bos_token": self.bos_token,
+            "eos_token": self.eos_token,
+            "tools": ctx.tools,
+        });
+        let variables = context
+            .as_object_mut()
+            .expect("template context is an object");
         for (key, value) in &ctx.template_variables {
-            context_pairs.push((key.clone(), Value::from(*value)));
+            variables.insert(key.clone(), serde_json::Value::from(*value));
         }
-
-        let merged_context = Value::from_iter(context_pairs);
-        let rendered_messages = template.render(merged_context)?;
-
-        Ok(rendered_messages)
+        // Laya needs preserve_order, but existing chat prompts use sorted object keys.
+        context.sort_all_objects();
+        template.render(context)
     }
 
     /// given a chat history where the first two messages are from system and user
@@ -786,6 +778,33 @@ mod tests {
             .render_jinja(&[Message::User { content }], &ctx, true)
             .unwrap();
         assert_eq!(rendered, "en->fr");
+    }
+
+    #[test]
+    fn test_chat_json_order_stays_sorted() {
+        let content = serde_json::json!({"z": {"z": 1, "a": 2}, "a": 3});
+        let ctx =
+            ChatTemplateContext::new(HashMap::new(), Some(vec![Tool::python(None, None, None)]));
+        let template = ChatTemplate::new(
+            "{{ messages[0].content | tojson }}|{{ tools | tojson }}",
+            "",
+            "",
+        )
+        .unwrap();
+        let rendered = template
+            .render_jinja(
+                &[Message::User {
+                    content: MessageContent::from_json(content.clone()),
+                }],
+                &ctx,
+                false,
+            )
+            .unwrap();
+        let mut expected_content = content;
+        expected_content.sort_all_objects();
+        let mut expected_tools = serde_json::to_value(&ctx.tools).unwrap();
+        expected_tools.sort_all_objects();
+        assert_eq!(rendered, format!("{}|{}", expected_content, expected_tools),);
     }
 
     /// An empty JSON array is part-shaped too, so it also gets wrapped on the
