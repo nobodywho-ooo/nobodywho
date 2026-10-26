@@ -51,7 +51,7 @@ symphonia-bundle-mp3 = { version = "0.5", default-features = false, features = [
     "mp3",
 ] }
 rubato = "0.16"
-mel_spec = "0.4"
+mel_spec = "0.5"
 tokenizers = { version = "0.23.2", default-features = false, features = [
     "onig",
 ] }
