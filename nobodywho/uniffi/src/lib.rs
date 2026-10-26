@@ -383,20 +383,14 @@ pub async fn download_model(
     init_logging();
     let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
     let progress = on_download_progress.map(wrap_progress);
-    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
-    // because UniFFI's async bridge doesn't provide a Tokio runtime.
-    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-    std::thread::spawn(move || {
-        let result = nobodywho::llm::download_model(&model_path, headers_vec, progress)
-            .map(|p| p.to_string_lossy().into_owned())
-            .map_err(|e| NobodyWhoError::Error {
-                message: nobodywho::render_miette(&e),
-            });
-        let _ = tx.blocking_send(result);
-    });
-    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
-        message: "Download thread terminated unexpectedly".into(),
-    })?
+
+    AsyncWorker::new()
+        .run(move || nobodywho::llm::download_model(&model_path, headers_vec, progress))
+        .await
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|e| NobodyWhoError::Error {
+            message: nobodywho::render_miette(&e),
+        })
 }
 
 #[uniffi::export]
@@ -882,16 +876,9 @@ pub async fn load_speech_to_text(
     language: Option<String>,
     quantization: Option<String>,
 ) -> Result<Arc<RustSpeechToText>, NobodyWhoError> {
-    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
-    // because UniFFI's async bridge doesn't provide a Tokio runtime.
-    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-    std::thread::spawn(move || {
-        let result = create_speech_to_text(source, language, quantization);
-        let _ = tx.blocking_send(result);
-    });
-    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
-        message: "SpeechToText load thread terminated unexpectedly".into(),
-    })?
+    AsyncWorker::new()
+        .run(move || create_speech_to_text(source, language, quantization))
+        .await
 }
 
 #[uniffi::export]
@@ -1458,28 +1445,23 @@ pub async fn load_text_to_speech(
     huggingface_token: Option<String>,
     device: Option<String>,
 ) -> Result<Arc<RustTextToSpeech>, NobodyWhoError> {
-    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
-    // because UniFFI's async bridge doesn't provide a Tokio runtime.
-    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-    std::thread::spawn(move || {
-        let result = create_text_to_speech(
-            source,
-            architecture,
-            voice,
-            language,
-            speed,
-            steps,
-            silence_duration,
-            precision,
-            temperature,
-            huggingface_token,
-            device,
-        );
-        let _ = tx.blocking_send(result);
-    });
-    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
-        message: "TextToSpeech load thread terminated unexpectedly".into(),
-    })?
+    AsyncWorker::new()
+        .run(move || {
+            create_text_to_speech(
+                source,
+                architecture,
+                voice,
+                language,
+                speed,
+                steps,
+                silence_duration,
+                precision,
+                temperature,
+                huggingface_token,
+                device,
+            )
+        })
+        .await
 }
 
 #[uniffi::export]
@@ -1696,24 +1678,19 @@ pub async fn load_voice_activity_detection(
     preroll_duration_ms: Option<u32>,
     device: Option<String>,
 ) -> Result<Arc<RustVoiceActivityDetection>, NobodyWhoError> {
-    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
-    // because UniFFI's async bridge doesn't provide a Tokio runtime.
-    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-    std::thread::spawn(move || {
-        let result = create_voice_activity_detection(
-            source,
-            sample_rate,
-            threshold,
-            min_silence_duration_ms,
-            min_speech_duration_ms,
-            preroll_duration_ms,
-            device,
-        );
-        let _ = tx.blocking_send(result);
-    });
-    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
-        message: "VoiceActivityDetection load thread terminated unexpectedly".into(),
-    })?
+    AsyncWorker::new()
+        .run(move || {
+            create_voice_activity_detection(
+                source,
+                sample_rate,
+                threshold,
+                min_silence_duration_ms,
+                min_speech_duration_ms,
+                preroll_duration_ms,
+                device,
+            )
+        })
+        .await
 }
 
 #[uniffi::export]
