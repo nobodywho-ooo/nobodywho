@@ -27,7 +27,7 @@ Pending user-facing changes live as one file each in `.changeset/` (format in [C
   - deletes the consumed change files.
 - `just release-tags` lists the `nobodywho-<binding>-vX.Y.Z` tags for the newest `CHANGELOG.md` heading that don't exist yet. `just push-release-tags` creates and pushes them in Step 8.
 
-Still done by hand: the optional `uniffi`/`core` bumps, `Cargo.nix`, `npmDepsHash`, `pubspec.lock` and the docs snapshot, which you do. The branch, commit, PR and tags are the user's.
+Still done by hand: the optional `uniffi`/`core` bumps, `Cargo.nix`, `pubspec.lock` and the docs snapshot, which you do. The branch, commit, PR and tags are the user's.
 
 Releases go out on a **release branch**, named `release-all-bindings-YYYY-MM-DD` by convention. The user creates it when they commit in Step 7, so it's fine to start the release on `main`.
 
@@ -186,16 +186,7 @@ If `nix` is not on PATH:
 
 Commit both files together. The `Cargo.nix` diff can be larger than the version bumps, for example when a prior PR changed `Cargo.lock` without regenerating `Cargo.nix`. That is legitimate; `git log --oneline -- nobodywho/Cargo.lock` shows where it came from.
 
-### 4b. `flake.nix` `npmDepsHash`
-
-Whenever React Native is released, the version change in `package-lock.json` invalidates the `npmDepsHash` of the `js-jest` check in `flake.nix`. It changed in every past React Native release. It only surfaces in `nix flake check` (4d), as `npmDepsHash is out of date`. To fix it:
-
-1. In `flake.nix`, replace the `npmDepsHash` value with the literal `sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`. Do **not** use `lib.fakeHash`, because `lib` is not bound in this flake's `outputs` args.
-2. Build to get a hash mismatch: `nix build .#checks.x86_64-linux.js-jest`
-3. Copy the `got: sha256-...` value into `npmDepsHash`.
-4. Build again to confirm it succeeds.
-
-### 4c. `nobodywho/flutter/nobodywho/pubspec.lock`
+### 4b. `nobodywho/flutter/nobodywho/pubspec.lock`
 
 `pubspec.lock` does not record the package's own version. Still, sync it with any dependency changes that landed since the last release. From `nobodywho/flutter/nobodywho/`:
 
@@ -205,7 +196,7 @@ flutter pub get
 
 Use `flutter pub get`, not `dart pub get`, which fails with "Because nobodywho requires the Flutter SDK". An empty diff is normal.
 
-### 4d. Verify the Nix workspace
+### 4c. Verify the Nix workspace
 
 **Have the user run this in a separate terminal.** It takes a long time and its output would flood this session:
 
@@ -213,7 +204,7 @@ Use `flutter pub get`, not `dart pub get`, which fails with "Because nobodywho r
 nix flake check -L
 ```
 
-On macOS this only evaluates `aarch64-darwin` derivations; Linux-only checks surface in CI (see the build-integrations skill's "Local Nix blind spot" note). Wait for the user to confirm it passes. The usual failures are a stale `Cargo.nix` (re-run 4a) or a stale `npmDepsHash` (re-run 4b).
+On macOS this only evaluates `aarch64-darwin` derivations; Linux-only checks surface in CI (see the build-integrations skill's "Local Nix blind spot" note). Wait for the user to confirm it passes. The usual failures are a stale `Cargo.nix` (re-run 4a).
 
 ---
 
@@ -342,9 +333,8 @@ The PR shouldn't conflict with `main`, since nothing else edits `CHANGELOG.md` a
 - [ ] `just prepare-release` run; diff matches expectations; `nobodywho/changelogs/` untracked (Step 3)
 - [ ] uniffi/core bumped and `cargo update -p ... --precise` run, if approved
 - [ ] `Cargo.nix` + `crate-hashes.json` regenerated after `Cargo.lock` (4a)
-- [ ] `npmDepsHash` updated if React Native is released (4b)
-- [ ] `pubspec.lock` synced with `flutter pub get` (4c)
-- [ ] `nix flake check -L` passes; the user runs it (4d)
+- [ ] `pubspec.lock` synced with `flutter pub get` (4b)
+- [ ] `nix flake check -L` passes; the user runs it (4c)
 - [ ] Docs snapshotted per released binding, `latestReleases` updated (Step 5)
 - [ ] Step 6 checks pass
 - [ ] User created the release branch, committed, pushed and opened the PR with `no-changelog`, `edit-changelog` and `full-ci`; every check green (Step 7)
