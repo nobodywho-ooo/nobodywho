@@ -211,16 +211,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - "x86_64-pc-windows-msvc"
-    runs-on: windows-latest
-    env:
-      RUSTFLAGS: -l Advapi32 -C target-cpu=x86-64-v3
-      # libgit2 (cargo's default git backend) ignores core.longpaths, so the deep
-      # llama.cpp tools/ui/ submodule paths exceed Windows' 260-char MAX_PATH even
-      # though LongPathsEnabled + core.longpaths are set below. Fetch with the git
-      # CLI instead, which honors core.longpaths and uses \\?\ extended paths.
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+        platform:
+          - os: windows-latest
+            target: "x86_64-pc-windows-msvc"
+          - os: windows-11-arm
+            target: "aarch64-pc-windows-msvc"
+    runs-on: ${{ matrix.platform.os }}
     steps:
       - uses: actions/checkout@v5
       - name: "Cache Cargo Home"
@@ -236,12 +232,12 @@ jobs:
             ~/.cargo
             C:/target
             !C:/target/wheels
-          key: ${{ runner.os }}-python-cargo-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-python-cargo-${{ matrix.platform.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-python-cargo-${{ matrix.target }}-release-
+            ${{ runner.os }}-python-cargo-${{ matrix.platform.target }}-release-
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          target: ${{ matrix.target }}
+          target: ${{ matrix.platform.target }}
           cache: false
       - uses: actions/setup-python@v6
         with:
@@ -272,13 +268,31 @@ jobs:
           # the restored cache may contain wheels from an older version, which
           # would otherwise be uploaded alongside the new one
           Remove-Item -Recurse -Force C:/target/wheels -ErrorAction SilentlyContinue
-          maturin build --verbose --release --locked --target ${{ matrix.target }}
+          maturin build --verbose --release --locked --target ${{ matrix.platform.target }}
         env:
+          NOBODYWHO_SKIP_CODEGEN: "1"
+          # TODO: Remove -Ctarget-cpu? Or at least justify it.
+          RUSTFLAGS: "-l Advapi32 ${{ contains(matrix.platform.target, 'x86_64') && '-Ctarget-cpu=x86-64-v3' || '' }}"
           # Use Ninja generator instead of Visual Studio generator.
           # This fixes a CMake ExternalProject issue where vulkan-shaders-gen's
           # install step fails to find cmake_install.cmake with the VS generator.
           # Ninja's simpler build structure avoids this problem entirely.
           CMAKE_GENERATOR: "Ninja"
+          # Use Ninja generator instead of Visual Studio generator.
+          # This fixes a CMake ExternalProject issue where vulkan-shaders-gen's
+          # install step fails to find cmake_install.cmake with the VS generator.
+          # Ninja's simpler build structure avoids this problem entirely.
+          CMAKE_GENERATOR: "Ninja"
+          # Fetch git deps + submodules with the git CLI instead of libgit2. libgit2
+          # ignores core.longpaths, so the deeply nested llama.cpp tools/ui/ paths
+          # blow past Windows' 260-char MAX_PATH during the submodule checkout. The
+          # git CLI honors core.longpaths (set below) and uses \\?\ extended paths.
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+          # llama.cpp either requires Clang or GGML_NATIVE for Windows ARM builds.
+          # We prefer to use Clang, since we don't want to rely on whatever target
+          # features the GitHub runner has.
+          CC_aarch64_pc_windows_msvc: "clang-cl.exe"
+          CXX_aarch64_pc_windows_msvc: "clang-cl.exe"
       - name: "Upload wheel artifact"
         uses: actions/upload-artifact@v5
         with:

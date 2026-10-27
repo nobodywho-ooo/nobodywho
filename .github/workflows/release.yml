@@ -381,7 +381,7 @@ jobs:
       # Place desktop native libs for JVM JAR (JNA layout)
       - name: "Setup JVM native libs"
         run: |
-          mkdir -p nobodywho/kotlin/jvm/src/main/resources/{linux-x86-64,linux-aarch64,darwin-aarch64,win32-x86-64}
+          mkdir -p nobodywho/kotlin/jvm/src/main/resources/{linux-x86-64,linux-aarch64,darwin-aarch64,win32-x86-64,win32-aarch64}
           cp artifacts/libnobodywho-uniffi-x86_64-unknown-linux-gnu-release.so \
             nobodywho/kotlin/jvm/src/main/resources/linux-x86-64/libnobodywho_uniffi.so
           cp artifacts/libnobodywho-uniffi-aarch64-unknown-linux-gnu-release.so \
@@ -390,6 +390,8 @@ jobs:
             nobodywho/kotlin/jvm/src/main/resources/darwin-aarch64/libnobodywho_uniffi.dylib
           cp artifacts/libnobodywho-uniffi-x86_64-pc-windows-msvc-release.dll \
             nobodywho/kotlin/jvm/src/main/resources/win32-x86-64/nobodywho_uniffi.dll
+          cp artifacts/libnobodywho-uniffi-aarch64-pc-windows-msvc-release.dll \
+            nobodywho/kotlin/jvm/src/main/resources/win32-aarch64/nobodywho_uniffi.dll
 
       - name: "Setup JDK"
         uses: actions/setup-java@v5
