@@ -25,7 +25,7 @@ kotlin/
 The Kotlin wrapper code is identical across platforms. What differs is how the native library (`libnobodywho_uniffi`) is packaged:
 
 - **Android** needs the native `.so` in `jniLibs/{arm64-v8a,x86_64}/` inside an AAR, and JNA must be the AAR variant (`jna:5.14.0@aar`).
-- **Desktop JVM** needs native libs for all platforms in `src/main/resources/` following JNA's naming convention (`linux-x86-64/`, `darwin-aarch64/`, `win32-x86-64/`), inside a regular JAR with JNA as a normal JAR dependency.
+- **Desktop JVM** needs native libs for all platforms in `src/main/resources/` following JNA's naming convention (`linux-x86-64/`, `darwin-aarch64/`, `win32-x86-64/` etc.), inside a regular JAR with JNA as a normal JAR dependency.
 
 A single module can't produce both an AAR and a JAR, so we split into three:
 

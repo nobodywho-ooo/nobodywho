@@ -30,6 +30,10 @@ const platformMappings = {
       'triple': 'x86_64-pc-windows-msvc',
       'lib': 'nobodywho_flutter.dll',
     },
+    'aarch64': {
+      'triple': 'aarch64-pc-windows-msvc',
+      'lib': 'nobodywho_flutter.dll',
+    },
   },
   'android': {
     'arm64-v8a': {

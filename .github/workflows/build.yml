@@ -143,22 +143,16 @@ jobs:
   cargo-build-windows:
     needs: matrix-gen
     if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin
-    runs-on: windows-latest
+    runs-on: ${{ matrix.platform.os }}
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - "x86_64-pc-windows-msvc"
+        platform:
+          - os: windows-latest
+            target: "x86_64-pc-windows-msvc"
+          - os: windows-11-arm
+            target: "aarch64-pc-windows-msvc"
         integration: ${{ fromJSON(needs.matrix-gen.outputs.integrations) }}
-    env:
-      RUSTFLAGS: >-
-        -l Advapi32
-        -C target-cpu=x86-64-v3
-      # Fetch git deps + submodules with the git CLI instead of libgit2. libgit2
-      # ignores core.longpaths, so the deeply nested llama.cpp tools/ui/ paths
-      # blow past Windows' 260-char MAX_PATH during the submodule checkout. The
-      # git CLI honors core.longpaths (set below) and uses \\?\ extended paths.
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -182,15 +176,15 @@ jobs:
           path: |
             ~/.cargo
             C:/t
-          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.platform.target }}-release-${{ hashFiles('**/Cargo.lock') }}
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          target: ${{ matrix.target }}
+          target: ${{ matrix.platform.target }}
 
       - name: Install Vulkan SDK
-        uses: jakoch/install-vulkan-sdk-action@v1.2.5
+        uses: jakoch/install-vulkan-sdk-action@v1.7.0
         with:
           # 1.4.313.2 matches llama.cpp's own Windows Vulkan CI. The newer
           # ggml-vulkan backend does find_package(SPIRV-Headers CONFIG REQUIRED)
@@ -224,30 +218,38 @@ jobs:
           git config --system core.longpaths true
           cd C:/
           # Use an even shorter target directory to avoid path length issues with git dependencies
-          cargo build -p nobodywho-${{ matrix.integration }} --target ${{ matrix.target }} --verbose --release --locked --target-dir C:/t
+          cargo build -p nobodywho-${{ matrix.integration }} --target ${{ matrix.platform.target }} --verbose --release --locked --target-dir C:/t
         env:
           NOBODYWHO_SKIP_CODEGEN: "1"
-          RUSTFLAGS: >-
-            -l Advapi32
-            -C debuginfo=0
+          RUSTFLAGS: "-l Advapi32 -C debuginfo=0"
           # Use Ninja generator instead of Visual Studio generator.
           # This fixes a CMake ExternalProject issue where vulkan-shaders-gen's
           # install step fails to find cmake_install.cmake with the VS generator.
           # Ninja's simpler build structure avoids this problem entirely.
           CMAKE_GENERATOR: "Ninja"
+          # Fetch git deps + submodules with the git CLI instead of libgit2. libgit2
+          # ignores core.longpaths, so the deeply nested llama.cpp tools/ui/ paths
+          # blow past Windows' 260-char MAX_PATH during the submodule checkout. The
+          # git CLI honors core.longpaths (set below) and uses \\?\ extended paths.
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+          # llama.cpp either requires Clang or GGML_NATIVE for Windows ARM builds.
+          # We prefer to use Clang, since we don't want to rely on whatever target
+          # features the GitHub runner has.
+          CC_aarch64_pc_windows_msvc: "clang-cl.exe"
+          CXX_aarch64_pc_windows_msvc: "clang-cl.exe"
 
       - name: "Rename built files"
         run: |
-          cp C:/t/${{ matrix.target }}/release/nobodywho_${{ matrix.integration }}.dll ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.dll
-          cp C:/t/${{ matrix.target }}/release/nobodywho_${{ matrix.integration }}.pdb ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.pdb
+          cp C:/t/${{ matrix.platform.target }}/release/nobodywho_${{ matrix.integration }}.dll ./libnobodywho-${{ matrix.integration }}-${{ matrix.platform.target }}-release.dll
+          cp C:/t/${{ matrix.platform.target }}/release/nobodywho_${{ matrix.integration }}.pdb ./libnobodywho-${{ matrix.integration }}-${{ matrix.platform.target }}-release.pdb
 
       - name: "Upload build artifacts"
         uses: actions/upload-artifact@v5
         with:
-          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-release
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.platform.target }}-release
           path: |
-            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.dll
-            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.pdb
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.platform.target }}-release.dll
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.platform.target }}-release.pdb
 
   cargo-build-macos:
     needs: matrix-gen

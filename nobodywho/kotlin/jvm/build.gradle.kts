@@ -21,6 +21,7 @@ dependencies {
 //   darwin-x86-64/libnobodywho_uniffi.dylib
 //   darwin-aarch64/libnobodywho_uniffi.dylib
 //   win32-x86-64/nobodywho_uniffi.dll
+//   win32-aarch64/nobodywho_uniffi.dll
 // JNA automatically extracts and loads the correct one at runtime.
 
 val sourcesJar by tasks.registering(Jar::class) {

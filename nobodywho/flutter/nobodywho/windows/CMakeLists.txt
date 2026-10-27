@@ -14,8 +14,12 @@ project(${PROJECT_NAME} LANGUAGES CXX)
 # 3. Cached download
 # 4. Download from GitHub releases
 
-# Windows only supports x86_64 currently
-set(WINDOWS_ARCH "x86_64")
+# Pick the architecture of the build target (x86_64 or aarch64)
+if(CMAKE_GENERATOR_PLATFORM MATCHES "ARM64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|aarch64|arm64")
+  set(WINDOWS_ARCH "aarch64")
+else()
+  set(WINDOWS_ARCH "x86_64")
+endif()
 
 # Find dart executable - Flutter sets FLUTTER_ROOT during builds
 # On Windows, bin/dart is a .bat file; the real executable is in the bundled dart-sdk
