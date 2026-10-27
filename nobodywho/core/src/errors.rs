@@ -471,9 +471,6 @@ pub enum WorkerError {
 /// value; the setter leaves the chat as it was, and the worker keeps running.
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum SetterError {
-    #[error("Worker terminated before processing setter: {0}")]
-    WorkerTerminated(String),
-
     #[error(transparent)]
     #[diagnostic(transparent)]
     InvalidHistory(#[from] InvalidHistoryError),
@@ -505,8 +502,6 @@ pub enum GetterError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum TokenizeError {
-    #[error("Worker terminated before processing tokenize request")]
-    WorkerTerminated,
     #[error("Tokenization error: {0}")]
     Tokenization(#[from] TokenizationError),
     #[error("Multimodal error: {0}")]
@@ -1264,16 +1259,4 @@ pub enum ToolCallingSetupError {
 
     #[error("Failed to build tool-call sampler: {0}")]
     Sampler(#[from] SamplerError),
-}
-
-#[derive(Debug, thiserror::Error, miette::Diagnostic)]
-pub enum CompletionError {
-    #[error(
-        "Worker thread terminated before completing the response. This usually indicates an error occurred during token generation (e.g., context shift failure, sampling error, or token decoding issue)."
-    )]
-    WorkerCrashed,
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    GenerateResponse(GenerateResponseError),
 }

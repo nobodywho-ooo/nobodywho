@@ -814,13 +814,13 @@ impl StreamInner {
 
 /// Boxed error from either stream type, for uniform rendering.
 pub(crate) enum StreamError {
-    Chat(nobodywho::errors::CompletionError),
+    Chat(nobodywho::errors::GenerateResponseError),
     Stt(nobodywho::errors::SpeechToTextError),
 }
 
 fn render_stream_error(e: &StreamError) -> String {
     match e {
-        // CompletionError is miette::Diagnostic — rich rendering.
+        // GenerateResponseError is miette::Diagnostic — rich rendering.
         StreamError::Chat(c) => nobodywho::render_miette(c),
         // SpeechToTextError is thiserror-only — plain to_string().
         StreamError::Stt(s) => s.to_string(),

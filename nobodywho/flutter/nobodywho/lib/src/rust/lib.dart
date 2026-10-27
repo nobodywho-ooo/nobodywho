@@ -91,9 +91,6 @@ String frbInternalLoggingMaxLevel() =>
 bool frbInternalLoggingSetupDartLoggingOutput() =>
     NobodyWho.instance.api.crateFrbInternalLoggingSetupDartLoggingOutput();
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
-abstract class CompletionError implements RustOpaqueInterface {}
-
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoder>>
 abstract class CrossEncoder implements RustOpaqueInterface {
   /// Load a cross-encoder model from a local path, HuggingFace path, or HTTPS URL.
@@ -210,6 +207,9 @@ abstract class Encoder implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderWorkerError>>
 abstract class EncoderWorkerError implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< GenerateResponseError>>
+abstract class GenerateResponseError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< GetterError>>
 abstract class GetterError implements RustOpaqueInterface {}
