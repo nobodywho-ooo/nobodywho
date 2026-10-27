@@ -95,15 +95,15 @@
         checks.cargo-test = nobodywho-tested;
         checks.nobodywho-python = nobodywho-python;
 
-        checks.js-jest = pkgs.buildNpmPackage {
-          pname = "js-jest";
+        checks.js-tests = pkgs.buildNpmPackage {
+          pname = "js-tests";
           version = "0.0.0"; # nix derivation metadata only, does not need to match the npm package version
           src = ./nobodywho/js;
           # hashes are taken from package-lock.json, so no npmDepsHash to maintain
           npmDeps = pkgs.importNpmLock { npmRoot = ./nobodywho/js; };
           npmConfigHook = pkgs.importNpmLock.npmConfigHook;
           dontNpmBuild = true;
-          checkPhase = "npx jest";
+          checkPhase = "npm test";
           doCheck = true;
           installPhase = "touch $out";
         };

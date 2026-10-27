@@ -15,7 +15,6 @@ React Native TurboModule for running LLMs locally on iOS and Android (via Vulkan
 js/
 ├── ubrn.config.yaml             # uniffi-bindgen-react-native config
 ├── package.json                 # npm package metadata
-├── jest.config.js               # Jest test configuration
 ├── Nobodywho.podspec            # CocoaPods spec (iOS) — customized, do not regenerate
 │
 ├── src/                         # Hand-written TypeScript wrappers
@@ -37,7 +36,7 @@ js/
 │   │   └── jsi/                 # React Native bindings
 │   └── NativeNobodywho.ts      # TurboModule spec (generated, do not edit)
 │
-├── __tests__/                   # Jest tests (pure TS, no native deps)
+├── __tests__/                   # Unit tests (node:test, pure TS, no native deps)
 │   └── convertValue.test.ts     # Tests for tool parameter type conversion
 │
 ├── cpp/                         # TurboModule C++ glue (generated once, rarely changes)
@@ -169,14 +168,14 @@ This keeps the npm package small (code only, no binaries).
 
 ## Running tests
 
-### Jest tests (pure TypeScript)
+### Unit tests
 
 ```bash
 cd nobodywho/js
 npm test
 ```
 
-These tests run without native code — they test pure TypeScript functions like `convertValue`. They are also run as a nix flake check (`nix build .#checks.x86_64-linux.js-jest`).
+These tests are also run as a nix flake check (`nix build .#checks.x86_64-linux.js-tests`).
 
 ### Testing on Android
 
