@@ -1086,43 +1086,27 @@ impl ChatHandleAsync {
 
     /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
     #[deprecated(note = "Use set_template_variable(\"enable_thinking\", value) instead")]
-    pub async fn set_allow_thinking(
-        &self,
-        allow_thinking: bool,
-    ) -> Result<(), crate::errors::SetterError> {
+    pub async fn set_allow_thinking(&self, allow_thinking: bool) {
         self.set_template_variable("enable_thinking".to_string(), allow_thinking)
             .await
     }
 
     /// Set a single template variable.
-    pub async fn set_template_variable(
-        &self,
-        name: String,
-        value: bool,
-    ) -> Result<(), crate::errors::SetterError> {
+    pub async fn set_template_variable(&self, name: String, value: bool) {
         self.flush_and_run(move |chat| chat.set_template_variable(name, value))
-            .await;
-        Ok(()) // TODO: Remove
+            .await
     }
 
     /// Set all template variables, replacing any existing ones.
-    pub async fn set_template_variables(
-        &self,
-        variables: std::collections::HashMap<String, bool>,
-    ) -> Result<(), crate::errors::SetterError> {
+    pub async fn set_template_variables(&self, variables: std::collections::HashMap<String, bool>) {
         self.flush_and_run(|chat| chat.set_template_variables(variables))
-            .await;
-        Ok(()) // TODO: Remove
+            .await
     }
 
     /// Get all template variables.
-    pub async fn get_template_variables(
-        &self,
-    ) -> Result<std::collections::HashMap<String, bool>, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self
-            .flush_and_run(|chat| chat.get_template_variables())
-            .await)
+    pub async fn get_template_variables(&self) -> std::collections::HashMap<String, bool> {
+        self.flush_and_run(|chat| chat.get_template_variables())
+            .await
     }
 
     /// Update the sampler configuration for inference.
@@ -1144,9 +1128,8 @@ impl ChatHandleAsync {
     /// The system prompt is a separate setting, so it is never part of this list
     /// — see [`get_system_prompt`](Self::get_system_prompt). A system message
     /// placed mid-conversation is part of the history, and does show up here.
-    pub async fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.flush_and_run(|chat| chat.get_chat_history()).await)
+    pub async fn get_chat_history(&self) -> Vec<Message> {
+        self.flush_and_run(|chat| chat.get_chat_history()).await
     }
 
     /// Set the chat history (lower-level API).
@@ -1162,24 +1145,21 @@ impl ChatHandleAsync {
     }
 
     /// Get the sampler config.
-    pub async fn get_sampler_config(&self) -> Result<SamplerConfig, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.flush_and_run(|chat| chat.get_sampler_config()).await)
+    pub async fn get_sampler_config(&self) -> SamplerConfig {
+        self.flush_and_run(|chat| chat.get_sampler_config()).await
     }
 
     /// Get context usage statistics.
-    pub async fn get_stats(&self) -> Result<ChatStats, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.flush_and_run(|chat| chat.get_stats()).await)
+    pub async fn get_stats(&self) -> ChatStats {
+        self.flush_and_run(|chat| chat.get_stats()).await
     }
 
     /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
     ///
     /// The counters reset at the start of each generation.
     /// Returns `None` when no drafts were proposed in the last generation.
-    pub async fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.flush_and_run(|chat| chat.mtp_acceptance_rate()).await)
+    pub async fn mtp_acceptance_rate(&self) -> Option<f32> {
+        self.flush_and_run(|chat| chat.mtp_acceptance_rate()).await
     }
 
     /// Update the system prompt without resetting chat history.
@@ -1203,13 +1183,9 @@ impl ChatHandleAsync {
     /// # chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string())).await?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
     /// ```
-    pub async fn set_system_prompt(
-        &self,
-        system_prompt: Option<String>,
-    ) -> Result<(), crate::errors::SetterError> {
+    pub async fn set_system_prompt(&self, system_prompt: Option<String>) {
         self.flush_and_run(|chat| chat.set_system_prompt(system_prompt))
-            .await;
-        Ok(()) // TODO: Remove
+            .await
     }
 
     /// Set how old turns are forgotten when the context is full; `None` disables it.
@@ -1222,9 +1198,8 @@ impl ChatHandleAsync {
     }
 
     /// Get the system prompt
-    pub async fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
-        // TODO: Remove Result
-        Ok(self.flush_and_run(|chat| chat.get_system_prompt()).await)
+    pub async fn get_system_prompt(&self) -> Option<String> {
+        self.flush_and_run(|chat| chat.get_system_prompt()).await
     }
 
     /// Tokenize a prompt and return token IDs. Text tokens are `Some(id)`, media embedding
@@ -3825,7 +3800,7 @@ mod tests {
         );
 
         chat.set_template_variable("enable_thinking".to_string(), false)
-            .await?;
+            .await;
 
         let res2: String = chat
             .ask("What is the capital of the Czech Republic?".to_string())
@@ -4884,7 +4859,7 @@ mod tests {
             .await?;
 
         assert!(resp.contains("Copenhagen"), "{resp}");
-        assert_eq!(chat.get_chat_history().await?.len(), 2);
+        assert_eq!(chat.get_chat_history().await.len(), 2);
 
         Ok(())
     }

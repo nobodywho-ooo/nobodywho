@@ -108,7 +108,7 @@ This immediately stops token generation. Any tokens already produced are still a
 If you want to inspect the messages inside the `Chat` object, you can use `getChatHistory`.
 
 ```swift
-let msgs = try await chat.getChatHistory()
+let msgs = await chat.getChatHistory()
 print(msgs[0]) // The first message
 ```
 
@@ -229,7 +229,7 @@ If you don't want to change the already set defaults (`systemPrompt`, `tools`), 
 To inspect how much of the context is currently in use, call `getStats()`:
 
 ```swift continuation
-let stats = try await chat.getStats()
+let stats = await chat.getStats()
 print("Using \(stats.contextUsed) of \(stats.contextSize) tokens")
 ```
 
@@ -322,8 +322,8 @@ let chat = try await Chat.fromPath(
 You can also modify template variables on an existing chat instance:
 
 ```swift
-try await chat.setTemplateVariable(name: "enable_thinking", value: true)
-let variables = try await chat.getTemplateVariables()
+await chat.setTemplateVariable(name: "enable_thinking", value: true)
+let variables = await chat.getTemplateVariables()
 ```
 
 ### Example: Qwen3 and Qwen3.5 Reasoning

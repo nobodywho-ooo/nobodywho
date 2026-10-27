@@ -390,11 +390,7 @@ async fn start_completion(
     let options = Options::new().with_sampler(sampler).with_tools(tools);
     let stream = {
         let _request_guard = state.request_lock.lock().await;
-        state
-            .chat
-            .set_system_prompt(None)
-            .await
-            .map_err(internal_error)?;
+        state.chat.set_system_prompt(None).await;
         state
             .chat
             .completion_stream(messages, options, Some(max_tokens), false)

@@ -418,9 +418,6 @@ class ChatAsync:
 
         Returns:
             The current SamplerConfig used for token selection
-
-        Raises:
-            RuntimeError: If the sampler config cannot be retrieved
         """
     async def get_system_prompt(self, /) -> str | None:
         """
@@ -428,9 +425,6 @@ class ChatAsync:
 
         Returns:
             The current system prompt, or None if not set
-
-        Raises:
-            RuntimeError: If the system prompt cannot be retrieved
         """
     async def get_template_variables(self, /) -> dict[str, bool]:
         """
@@ -438,9 +432,6 @@ class ChatAsync:
 
         Returns:
             Dict of template variable names to boolean values
-
-        Raises:
-            RuntimeError: If the variables cannot be retrieved
         """
     async def mtp_acceptance_rate(self, /) -> float | None:
         """
@@ -519,9 +510,6 @@ class ChatAsync:
 
         Args:
             system_prompt: New system message to guide the model's behavior
-
-        Raises:
-            RuntimeError: If the system prompt cannot be changed
         """
     async def set_template_variable(self, /, name: str, value: bool) -> None:
         """
@@ -530,9 +518,6 @@ class ChatAsync:
         Args:
             name: The name of the template variable (e.g., "enable_thinking")
             value: The boolean value for the variable
-
-        Raises:
-            RuntimeError: If the variable cannot be set
         """
     async def set_template_variables(self, /, variables: dict[str, bool]) -> None:
         """
@@ -540,9 +525,6 @@ class ChatAsync:
 
         Args:
             variables: Dict of template variable names to boolean values
-
-        Raises:
-            RuntimeError: If the variables cannot be set
         """
     async def set_tools(self, /, tools: Sequence[Tool]) -> None:
         """
