@@ -19,6 +19,7 @@ const bindings: {
   docs: string;
   install?: Install[];
   note?: React.ReactNode;
+  links?: {text: string; url: string}[];
 }[] = [
   {
     id: 'python',
@@ -46,6 +47,7 @@ const bindings: {
     description: 'Cross-platform plugin for Flutter on mobile and desktop.',
     docs: '/flutter/',
     install: [{code: 'flutter pub add nobodywho', language: 'bash'}],
+    links: [{text: 'Flutter starter app', url: 'https://github.com/nobodywho-ooo/flutter-starter-example'}],
   },
   {
     id: 'react-native',
@@ -55,6 +57,10 @@ const bindings: {
     install: [
       {title: 'React Native', code: 'npm install react-native-nobodywho', language: 'bash'},
       {title: 'Expo', code: 'npx expo install react-native-nobodywho', language: 'bash'},
+    ],
+    links: [
+      {text: 'React Native starter app', url: 'https://github.com/nobodywho-ooo/react-native-starter-example'},
+      {text: 'Expo starter app', url: 'https://github.com/nobodywho-ooo/expo-starter-example'},
     ],
   },
   {
@@ -68,6 +74,7 @@ const bindings: {
         <a href="https://github.com/nobodywho-ooo/nobodywho-swift">github.com/nobodywho-ooo/nobodywho-swift</a>
       </>
     ),
+    links: [{text: 'iOS and macOS starter apps', url: 'https://github.com/nobodywho-ooo/swift-starter-example'}],
   },
   {
     id: 'kotlin',
@@ -150,6 +157,15 @@ export default function Home(): React.JSX.Element {
                     <Link to={b.docs} className="nw-more nw-more--accent">
                       {b.id === 'react-native' ? 'Read the React Native and Expo docs' : `Read the ${b.name} docs`}
                     </Link>
+                    {b.links && (
+                      <ul className="nw-install__links">
+                        {b.links.map((l) => (
+                          <li key={l.url}>
+                            <Link to={l.url}>{l.text}</Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </TabItem>
               ))}

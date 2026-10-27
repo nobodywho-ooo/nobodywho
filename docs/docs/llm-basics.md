@@ -94,8 +94,8 @@ Speculative decoding is a way of making inference faster without changing the mo
 
 NobodyWho supports the **MTP** (Multi-Token Prediction) flavour used by Gemma 4: instead of running a separate draft model, MTP uses extra "heads" trained to predict several tokens ahead of the target. You download the MTP heads as a companion `.gguf` (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B), pass it as the draft model path when loading the model, and enable MTP when constructing the chat (see your binding's chat docs for the exact option).
 
-Expect a large speedup on structured/deterministic output (code, JSON, math, tool calls) and a neutral to modest speedup on high-entropy prose. MTP is also highly hardware-dependent — you will get the most out of it when memory bandwidth is the biggest bottleneck during generation.
-This means that on systems with unified memory (e.g. a Mac mini), the speedup might not be very big and you might even get worse performance. For this reason it is important to be mindful about both your hardware and your use case. The best option is of course to benchmark it yourself.
+MTP only saves time when the drafts are accepted, so the gain depends on how predictable the output is. Expect the largest speedup on structured/deterministic output (code, JSON, math, tool calls). On high-entropy output like creative prose few drafts are accepted, but every step still pays to draft and verify them, so MTP can end up slower than generating without it.
+MTP is also highly hardware-dependent — you will get the most out of it when memory bandwidth is the biggest bottleneck during generation. On Apple Silicon (Metal) the speedup might not be very big and you might even get worse performance. For this reason it is important to be mindful about both your hardware and your use case: benchmark it on your own hardware and workload before enabling it.
 Enabling MTP adds around 5% to VRAM usage. It is off by default.
 
 ## Tools

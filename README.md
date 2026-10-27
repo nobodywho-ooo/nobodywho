@@ -127,7 +127,7 @@ Inference uses the GPU where available and CPU where not. The real constraint is
 
 Any model in the [GGUF format](https://huggingface.co/models?library=gguf&sort=trending) works. Pass a `hf:owner/repo:QUANT` reference, an HTTPS URL, or a local path anywhere a model path is expected; remote models are downloaded and cached on first use. Pass `"auto"` to fit one to available memory.
 
-Start with [Qwen3 0.6B](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF): at ~330 MB it is
+Start with [Qwen3 0.6B](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF): it is
 small enough for any phone and good enough to tell whether the integration works.
 
 ---

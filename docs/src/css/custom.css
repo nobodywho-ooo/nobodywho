@@ -1748,15 +1748,26 @@ a.card:hover h2 {
   color: var(--sec-muted);
 }
 
-.nw-install__note a {
+.nw-install__note a,
+.nw-install__links a {
   color: var(--sec-accent);
   text-decoration: underline;
   text-decoration-thickness: var(--underline);
   text-underline-offset: 3px;
 }
 
-.nw-install__note a:hover {
+.nw-install__note a:hover,
+.nw-install__links a:hover {
   color: var(--sec-ink);
+}
+
+.nw-install__links {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--type-body-sm);
 }
 
 .nw-install .theme-code-block {
