@@ -190,7 +190,7 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Install Vulkan SDK
-        uses: jakoch/install-vulkan-sdk-action@v1.2.5
+        uses: jakoch/install-vulkan-sdk-action@v1.7.0
         with:
           # 1.4.313.2 matches llama.cpp's own Windows Vulkan CI. The newer
           # ggml-vulkan backend does find_package(SPIRV-Headers CONFIG REQUIRED)
