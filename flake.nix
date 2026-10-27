@@ -99,7 +99,9 @@
           pname = "js-jest";
           version = "0.0.0"; # nix derivation metadata only, does not need to match the npm package version
           src = ./nobodywho/js;
-          npmDepsHash = "sha256-KCqiEr7aDOok9qKfeT5e2cSX69M0nghor2pdh6Bm+UQ=";
+          # hashes are taken from package-lock.json, so no npmDepsHash to maintain
+          npmDeps = pkgs.importNpmLock { npmRoot = ./nobodywho/js; };
+          npmConfigHook = pkgs.importNpmLock.npmConfigHook;
           dontNpmBuild = true;
           checkPhase = "npx jest";
           doCheck = true;
