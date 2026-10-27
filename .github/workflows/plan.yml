@@ -179,7 +179,7 @@ jobs:
           contains '^nobodywho/js/' && out js true || out js false
           contains '^docs/'                  && out docs         true || out docs         false
           # regen-drift surface: anything that can change generated bindings/stubs.
-          contains '^nobodywho/(core/|uniffi/|grammar/|Cargo\.(toml|lock)$|swift/generated/|swift/Package\.swift$|kotlin/common/generated/|kotlin/.*\.gradle\.kts$|js/generated/|js/package(-lock)?\.json$)' && out regen true || out regen false
+          contains '^nobodywho/(core/|uniffi/|grammar/|Cargo\.(toml|lock)$|swift/generated/|swift/Package\.swift$|kotlin/common/generated/|kotlin/.*\.gradle\.kts$|js/src/generated/|js/cpp/generated/|js/package(-lock)?\.json$)' && out regen true || out regen false
 
           {
             echo "## Path detection"

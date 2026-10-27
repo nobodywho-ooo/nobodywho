@@ -4,7 +4,7 @@ import {
   MtpConfig,
   ContextShiftOptions,
   type ChatStats,
-} from "../generated/ts/nobodywho";
+} from "./generated";
 import { Model } from "./model";
 import { type Message, fromInternal, toInternal } from "./message";
 import { TokenStream } from "./streaming";

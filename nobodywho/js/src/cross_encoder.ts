@@ -1,4 +1,4 @@
-import { RustCrossEncoder } from "../generated/ts/nobodywho";
+import { RustCrossEncoder } from "./generated";
 import { Model } from "./model";
 
 /**

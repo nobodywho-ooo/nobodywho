@@ -32,7 +32,6 @@
   ],
   "files": [
     "src/",
-    "generated/",
     "cpp/",
     "ios/",
     "android/",
@@ -46,7 +45,7 @@
     "ios": "uniffi-bindgen-react-native build ios",
     "android": "uniffi-bindgen-react-native build android",
     "generate-turbo-module": "uniffi-bindgen-react-native generate jsi turbo-module nobodywho",
-    "generate-bindings": "cd ../uniffi && uniffi-bindgen-react-native generate jsi bindings --library --ts-dir ../js/generated/ts --cpp-dir ../js/generated/cpp"
+    "generate-bindings": "cd ../uniffi && uniffi-bindgen-react-native generate jsi bindings --library --ts-dir ../js/src/generated/jsi --cpp-dir ../js/cpp/generated"
   },
   "codegenConfig": {
     "name": "NobodywhoSpec",
