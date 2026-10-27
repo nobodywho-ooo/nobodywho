@@ -6,7 +6,7 @@ on:
 
 env:
   AI_REVIEW_PROVIDER: openrouter
-  AI_REVIEW_MODEL: z-ai/glm-5.3
+  AI_REVIEW_MODEL: anthropic/claude-opus-5.5:nitro
   AI_REVIEW_THINKING: high
 
 jobs:
