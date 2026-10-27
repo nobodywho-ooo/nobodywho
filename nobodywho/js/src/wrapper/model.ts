@@ -1,7 +1,7 @@
 import {
   loadModel,
   type RustModelInterface,
-} from "./generated";
+} from "../generated";
 
 /**
  * A loaded LLM model that can be shared across Chat, Encoder, and CrossEncoder instances.

@@ -1,7 +1,7 @@
 import {
   RustTool,
   type ToolParameter,
-} from "./generated";
+} from "../generated";
 
 /**
  * Recursively convert a value from JSON based on a JSON Schema type.

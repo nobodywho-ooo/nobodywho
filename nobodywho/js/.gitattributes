@@ -1,3 +1,4 @@
 cpp/** linguist-generated
-generated/** linguist-generated
+src/generated/** linguist-generated
+src/generated/index.ts -linguist-generated
 ios/** linguist-generated

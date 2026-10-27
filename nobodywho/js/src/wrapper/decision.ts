@@ -1,4 +1,4 @@
-import { RustDecision } from "./generated";
+import { RustDecision } from "../generated";
 import { Model } from "./model";
 
 /**

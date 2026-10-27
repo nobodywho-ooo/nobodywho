@@ -29,3 +29,5 @@ noOverwrite:
 - android/src/main/java/ooo/nobodywho/NobodywhoModule.kt
 # Enables `libOpenCL.so` linking.
 - android/src/main/AndroidManifest.xml
+# Uses TSX syntax unnecessarily, and besides, we want to customize it.
+- src/index.tsx

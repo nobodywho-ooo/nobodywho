@@ -2,7 +2,7 @@ import {
   RustTextToSpeech,
   loadTextToSpeech,
   type RustTextToSpeechInterface,
-} from "./generated";
+} from "../generated";
 
 export type TextToSpeechArchitecture = "kokoro" | "pocket-tts" | "supertonic";
 export type TextToSpeechDevice = "auto" | "cpu" | "cuda";

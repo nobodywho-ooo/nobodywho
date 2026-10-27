@@ -1,4 +1,4 @@
-import { _convertValue as convertValue } from "../src/tool";
+import { _convertValue as convertValue } from "../src/wrapper/tool";
 
 describe("convertValue", () => {
   // --- Primitives ---

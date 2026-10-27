@@ -59,7 +59,7 @@ npm run --prefix js generate-bindings -- $(realpath "$LIBPATH")
 
 ### 3b. React Native wrapper
 
-Add a TypeScript wrapper class in `js/src/<feature-lowercase>.ts` following the pattern of `js/src/speech_to_text.ts`. Export it from `js/src/wrapper.ts`.
+Add a TypeScript wrapper class in `js/src/wrapper/<feature-lowercase>.ts` following the pattern of `js/src/wrapper/speech_to_text.ts`. Export it from `js/src/wrapper/index.ts`.
 
 ### 3c. Godot
 

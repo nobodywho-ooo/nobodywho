@@ -3,10 +3,10 @@
   "version": "5.1.0",
   "author": "NobodyWho <info@nobodywho.ooo>",
   "description": "Run LLMs locally and offline with React Native & Expo - Tool calling, RAG, Speech-to-Text, Text-to-Speech, and VAD",
-  "main": "src/wrapper.ts",
-  "types": "src/wrapper.ts",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "exports": {
-    ".": "./src/wrapper.ts"
+    ".": "./src/index.ts"
   },
   "license": "EUPL-1.2",
   "homepage": "https://www.nobodywho.ai",
