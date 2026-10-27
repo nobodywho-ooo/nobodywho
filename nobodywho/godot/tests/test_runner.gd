@@ -23,6 +23,7 @@ func _run_all() -> void:
 		preload("res://stt_quantization_test.gd").new(),
 		preload("res://encoder_test.gd").new(),
 		preload("res://crossencoder_test.gd").new(),
+		preload("res://decision_test.gd").new(),
 		preload("res://vad_test.gd").new(),
 		preload("res://prompt_test.gd").new(),
 	]

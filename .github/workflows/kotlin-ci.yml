@@ -66,10 +66,13 @@ jobs:
           mkdir -p test-models
           curl -L -o test-models/model.gguf \
             "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+          curl -L --fail -o test-models/Laya-Q8_0.gguf \
+            "https://huggingface.co/ggml-org/Laya-GGUF/resolve/845f314dd047fc2444a5289a4d50c1e1d59e27e1/Laya-Q8_0.gguf"
 
       - name: "Run tests"
         working-directory: ./nobodywho/kotlin
         env:
           NOBODYWHO_LIB_DIR: ${{ github.workspace }}/native-lib
           TEST_MODEL: ${{ github.workspace }}/test-models/model.gguf
+          TEST_DECISION_MODEL: ${{ github.workspace }}/test-models/Laya-Q8_0.gguf
         run: ./gradlew :nobodywho-core:test

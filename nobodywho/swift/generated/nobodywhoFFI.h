@@ -420,6 +420,26 @@ uint64_t uniffi_nobodywho_uniffi_fn_method_rustcrossencoder_rank(uint64_t ptr, R
 uint64_t uniffi_nobodywho_uniffi_fn_method_rustcrossencoder_rank_and_sort_json(uint64_t ptr, RustBuffer query, RustBuffer documents
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_RUSTDECISION
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_RUSTDECISION
+uint64_t uniffi_nobodywho_uniffi_fn_clone_rustdecision(uint64_t handle, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FREE_RUSTDECISION
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FREE_RUSTDECISION
+void uniffi_nobodywho_uniffi_fn_free_rustdecision(uint64_t handle, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTDECISION_NEW
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTDECISION_NEW
+uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustdecision_new(uint64_t model, RustBuffer n_ctx, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTDECISION_DECIDE
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTDECISION_DECIDE
+uint64_t uniffi_nobodywho_uniffi_fn_method_rustdecision_decide(uint64_t ptr, RustBuffer state_json, RustBuffer questions_json
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_RUSTENCODER
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_RUSTENCODER
 uint64_t uniffi_nobodywho_uniffi_fn_clone_rustencoder(uint64_t handle, RustCallStatus *_Nonnull out_status
@@ -1356,6 +1376,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTDECISION_DECIDE
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTDECISION_DECIDE
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustdecision_decide(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTENCODER_ENCODE
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTENCODER_ENCODE
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(void
@@ -1599,6 +1625,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_RUSTCROSSENCODER_NEW
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_RUSTCROSSENCODER_NEW
 uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_RUSTDECISION_NEW
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_RUSTDECISION_NEW
+uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rustdecision_new(void
     
 );
 #endif

@@ -1179,6 +1179,82 @@ pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> f32 {
     nobodywho::encoder::cosine_similarity(&a, &b)
 }
 
+#[flutter_rust_bridge::frb(opaque)]
+pub struct Decision {
+    handle: nobodywho::decision::DecisionAsync,
+}
+
+impl Decision {
+    /// Create a decision handle for typed, non-generative decisions.
+    ///
+    /// Args:
+    ///     model: A loaded Laya decision model.
+    ///     n_ctx: Context window. Defaults to 1024.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn new(model: &Model, #[frb(default = 1024)] n_ctx: u32) -> Result<Self, String> {
+        let handle = nobodywho::decision::DecisionAsync::new(Arc::clone(&model.model), n_ctx)
+            .map_err(|e| nobodywho::render_miette(&e))?;
+        Ok(Self { handle })
+    }
+
+    /// Load a Laya decision model from a local path, HuggingFace path, or HTTPS URL.
+    ///
+    /// Args:
+    ///     model_path: Path or URL to a Laya GGUF file.
+    ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
+    ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
+    ///         final emit on completion. Not invoked for cached/local files.
+    ///     n_ctx: Context window. Defaults to 1024.
+    ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+    #[flutter_rust_bridge::frb]
+    pub fn from_path(
+        model_path: &str,
+        #[frb(default = "noopOnDownloadProgress")] on_download_progress: impl Fn(i64, i64) -> DartFnFuture<()>
+            + Send
+            + Sync
+            + 'static,
+        #[frb(default = 1024)] n_ctx: u32,
+        #[frb(default = true)] use_gpu: bool,
+    ) -> Result<Self, String> {
+        let model = nobodywho::llm::get_model(
+            model_path,
+            use_gpu,
+            None,
+            None,
+            Some(wrap_progress(on_download_progress)),
+        )
+        .map_err(|e| nobodywho::render_miette(&e))?;
+        Self::new(
+            &Model {
+                model: Arc::new(model),
+            },
+            n_ctx,
+        )
+    }
+
+    /// Run the questions over a state.
+    ///
+    /// `state` is any JSON value (text, object, array). `questions` maps question
+    /// names to `{"type": "choice" | "score" | "noul", "instructions": ..., "criteria": ...}`.
+    /// Returns `{"answers": {...}, "usage": {...}}`.
+    pub async fn decide(
+        &self,
+        state: serde_json::Value,
+        questions: serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
+        let request = serde_json::from_value::<nobodywho::decision::DecisionRequest>(
+            serde_json::json!({ "state": state, "questions": questions }),
+        )
+        .map_err(|e| e.to_string())?;
+        let response = self
+            .handle
+            .decide(request)
+            .await
+            .map_err(|e| nobodywho::render_miette(&e))?;
+        serde_json::to_value(&response).map_err(|e| e.to_string())
+    }
+}
+
 /// Returns every cached .gguf model paired with its byte size.
 ///
 /// Each entry is (absolute path, size in bytes).
