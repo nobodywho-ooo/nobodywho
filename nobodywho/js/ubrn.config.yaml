@@ -4,8 +4,8 @@ rust:
   manifestPath: uniffi/Cargo.toml
 
 bindings:
-  cpp: generated/cpp
-  ts: generated/ts
+  cpp: cpp/generated
+  ts: src/generated/jsi
 
 ios:
   frameworkName: NobodyWho
@@ -29,3 +29,5 @@ noOverwrite:
 - android/src/main/java/ooo/nobodywho/NobodywhoModule.kt
 # Enables `libOpenCL.so` linking.
 - android/src/main/AndroidManifest.xml
+# Uses TSX syntax unnecessarily, and besides, we want to customize it.
+- src/index.tsx

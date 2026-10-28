@@ -176,7 +176,7 @@ jobs:
       - name: "Verify committed React Native bindings are up to date"
         working-directory: ./nobodywho/js
         run: |
-          if git diff --exit-code generated/; then
+          if git diff --exit-code src/generated/ cpp/generated/; then
             echo "Generated React Native bindings are up to date"
           else
             echo "ERROR: Committed React Native bindings are out of date."

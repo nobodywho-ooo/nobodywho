@@ -3,11 +3,12 @@
   "version": "5.1.0",
   "author": "NobodyWho <info@nobodywho.ooo>",
   "description": "Run LLMs locally and offline with React Native & Expo - Tool calling, RAG, Speech-to-Text, Text-to-Speech, and VAD",
-  "main": "src/wrapper.ts",
-  "types": "src/wrapper.ts",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "exports": {
-    ".": "./src/wrapper.ts"
+    ".": "./src/index.ts"
   },
+  "type": "module",
   "license": "EUPL-1.2",
   "homepage": "https://www.nobodywho.ai",
   "bugs": "https://github.com/nobodywho-ooo/nobodywho/issues",
@@ -32,7 +33,6 @@
   ],
   "files": [
     "src/",
-    "generated/",
     "cpp/",
     "ios/",
     "android/",
@@ -46,7 +46,8 @@
     "ios": "uniffi-bindgen-react-native build ios",
     "android": "uniffi-bindgen-react-native build android",
     "generate-turbo-module": "uniffi-bindgen-react-native generate jsi turbo-module nobodywho",
-    "generate-bindings": "cd ../uniffi && uniffi-bindgen-react-native generate jsi bindings --library --ts-dir ../js/generated/ts --cpp-dir ../js/generated/cpp"
+    "test": "node --test",
+    "generate-bindings": "cd ../uniffi && uniffi-bindgen-react-native generate jsi bindings --library --ts-dir ../js/src/generated/jsi --cpp-dir ../js/cpp/generated"
   },
   "codegenConfig": {
     "name": "NobodywhoSpec",
@@ -65,9 +66,7 @@
     "uniffi-bindgen-react-native": "0.31.0-6"
   },
   "devDependencies": {
-    "@types/jest": "^30.0.0",
-    "jest": "^30.3.0",
-    "ts-jest": "^29.4.9",
+    "@types/node": "^24.0.0",
     "react": "^19.2.3",
     "react-native": "^0.84.1",
     "prettier": "^3.9.10"

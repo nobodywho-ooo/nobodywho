@@ -1,4 +1,4 @@
-import type { RustTokenStreamInterface } from "../generated/ts/nobodywho";
+import type { RustTokenStreamInterface } from "../generated";
 
 /**
  * A stream of response tokens from the model.

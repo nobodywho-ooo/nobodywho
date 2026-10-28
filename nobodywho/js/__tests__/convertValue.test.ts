@@ -1,69 +1,84 @@
-import { _convertValue as convertValue } from "../src/tool";
+import { describe, test } from "node:test";
+import assert from "node:assert/strict";
+import { convertValue } from "../src/wrapper/convert_value.ts";
 
 describe("convertValue", () => {
   // --- Primitives ---
 
   test("converts to number", () => {
-    expect(convertValue("42", { type: "number" })).toBe(42);
-    expect(convertValue("3.14", { type: "number" })).toBe(3.14);
-    expect(convertValue(7, { type: "number" })).toBe(7);
+    assert.equal(convertValue("42", { type: "number" }), 42);
+    assert.equal(convertValue("3.14", { type: "number" }), 3.14);
+    assert.equal(convertValue(7, { type: "number" }), 7);
   });
 
   test("converts to integer", () => {
-    expect(convertValue("42", { type: "integer" })).toBe(42);
-    expect(convertValue(42, { type: "integer" })).toBe(42);
+    assert.equal(convertValue("42", { type: "integer" }), 42);
+    assert.equal(convertValue(42, { type: "integer" }), 42);
   });
 
   test("converts to boolean", () => {
-    expect(convertValue("true", { type: "boolean" })).toBe(true);
-    expect(convertValue("false", { type: "boolean" })).toBe(false);
-    expect(convertValue(true, { type: "boolean" })).toBe(true);
-    expect(convertValue(false, { type: "boolean" })).toBe(false);
+    assert.equal(convertValue("true", { type: "boolean" }), true);
+    assert.equal(convertValue("false", { type: "boolean" }), false);
+    assert.equal(convertValue(true, { type: "boolean" }), true);
+    assert.equal(convertValue(false, { type: "boolean" }), false);
   });
 
   test("converts to string", () => {
-    expect(convertValue("hello", { type: "string" })).toBe("hello");
-    expect(convertValue(42, { type: "string" })).toBe("42");
+    assert.equal(convertValue("hello", { type: "string" }), "hello");
+    assert.equal(convertValue(42, { type: "string" }), "42");
   });
 
   // --- Null / undefined passthrough ---
 
   test("passes through null and undefined", () => {
-    expect(convertValue(null, { type: "string" })).toBeNull();
-    expect(convertValue(undefined, { type: "number" })).toBeUndefined();
+    assert.equal(convertValue(null, { type: "string" }), null);
+    assert.equal(convertValue(undefined, { type: "number" }), undefined);
   });
 
   // --- Arrays ---
 
   test("converts array of numbers", () => {
-    expect(
-      convertValue([1, "2", "3.5"], { type: "array", items: { type: "number" } }),
-    ).toEqual([1, 2, 3.5]);
+    assert.deepEqual(
+      convertValue([1, "2", "3.5"], {
+        type: "array",
+        items: { type: "number" },
+      }),
+      [1, 2, 3.5],
+    );
   });
 
   test("converts array of strings", () => {
-    expect(
-      convertValue(["a", 1, true], { type: "array", items: { type: "string" } }),
-    ).toEqual(["a", "1", "true"]);
+    assert.deepEqual(
+      convertValue(["a", 1, true], {
+        type: "array",
+        items: { type: "string" },
+      }),
+      ["a", "1", "true"],
+    );
   });
 
   test("converts array of booleans", () => {
-    expect(
+    assert.deepEqual(
       convertValue(["true", "false", true], {
         type: "array",
         items: { type: "boolean" },
       }),
-    ).toEqual([true, false, true]);
+      [true, false, true],
+    );
   });
 
   test("returns value as-is if not an array", () => {
-    expect(
-      convertValue("not an array", { type: "array", items: { type: "number" } }),
-    ).toBe("not an array");
+    assert.equal(
+      convertValue("not an array", {
+        type: "array",
+        items: { type: "number" },
+      }),
+      "not an array",
+    );
   });
 
   test("returns array as-is if no items schema", () => {
-    expect(convertValue([1, 2, 3], { type: "array" })).toEqual([1, 2, 3]);
+    assert.deepEqual(convertValue([1, 2, 3], { type: "array" }), [1, 2, 3]);
   });
 
   // --- Objects ---
@@ -77,9 +92,10 @@ describe("convertValue", () => {
         name: { type: "string" },
       },
     };
-    expect(
+    assert.deepEqual(
       convertValue({ lat: "51.5", lon: "-0.12", name: "London" }, schema),
-    ).toEqual({ lat: 51.5, lon: -0.12, name: "London" });
+      { lat: 51.5, lon: -0.12, name: "London" },
+    );
   });
 
   test("sets missing properties to undefined", () => {
@@ -90,7 +106,7 @@ describe("convertValue", () => {
         b: { type: "number" },
       },
     };
-    expect(convertValue({ a: "hello" }, schema)).toEqual({
+    assert.deepEqual(convertValue({ a: "hello" }, schema), {
       a: "hello",
       b: undefined,
     });
@@ -101,11 +117,11 @@ describe("convertValue", () => {
       type: "object",
       properties: { a: { type: "string" } },
     };
-    expect(convertValue("not an object", schema)).toBe("not an object");
+    assert.equal(convertValue("not an object", schema), "not an object");
   });
 
   test("returns object as-is if no properties schema", () => {
-    expect(convertValue({ a: 1 }, { type: "object" })).toEqual({ a: 1 });
+    assert.deepEqual(convertValue({ a: 1 }, { type: "object" }), { a: 1 });
   });
 
   // --- Nested / recursive ---
@@ -121,7 +137,7 @@ describe("convertValue", () => {
         },
       },
     };
-    expect(
+    assert.deepEqual(
       convertValue(
         [
           { city: "Oslo", temp: "12" },
@@ -129,10 +145,11 @@ describe("convertValue", () => {
         ],
         schema,
       ),
-    ).toEqual([
-      { city: "Oslo", temp: 12 },
-      { city: "London", temp: 15 },
-    ]);
+      [
+        { city: "Oslo", temp: 12 },
+        { city: "London", temp: 15 },
+      ],
+    );
   });
 
   test("converts object with nested array", () => {
@@ -143,9 +160,10 @@ describe("convertValue", () => {
         scores: { type: "array", items: { type: "number" } },
       },
     };
-    expect(
+    assert.deepEqual(
       convertValue({ name: "test", scores: ["1", "2", "3"] }, schema),
-    ).toEqual({ name: "test", scores: [1, 2, 3] });
+      { name: "test", scores: [1, 2, 3] },
+    );
   });
 
   test("converts deeply nested structure", () => {
@@ -170,7 +188,7 @@ describe("convertValue", () => {
         },
       },
     };
-    expect(
+    assert.deepEqual(
       convertValue(
         {
           route: {
@@ -183,15 +201,16 @@ describe("convertValue", () => {
         },
         schema,
       ),
-    ).toEqual({
-      route: {
-        origin: "Oslo",
-        stops: [
-          { city: "Stockholm", duration: 3 },
-          { city: "Helsinki", duration: 2 },
-        ],
+      {
+        route: {
+          origin: "Oslo",
+          stops: [
+            { city: "Stockholm", duration: 3 },
+            { city: "Helsinki", duration: 2 },
+          ],
+        },
       },
-    });
+    );
   });
 
   test("converts triple-nested array", () => {
@@ -205,24 +224,16 @@ describe("convertValue", () => {
         },
       },
     };
-    expect(
-      convertValue(
-        [
-          [["1", "2"], ["3"]],
-          [["4", "5", "6"]],
-        ],
-        schema,
-      ),
-    ).toEqual([
-      [[1, 2], [3]],
-      [[4, 5, 6]],
-    ]);
+    assert.deepEqual(
+      convertValue([[["1", "2"], ["3"]], [["4", "5", "6"]]], schema),
+      [[[1, 2], [3]], [[4, 5, 6]]],
+    );
   });
 
   // --- Unknown type passthrough ---
 
   test("passes through unknown schema types", () => {
-    expect(convertValue({ a: 1 }, { type: "unknown" })).toEqual({ a: 1 });
-    expect(convertValue("hello", {})).toBe("hello");
+    assert.deepEqual(convertValue({ a: 1 }, { type: "unknown" }), { a: 1 });
+    assert.equal(convertValue("hello", {}), "hello");
   });
 });
