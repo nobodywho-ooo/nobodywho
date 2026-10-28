@@ -840,11 +840,6 @@ pub enum TextToSpeechError {
     #[diagnostic(code(nobodywho::tts_wasm_unsupported))]
     WasmUnsupported,
 
-    // ── Worker thread plumbing ───────────────────────────────────────
-    #[error("TextToSpeech worker thread is no longer running")]
-    #[diagnostic(code(nobodywho::tts_worker_dead))]
-    WorkerDead,
-
     // ── External error pass-through ──────────────────────────────────
     #[error("ONNX Runtime error")]
     Ort(#[from] ort::Error),

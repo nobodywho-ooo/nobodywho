@@ -46,11 +46,11 @@ mod kokoro;
 mod pocket;
 mod supertonic;
 
-use crate::errors::TextToSpeechError;
 pub use crate::onnx::Device as TextToSpeechDevice;
+use crate::{errors::TextToSpeechError, worker::AsyncWorker};
 pub use kokoro::KokoroConfig;
 pub use pocket::{PocketTtsConfig, PocketTtsPrecision};
-use std::{str::FromStr, sync::mpsc, sync::Arc};
+use std::{str::FromStr, sync::Arc};
 pub use supertonic::SupertonicConfig;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -128,24 +128,9 @@ impl TextToSpeechConfig {
 
 pub(super) const DEFAULT_SAMPLE_RATE: u32 = 24000;
 
-type SynthRequest = (
-    String,
-    tokio::sync::mpsc::Sender<Result<Vec<u8>, TextToSpeechError>>,
-);
-
-#[derive(Clone)]
 pub struct TextToSpeech {
-    worker: Arc<Worker>,
-}
-
-// Dropped when the last handle drops. Joining matters: otherwise the worker
-// thread may still be dropping the model while the host process (e.g. Godot)
-// unloads this library at exit, which segfaults.
-struct Worker {
-    // Field order is load-bearing: msg_tx drops first, closing the channel
-    // so the worker loop exits; then the join below can complete.
-    msg_tx: mpsc::Sender<SynthRequest>,
-    _join: crate::join_on_drop::JoinOnDrop,
+    architecture: Arc<tokio::sync::Mutex<Box<dyn architecture::TextToSpeechArchitectureImpl>>>,
+    worker: AsyncWorker,
 }
 
 impl TextToSpeech {
@@ -161,51 +146,24 @@ impl TextToSpeech {
         if cfg!(target_os = "emscripten") {
             return Err(TextToSpeechError::WasmUnsupported);
         }
-        let mut architecture = architecture::load_architecture(config, device)?;
-        let (msg_tx, msg_rx) = mpsc::channel::<SynthRequest>();
-        let join = std::thread::spawn(move || {
-            while let Ok((text, response_tx)) = msg_rx.recv() {
-                let result = architecture.synthesize(&text);
-                if response_tx.blocking_send(result).is_err() {
-                    tracing::warn!("TextToSpeech caller dropped before result could be delivered");
-                }
-            }
-        });
+        let architecture = architecture::load_architecture(config, device)?;
         Ok(Self {
-            worker: Arc::new(Worker {
-                msg_tx,
-                _join: crate::join_on_drop::JoinOnDrop::new(join),
-            }),
+            architecture: Arc::new(tokio::sync::Mutex::new(architecture)),
+            worker: AsyncWorker::new(),
         })
     }
 
-    fn enqueue(
-        &self,
-        text: String,
-    ) -> Result<tokio::sync::mpsc::Receiver<Result<Vec<u8>, TextToSpeechError>>, TextToSpeechError>
-    {
-        let (response_tx, response_rx) = tokio::sync::mpsc::channel(1);
-        self.worker
-            .msg_tx
-            .send((text, response_tx))
-            .map_err(|_| TextToSpeechError::WorkerDead)?;
-        Ok(response_rx)
-    }
-
     pub fn synthesize(&self, text: impl Into<String>) -> Result<Vec<u8>, TextToSpeechError> {
-        self.enqueue(text.into())?
-            .blocking_recv()
-            .ok_or(TextToSpeechError::WorkerDead)?
+        self.architecture.blocking_lock().synthesize(&text.into())
     }
 
     pub async fn synthesize_async(
         &self,
         text: impl Into<String>,
     ) -> Result<Vec<u8>, TextToSpeechError> {
-        self.enqueue(text.into())?
-            .recv()
-            .await
-            .ok_or(TextToSpeechError::WorkerDead)?
+        let text = text.into();
+        let mut arch = Arc::clone(&self.architecture).lock_owned().await;
+        self.worker.run(move || arch.synthesize(&text)).await
     }
 }
 
