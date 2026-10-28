@@ -449,10 +449,7 @@ fn request_completion_stream(
     messages: Vec<nobodywho::chat::Message>,
     options: RequestOptions,
     py: Python<'_>,
-) -> PyResult<(
-    nobodywho::chat::ChatHandle,
-    nobodywho::chat::CompletionStream,
-)> {
+) -> PyResult<nobodywho::chat::CompletionStream> {
     let RequestOptions {
         temperature,
         top_p,
@@ -484,7 +481,7 @@ fn request_completion_stream(
     let stream = py
         .detach(|| chat.completion_stream(messages, completion_options, max_tokens, true))
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(render_miette(&e)))?;
-    Ok((chat, stream))
+    Ok(stream)
 }
 
 fn completion_stream_for(
@@ -493,9 +490,8 @@ fn completion_stream_for(
     py: Python<'_>,
 ) -> PyResult<ChatCompletionStream> {
     let (model, model_source) = state.model_for(request.model, py)?;
-    let (chat, inner) = request_completion_stream(model, request.messages, request.options, py)?;
+    let inner = request_completion_stream(model, request.messages, request.options, py)?;
     Ok(ChatCompletionStream::new(
-        chat,
         inner,
         model_source,
         request.id_prefix,
@@ -1448,9 +1444,6 @@ impl ReasoningStreamParser {
 pub struct ChatCompletionStream {
     /// An `Option` so `drop` can take it and drop it without the GIL.
     inner: Option<nobodywho::chat::CompletionStream>,
-    /// Dropping the chat stops its worker, so it lives as long as the stream.
-    /// An `Option` so `drop` can take it and drop it without the GIL.
-    chat: Option<nobodywho::chat::ChatHandle>,
     id: String,
     model: String,
     created: u64,
@@ -1464,29 +1457,15 @@ pub struct ChatCompletionStream {
 impl Drop for ChatCompletionStream {
     fn drop(&mut self) {
         let inner = self.inner.take();
-        let chat = self.chat.take();
-        // The stream goes first, so a worker blocked on sending to it stops
-        // before the chat waits for it to finish.
-        Python::attach(|py| {
-            py.detach(|| {
-                drop(inner);
-                drop(chat);
-            })
-        });
+        Python::attach(|py| py.detach(|| drop(inner)));
     }
 }
 
 impl ChatCompletionStream {
-    fn new(
-        chat: nobodywho::chat::ChatHandle,
-        inner: nobodywho::chat::CompletionStream,
-        model: String,
-        id_prefix: &str,
-    ) -> Self {
+    fn new(inner: nobodywho::chat::CompletionStream, model: String, id_prefix: &str) -> Self {
         let (id, created) = completion_identity(id_prefix);
         Self {
             inner: Some(inner),
-            chat: Some(chat),
             id,
             model,
             created,

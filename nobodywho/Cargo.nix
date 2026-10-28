@@ -10870,6 +10870,10 @@ rec {
             packageId = "symphonia-core";
           }
           {
+            name = "sync_wrapper";
+            packageId = "sync_wrapper";
+          }
+          {
             name = "tempfile";
             packageId = "tempfile";
           }

@@ -70,6 +70,7 @@ espeak-ng = { version = "0.2.0", default-features = false, features = [
     "bundled-data-pt",
 ] }
 yoke = "0.8.3"
+sync_wrapper = "1.0.2"
 # ort is pinned exactly because its release candidates make breaking changes;
 # bump deliberately and run /full-ci. Keep the CI-built ONNX Runtime in step
 # (`ort_version` in the build-ort action) with ort-sys's prebuilts (dist.tsv).
