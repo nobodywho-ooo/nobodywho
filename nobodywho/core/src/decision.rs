@@ -28,12 +28,12 @@
 //! ```
 
 use crate::errors::DecisionError;
-use crate::llm::{Model, WorkerGuard};
+use crate::llm::Model;
+use crate::worker::AsyncWorker;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
-use tokio::sync::oneshot;
 mod laya;
 
 #[cfg(test)]
@@ -249,42 +249,33 @@ pub struct DecisionUsage {
     pub output_tokens: usize,
 }
 
-#[derive(Clone)]
 pub struct Decision {
-    async_handle: DecisionAsync,
-}
-
-#[derive(Clone)]
-pub struct DecisionAsync {
-    guard: Arc<WorkerGuard<DecisionMsg>>,
+    laya: tokio::sync::Mutex<laya::Laya>,
 }
 
 impl Decision {
     pub fn new(model: Arc<Model>, n_ctx: u32) -> Result<Self, DecisionError> {
-        Ok(Self {
-            async_handle: DecisionAsync::new(model, n_ctx)?,
-        })
+        let laya = tokio::sync::Mutex::new(laya::Laya::new(model, n_ctx)?);
+        Ok(Self { laya })
     }
 
     pub fn decide(&self, request: DecisionRequest) -> Result<DecisionResponse, DecisionError> {
-        futures::executor::block_on(self.async_handle.decide(request))
+        self.laya.blocking_lock().decide(request)
     }
+}
+
+#[derive(Clone)]
+pub struct DecisionAsync {
+    laya: Arc<tokio::sync::Mutex<laya::Laya>>,
+    worker: Arc<AsyncWorker>,
 }
 
 impl DecisionAsync {
     pub fn new(model: Arc<Model>, n_ctx: u32) -> Result<Self, DecisionError> {
-        let mut worker = laya::LayaWorker::new(model, n_ctx)?;
-        let (msg_tx, msg_rx) = std::sync::mpsc::channel::<DecisionMsg>();
-        let join_handle = std::thread::Builder::new()
-            .name("nobodywho-decisions".into())
-            .spawn(move || {
-                while let Ok(msg) = msg_rx.recv() {
-                    let result = worker.decide(msg.request);
-                    let _ = msg.output_tx.send(result);
-                }
-            })?;
+        let laya = laya::Laya::new(model, n_ctx)?;
         Ok(Self {
-            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, None)),
+            laya: Arc::new(tokio::sync::Mutex::new(laya)),
+            worker: Arc::new(AsyncWorker::new()),
         })
     }
 
@@ -292,17 +283,7 @@ impl DecisionAsync {
         &self,
         request: DecisionRequest,
     ) -> Result<DecisionResponse, DecisionError> {
-        let (output_tx, output_rx) = oneshot::channel();
-        if !self.guard.send(DecisionMsg { request, output_tx }) {
-            return Err(DecisionError::WorkerTerminated);
-        }
-        output_rx
-            .await
-            .map_err(|_| DecisionError::WorkerTerminated)?
+        let mut laya = Arc::clone(&self.laya).lock_owned().await;
+        self.worker.run(move || laya.decide(request)).await
     }
-}
-
-struct DecisionMsg {
-    request: DecisionRequest,
-    output_tx: oneshot::Sender<Result<DecisionResponse, DecisionError>>,
 }

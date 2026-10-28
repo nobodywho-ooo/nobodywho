@@ -71,19 +71,19 @@ impl PreparedQuestion<'_> {
     }
 }
 
-pub(super) struct LayaWorker {
+pub(super) struct Laya {
     engine: Yoke<InferenceEngine<'static>, Arc<Model>>,
-    laya: Laya,
+    laya: LayaState,
 }
 
-impl LayaWorker {
+impl Laya {
     pub(super) fn new(model: Arc<Model>, n_ctx: u32) -> Result<Self, DecisionError> {
         if n_ctx == 0 {
             return Err(DecisionError::InvalidRequest(
                 "n_ctx must be positive".into(),
             ));
         }
-        let laya = Laya::new(&model.language_model)?;
+        let laya = LayaState::new(&model.language_model)?;
         let engine = Yoke::try_attach_to_cart(model, |model| {
             InferenceEngine::new_with_type(model, n_ctx, true, None, None, LlamaPoolingType::None)
         })?;
@@ -142,7 +142,7 @@ impl LayaWorker {
     }
 }
 
-struct Laya {
+struct LayaState {
     template: String,
     marker: LlamaToken,
     sep: LlamaToken,
@@ -151,7 +151,7 @@ struct Laya {
     temperatures: HashMap<String, f64>,
 }
 
-impl Laya {
+impl LayaState {
     fn new(model: &LlamaModel) -> Result<Self, DecisionError> {
         let architecture = model
             .meta_val_str("general.architecture")
