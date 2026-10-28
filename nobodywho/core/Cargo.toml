@@ -135,6 +135,9 @@ tokio = { version = "1.43.0", features = ["rt-multi-thread"] }
 ureq = { version = "3", features = ["rustls"] }
 
 [target.'cfg(target_os = "emscripten")'.dependencies]
+llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs.git", branch = "lfm-support-hack", default-features = false, features = [
+    "webgpu",
+] }
 # FIXME(madsmtm): Use `ort-web` or compile ONNX for Emscripten (possibly pre-compiled by ort-sys too?)
 #
 # For now, we just disable it. This will fail at runtime if the user calls any of these APIs.
