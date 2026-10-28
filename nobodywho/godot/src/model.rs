@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use godot::prelude::*;
+use nobodywho::worker::AsyncWorker;
 
 use crate::convert::{dict_get, resolve_godot_path, validate_config_keys};
 use crate::task::task;
@@ -51,7 +52,16 @@ impl NobodyWhoModel {
         // Option<DownloadProgressCallback>; emit a signal from inside the
         // callback instead of bridging a Callable. Deferred to a later chunk.
         task(async move {
-            match nobodywho::llm::get_model_async(path, use_gpu, mmproj_path, draft_path, None)
+            match AsyncWorker::new()
+                .run(move || {
+                    nobodywho::llm::get_model(
+                        &path,
+                        use_gpu,
+                        mmproj_path.as_deref(),
+                        draft_path.as_deref(),
+                        None,
+                    )
+                })
                 .await
             {
                 Ok(model) => {

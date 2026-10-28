@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Once};
 
+use nobodywho::worker::AsyncWorker;
 use tracing::{debug, error, info};
 
 uniffi::setup_scaffolding!("nobodywho");
@@ -345,19 +346,23 @@ pub async fn load_model(
     );
 
     let progress = on_download_progress.map(wrap_progress);
-    let model = nobodywho::llm::get_model_async(
-        model_path.clone(),
-        use_gpu,
-        projection_model_path,
-        draft_model_path,
-        progress,
-    )
-    .await
-    .map_err(|e| {
-        let msg = nobodywho::render_miette(&e);
-        error!("{}", msg);
-        NobodyWhoError::Error { message: msg }
-    })?;
+    let model_path_clone = model_path.clone();
+    let model = AsyncWorker::new()
+        .run(move || {
+            nobodywho::llm::get_model(
+                &model_path_clone,
+                use_gpu,
+                projection_model_path.as_deref(),
+                draft_model_path.as_deref(),
+                progress,
+            )
+        })
+        .await
+        .map_err(|e| {
+            let msg = nobodywho::render_miette(&e);
+            error!("{}", msg);
+            NobodyWhoError::Error { message: msg }
+        })?;
 
     info!("load_model SUCCESS for {}", model_path);
     Ok(Arc::new(RustModel {

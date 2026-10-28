@@ -100,8 +100,7 @@ pub enum LoadModelError {
     InvalidModel(String),
     #[error("Multimodal error: {0}")]
     Multimodal(#[from] MultimodalError),
-    #[error("Channel for receiving model was closed unexpectedly")]
-    ModelChannelError,
+
     #[error("Invalid Hugging Face model path: {path}")]
     #[diagnostic(
         code(nobodywho::invalid_hugging_face_model_path),

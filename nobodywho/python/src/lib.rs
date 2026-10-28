@@ -1,3 +1,4 @@
+use nobodywho::worker::AsyncWorker;
 use pyo3::exceptions::PyKeyboardInterrupt;
 use pyo3::prelude::*;
 use pyo3::{type_hint_union, PyTypeInfo};
@@ -270,12 +271,15 @@ impl Model {
         draft_model_path: Option<std::path::PathBuf>,
         on_download_progress: Option<Py<PyAny>>,
     ) -> PyResult<Self> {
-        let path_str = model_path.to_str().ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err(format!(
-                "Path contains invalid UTF-8: {}",
-                model_path.display()
-            ))
-        })?;
+        let path_str = model_path
+            .to_str()
+            .ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "Path contains invalid UTF-8: {}",
+                    model_path.display()
+                ))
+            })?
+            .to_owned();
         let mmproj_str = projection_model_path
             .as_ref()
             .map(|p| {
@@ -286,7 +290,8 @@ impl Model {
                     ))
                 })
             })
-            .transpose()?;
+            .transpose()?
+            .map(str::to_owned);
         let draft_str = draft_model_path
             .as_ref()
             .map(|p| {
@@ -297,16 +302,21 @@ impl Model {
                     ))
                 })
             })
-            .transpose()?;
+            .transpose()?
+            .map(str::to_owned);
         let progress = resolve_on_download_progress(on_download_progress)?;
-        let model_result = nobodywho::llm::get_model_async(
-            path_str.to_owned(),
-            use_gpu_if_available,
-            mmproj_str.map(str::to_owned),
-            draft_str.map(str::to_owned),
-            progress,
-        )
-        .await;
+        let worker = AsyncWorker::new();
+        let model_result = worker
+            .run(move || {
+                nobodywho::llm::get_model(
+                    &path_str,
+                    use_gpu_if_available,
+                    mmproj_str.as_deref(),
+                    draft_str.as_deref(),
+                    progress,
+                )
+            })
+            .await;
         match model_result {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),

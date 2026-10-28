@@ -3,6 +3,7 @@ use std::sync::Arc;
 use godot::prelude::*;
 
 use nobodywho::decision::DecisionAsync;
+use nobodywho::worker::AsyncWorker;
 
 use crate::convert::{
     dict_get_positive_u32, json_to_variant, resolve_godot_path, validate_config_keys,
@@ -50,12 +51,16 @@ impl NobodyWhoDecision {
             }
         };
         task(async move {
+            let worker = AsyncWorker::new();
             // Resolve model-or-path, mirroring NobodyWhoEncoder.create.
             let arc = if let Ok(m) = model.try_to::<Gd<NobodyWhoModel>>() {
                 m.bind().inner.clone()
             } else if let Ok(path) = model.try_to::<GString>() {
                 let path = resolve_godot_path(&path);
-                match nobodywho::llm::get_model_async(path, true, None, None, None).await {
+                match worker
+                    .run(move || nobodywho::llm::get_model(&path, true, None, None, None))
+                    .await
+                {
                     Ok(m) => Arc::new(m),
                     Err(e) => {
                         godot_error!("Failed to load model: {}", nobodywho::render_miette(&e));

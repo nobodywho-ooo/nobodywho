@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use godot::prelude::*;
+use nobodywho::worker::AsyncWorker;
 
 use crate::convert::{
     dict_get, dict_get_positive_u32, dict_get_u32, globalize_message_media_paths, json_to_variant,
@@ -81,6 +82,8 @@ impl NobodyWhoChat {
             }
         };
         task(async move {
+            let worker = AsyncWorker::new();
+
             // Resolve model-or-path to a shared Arc<Model>. A path is loaded
             // with use_gpu from config (default true); for richer control,
             // load a NobodyWhoModel first and pass that.
@@ -88,7 +91,10 @@ impl NobodyWhoChat {
                 m.bind().inner.clone()
             } else if let Ok(path) = model.try_to::<GString>() {
                 let path = resolve_godot_path(&path);
-                match nobodywho::llm::get_model_async(path, use_gpu, None, None, None).await {
+                match worker
+                    .run(move || nobodywho::llm::get_model(&path, use_gpu, None, None, None))
+                    .await
+                {
                     Ok(m) => Arc::new(m),
                     Err(e) => {
                         godot_error!("Failed to load model: {}", nobodywho::render_miette(&e));
