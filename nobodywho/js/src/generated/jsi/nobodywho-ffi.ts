@@ -289,6 +289,14 @@ interface NativeModuleInterface {
   ubrn_uniffi_nobodywho_uniffi_fn_func_get_cached_models(
     uniffi_out_err: UniffiRustCallStatus,
   ): Uint8Array;
+  ubrn_uniffi_nobodywho_uniffi_fn_func_load_cross_encoder(
+    model: bigint,
+    contextSize: Uint8Array,
+  ): bigint;
+  ubrn_uniffi_nobodywho_uniffi_fn_func_load_encoder(
+    model: bigint,
+    contextSize: Uint8Array,
+  ): bigint;
   ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(
     modelPath: Uint8Array,
     useGpu: number,
@@ -732,6 +740,8 @@ interface NativeModuleInterface {
   ubrn_uniffi_nobodywho_uniffi_checksum_func_cosine_similarity(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_download_model(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_get_cached_models(): number;
+  ubrn_uniffi_nobodywho_uniffi_checksum_func_load_cross_encoder(): number;
+  ubrn_uniffi_nobodywho_uniffi_checksum_func_load_encoder(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(): number;

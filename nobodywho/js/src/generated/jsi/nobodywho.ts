@@ -168,6 +168,114 @@ export function getCachedModels(): Array<CachedModel> /*throws*/ {
 }
 
 /**
+ * Create a new cross-encoder without blocking the calling thread.
+ */
+export async function loadCrossEncoder(
+  model: RustModelLike,
+  contextSize: number | undefined,
+  asyncOpts_?: { signal: AbortSignal },
+): Promise<RustCrossEncoderLike> /*throws*/ {
+  const __stack = uniffiIsDebug ? new Error().stack : undefined;
+  try {
+    return await uniffiRustCallAsync(
+      /*rustCaller:*/ uniffiCaller,
+      /*rustFutureFunc:*/ () => {
+        return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_cross_encoder(
+          FfiConverterTypeRustModel.lower(
+            model,
+            nativeModule().rustbuffer_alloc,
+          ),
+          FfiConverterOptionalUInt32.lower(
+            contextSize,
+            nativeModule().rustbuffer_alloc,
+          ),
+        );
+      },
+      /*pollFunc:*/ nativeModule()
+        .ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
+      /*cancelFunc:*/ nativeModule()
+        .ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
+      /*completeFunc:*/ nativeModule()
+        .ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
+      /*freeFunc:*/ nativeModule()
+        .ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
+      // Async returns always go through the JS-side converter: the
+      // FFI symbol returns the future handle (u64), and the user-level
+      // RustBuffer comes back via the shared `rust_future_complete_*`
+      // export. The bytes the runtime hands back must be deserialized
+      // here using the per-callable return-type converter.
+      /*liftFunc:*/ FfiConverterTypeRustCrossEncoder.lift.bind(
+        FfiConverterTypeRustCrossEncoder,
+      ),
+      /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+      /*asyncOpts:*/ asyncOpts_,
+      /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+        FfiConverterTypeNobodyWhoError,
+      ),
+    );
+  } catch (__error: any) {
+    if (uniffiIsDebug && __error instanceof Error) {
+      __error.stack = __stack;
+    }
+    throw __error;
+  }
+}
+
+/**
+ * Create a new encoder without blocking the calling thread.
+ */
+export async function loadEncoder(
+  model: RustModelLike,
+  contextSize: number | undefined,
+  asyncOpts_?: { signal: AbortSignal },
+): Promise<RustEncoderLike> /*throws*/ {
+  const __stack = uniffiIsDebug ? new Error().stack : undefined;
+  try {
+    return await uniffiRustCallAsync(
+      /*rustCaller:*/ uniffiCaller,
+      /*rustFutureFunc:*/ () => {
+        return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_encoder(
+          FfiConverterTypeRustModel.lower(
+            model,
+            nativeModule().rustbuffer_alloc,
+          ),
+          FfiConverterOptionalUInt32.lower(
+            contextSize,
+            nativeModule().rustbuffer_alloc,
+          ),
+        );
+      },
+      /*pollFunc:*/ nativeModule()
+        .ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
+      /*cancelFunc:*/ nativeModule()
+        .ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
+      /*completeFunc:*/ nativeModule()
+        .ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
+      /*freeFunc:*/ nativeModule()
+        .ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
+      // Async returns always go through the JS-side converter: the
+      // FFI symbol returns the future handle (u64), and the user-level
+      // RustBuffer comes back via the shared `rust_future_complete_*`
+      // export. The bytes the runtime hands back must be deserialized
+      // here using the per-callable return-type converter.
+      /*liftFunc:*/ FfiConverterTypeRustEncoder.lift.bind(
+        FfiConverterTypeRustEncoder,
+      ),
+      /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+      /*asyncOpts:*/ asyncOpts_,
+      /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+        FfiConverterTypeNobodyWhoError,
+      ),
+    );
+  } catch (__error: any) {
+    if (uniffiIsDebug && __error instanceof Error) {
+      __error.stack = __stack;
+    }
+    throw __error;
+  }
+}
+
+/**
  * Load a GGUF model from a local path or remote URL.
  *
  * Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
@@ -3895,9 +4003,15 @@ export class RustCrossEncoder
   /**
    * Create a new cross-encoder for ranking documents by relevance.
    */
-  constructor(model: RustModelLike, contextSize: number | undefined) {
+  constructor(
+    model: RustModelLike,
+    contextSize: number | undefined,
+  ) /*throws*/ {
     super();
-    const pointer = uniffiCaller.rustCall(
+    const pointer = uniffiCaller.rustCallWithError(
+      /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+        FfiConverterTypeNobodyWhoError,
+      ),
       /*caller:*/ (callStatus) => {
         return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
           FfiConverterTypeRustModel.lower(
@@ -4359,9 +4473,15 @@ export class RustEncoder
   /**
    * Create a new encoder for generating text embeddings.
    */
-  constructor(model: RustModelLike, contextSize: number | undefined) {
+  constructor(
+    model: RustModelLike,
+    contextSize: number | undefined,
+  ) /*throws*/ {
     super();
-    const pointer = uniffiCaller.rustCall(
+    const pointer = uniffiCaller.rustCallWithError(
+      /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+        FfiConverterTypeNobodyWhoError,
+      ),
       /*caller:*/ (callStatus) => {
         return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
           FfiConverterTypeRustModel.lower(
@@ -6679,6 +6799,22 @@ function uniffiEnsureInitialized() {
     );
   }
   if (
+    nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_cross_encoder() !==
+    53022
+  ) {
+    throw new UniffiInternalError.ApiChecksumMismatch(
+      "uniffi_nobodywho_uniffi_checksum_func_load_cross_encoder",
+    );
+  }
+  if (
+    nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_encoder() !==
+    21999
+  ) {
+    throw new UniffiInternalError.ApiChecksumMismatch(
+      "uniffi_nobodywho_uniffi_checksum_func_load_encoder",
+    );
+  }
+  if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !==
     30733
   ) {
@@ -6968,7 +7104,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() !==
-    9022
+    63560
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new",
@@ -7008,7 +7144,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() !==
-    27902
+    36527
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new",

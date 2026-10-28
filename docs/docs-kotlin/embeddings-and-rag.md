@@ -24,6 +24,15 @@ val embedding = encoder.encode("What is the weather like?")
 println("Vector with ${embedding.size} dimensions")
 ```
 
+You can also create an encoder from an already-loaded model:
+
+```kotlin
+import ai.nobodywho.Model
+
+val model = Model.load("./embedding-model.gguf")
+val encoder = Encoder.load(model)
+```
+
 Use `encodeBatch` for multiple texts. It returns embeddings in input order:
 
 ```kotlin

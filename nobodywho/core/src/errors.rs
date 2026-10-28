@@ -605,9 +605,6 @@ pub enum CrossEncoderWorkerError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum EncoderWorkerError {
-    #[error("Error initializing worker: {0}")]
-    InitWorker(#[from] InitWorkerError),
-
     #[error("Error reading string: {0}")]
     Read(#[from] ReadError),
 

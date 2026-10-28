@@ -28,6 +28,13 @@ print("Vector with ${embedding.length} dimensions");
 
 The resulting embedding is a `Float32List` (typically 384 or 768 dimensions depending on the model).
 
+You can also create an encoder from an already-loaded model:
+
+```dart
+final model = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
+final encoder = await nobodywho.Encoder.load(model: model);
+```
+
 ### Batch Encoding
 
 Use `encodeBatch` for multiple texts. It returns a `List<Float32List>` in input order:

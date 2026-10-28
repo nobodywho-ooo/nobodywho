@@ -9,7 +9,7 @@ use crate::convert::{
     collect_strings, dict_get_positive_u32, resolve_godot_path, validate_config_keys,
 };
 use crate::model::NobodyWhoModel;
-use crate::task::task;
+use crate::task::{on_blocking_thread, task};
 
 /// A cross-encoder reranker. Scores how relevant each document is to a
 /// query (more accurate than embedding cosine-similarity, at higher compute
@@ -66,12 +66,23 @@ impl NobodyWhoCrossEncoder {
                 );
                 return Variant::nil();
             };
-            // CrossEncoderAsync::new is non-blocking (spawns a worker thread).
-            Gd::from_init_fn(|base| Self {
-                handle: CrossEncoderAsync::new(arc, n_ctx),
-                base,
-            })
-            .to_variant()
+            // `CrossEncoderAsync::new` creates the context synchronously, so
+            // run it on a worker thread to avoid blocking the event loop.
+            let result = on_blocking_thread(move || CrossEncoderAsync::new(arc, n_ctx)).await;
+            match result {
+                Some(Ok(handle)) => Gd::from_init_fn(|base| Self { handle, base }).to_variant(),
+                Some(Err(e)) => {
+                    godot_error!(
+                        "Failed to create crossencoder: {}",
+                        nobodywho::render_miette(&e)
+                    );
+                    Variant::nil()
+                }
+                None => {
+                    godot_error!("Crossencoder worker init panicked");
+                    Variant::nil()
+                }
+            }
         })
         .bind()
         .wait()

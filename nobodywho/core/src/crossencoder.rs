@@ -4,7 +4,7 @@ use crate::llm;
 use crate::llm::WorkerGuard;
 use llama_cpp_2::context::params::LlamaPoolingType;
 use std::sync::Arc;
-use tracing::{error, warn};
+use tracing::warn;
 use yoke::Yoke;
 
 #[derive(Clone)]
@@ -18,9 +18,9 @@ pub struct CrossEncoderAsync {
 }
 
 impl CrossEncoder {
-    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
-        let async_handle = CrossEncoderAsync::new(model, n_ctx);
-        Self { async_handle }
+    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
+        let async_handle = CrossEncoderAsync::new(model, n_ctx)?;
+        Ok(Self { async_handle })
     }
 
     pub fn rank(
@@ -43,26 +43,20 @@ impl CrossEncoder {
 }
 
 impl CrossEncoderAsync {
-    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
+    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
-        let join_handle = std::thread::spawn(move || {
-            let worker = CrossEncoderWorker::new(model, n_ctx);
-            let mut worker_state = match worker {
-                Ok(worker_state) => worker_state,
-                Err(errmsg) => {
-                    return error!(error=%errmsg, "Could not set up the worker initial state")
-                }
-            };
+        let mut worker = CrossEncoderWorker::new(model, n_ctx)?;
 
+        let join_handle = std::thread::spawn(move || {
             while let Ok(msg) = msg_rx.recv() {
-                process_worker_msg(&mut worker_state, msg);
+                process_worker_msg(&mut worker, msg);
             }
         });
 
-        Self {
+        Ok(Self {
             guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, None)),
-        }
+        })
     }
 
     pub async fn rank(
@@ -200,7 +194,7 @@ mod tests {
     #[tokio::test]
     async fn test_crossencoder_async() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_crossencoder_model();
-        let handle: CrossEncoderAsync = CrossEncoderAsync::new(model, 4096);
+        let handle = CrossEncoderAsync::new(model, 4096)?;
 
         let query = "What is the capital of France?".to_string();
         let mut documents = vec![
@@ -241,7 +235,7 @@ mod tests {
     fn test_crossencoder_batch_matches_individual_scores() -> Result<(), Box<dyn std::error::Error>>
     {
         let model = test_utils::load_crossencoder_model();
-        let encoder = CrossEncoder::new(model, 48);
+        let encoder = CrossEncoder::new(model, 48)?;
         let query = "What is the capital of France?".to_string();
         let documents = vec![
             "Paris is the capital of France.".to_string(),
@@ -284,7 +278,7 @@ mod tests {
     #[ignore = "real-model benchmark; run with --ignored --nocapture"]
     fn benchmark_crossencoder_batching() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_crossencoder_model();
-        let encoder = CrossEncoder::new(model, 4096);
+        let encoder = CrossEncoder::new(model, 4096)?;
         let query = "What is the capital of France?".to_string();
         let documents = (0..40)
             .map(|index| {
@@ -334,7 +328,7 @@ mod tests {
     #[test]
     fn test_crossencoder_sync() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_crossencoder_model();
-        let encoder = CrossEncoder::new(model, 4096);
+        let encoder = CrossEncoder::new(model, 4096)?;
 
         let query = "What is the capital of France?".to_string();
         let documents = vec![
@@ -372,7 +366,7 @@ mod tests {
     #[test]
     fn test_oversized_input_keeps_crossencoder_alive() {
         let model = test_utils::load_crossencoder_model();
-        let crossencoder = CrossEncoder::new(model, 64);
+        let crossencoder = CrossEncoder::new(model, 64).unwrap();
 
         let err = crossencoder
             .rank("query".to_string(), vec!["word ".repeat(500)])

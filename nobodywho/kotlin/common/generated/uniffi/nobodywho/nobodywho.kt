@@ -693,6 +693,10 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_get_cached_models(
     ): Int
+    external fun uniffi_nobodywho_uniffi_checksum_func_load_cross_encoder(
+    ): Int
+    external fun uniffi_nobodywho_uniffi_checksum_func_load_encoder(
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_load_model(
     ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text(
@@ -1103,6 +1107,10 @@ external fun uniffi_nobodywho_uniffi_fn_func_download_model(`modelPath`: RustBuf
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_get_cached_models(uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
+external fun uniffi_nobodywho_uniffi_fn_func_load_cross_encoder(`model`: Long,`contextSize`: RustBuffer.ByValue,
+): Long
+external fun uniffi_nobodywho_uniffi_fn_func_load_encoder(`model`: Long,`contextSize`: RustBuffer.ByValue,
+): Long
 external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`draftModelPath`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_load_speech_to_text(`source`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`quantization`: RustBuffer.ByValue,
@@ -1257,6 +1265,12 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_get_cached_models() != 12002) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_cross_encoder() != 53022) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_encoder() != 21999) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 30733) {
@@ -1493,13 +1507,13 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 4810) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 63560) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustdecision_new() != 3605) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 27902) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 36527) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new() != 9249) {
@@ -2986,7 +3000,7 @@ open class RustCrossEncoder: Disposable, AutoCloseable, RustCrossEncoderInterfac
      */
     constructor(`model`: RustModel, `contextSize`: kotlin.UInt?) :
         this(UniffiWithHandle, 
-    uniffiRustCall() { _status ->
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
     
         FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalUInt.lower(`contextSize`),_status)
@@ -3578,7 +3592,7 @@ open class RustEncoder: Disposable, AutoCloseable, RustEncoderInterface
      */
     constructor(`model`: RustModel, `contextSize`: kotlin.UInt?) :
         this(UniffiWithHandle, 
-    uniffiRustCall() { _status ->
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
     
         FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalUInt.lower(`contextSize`),_status)
@@ -8859,6 +8873,42 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
     )
     }
     
+
+        /**
+         * Create a new cross-encoder without blocking the calling thread.
+         */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `loadCrossEncoder`(`model`: RustModel, `contextSize`: kotlin.UInt?) : RustCrossEncoder {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_cross_encoder(FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalUInt.lower(`contextSize`),),
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
+        // lift function
+        { FfiConverterTypeRustCrossEncoder.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+        /**
+         * Create a new encoder without blocking the calling thread.
+         */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `loadEncoder`(`model`: RustModel, `contextSize`: kotlin.UInt?) : RustEncoder {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_encoder(FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalUInt.lower(`contextSize`),),
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
+        // lift function
+        { FfiConverterTypeRustEncoder.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
 
         /**
          * Load a GGUF model from a local path or remote URL.

@@ -157,7 +157,7 @@ final class NobodyWhoTests: XCTestCase {
     func testEncoderBatch() async throws {
         let modelPath = try requireEnv("TEST_EMBEDDINGS_MODEL")
         let model = try await Model.load(modelPath: modelPath, useGpu: false)
-        let encoder = Encoder(model: model, contextSize: 1024)
+        let encoder = try await Encoder.load(model: model, contextSize: 1024)
         let texts = ["Copenhagen is in Denmark.", "Berlin is in Germany."]
         var individual: [[Float]] = []
         for text in texts {

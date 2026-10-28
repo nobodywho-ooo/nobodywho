@@ -904,7 +904,7 @@ class CrossEncoder:
             A CrossEncoder instance
 
         Raises:
-            RuntimeError: If the model cannot be loaded
+            RuntimeError: If the model cannot be loaded or the context cannot be created
         """
     def rank(self, /, query: str, documents: Sequence[str]) -> list[float]:
         """
@@ -957,7 +957,7 @@ class CrossEncoderAsync:
             A CrossEncoderAsync instance
 
         Raises:
-            RuntimeError: If the model cannot be loaded
+            RuntimeError: If the model cannot be loaded or the context cannot be created
         """
     async def rank(self, /, query: str, documents: Sequence[str]) -> list[float]:
         """
@@ -1033,7 +1033,7 @@ class Encoder:
             An Encoder instance
 
         Raises:
-            RuntimeError: If the model cannot be loaded
+            RuntimeError: If the model cannot be loaded or the context cannot be created
         """
     def encode(self, /, text: str) -> list[float]:
         """
@@ -1081,7 +1081,7 @@ class EncoderAsync:
             An EncoderAsync instance
 
         Raises:
-            RuntimeError: If the model cannot be loaded
+            RuntimeError: If the model cannot be loaded or the context cannot be created
         """
     async def encode(self, /, text: str) -> list[float]:
         """

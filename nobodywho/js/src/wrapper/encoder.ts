@@ -1,4 +1,4 @@
-import { RustEncoder } from "../generated";
+import { RustEncoder, loadEncoder, type RustEncoderLike } from "../generated";
 import { Model } from "./model";
 
 /**
@@ -17,10 +17,23 @@ import { Model } from "./model";
  */
 export class Encoder {
   /** @internal */
-  private readonly _inner: RustEncoder;
+  private _inner: RustEncoderLike;
 
+  /** Create synchronously from a loaded model, blocking until it is ready. Prefer `load` for async code. */
   constructor(opts: { model: Model; contextSize?: number }) {
     this._inner = new RustEncoder(opts.model._inner, opts.contextSize ?? undefined);
+  }
+
+  private static fromInner(inner: RustEncoderLike): Encoder {
+    const instance = Object.create(Encoder.prototype) as Encoder;
+    instance._inner = inner;
+    return instance;
+  }
+
+  /** Create from a loaded model asynchronously. */
+  static async load(opts: { model: Model; contextSize?: number }): Promise<Encoder> {
+    const inner = await loadEncoder(opts.model._inner, opts.contextSize ?? undefined);
+    return Encoder.fromInner(inner);
   }
 
   /**
@@ -38,7 +51,7 @@ export class Encoder {
       useGpu: opts.useGpu,
       onDownloadProgress: opts.onDownloadProgress,
     });
-    return new Encoder({ model, ...opts });
+    return Encoder.load({ model, contextSize: opts.contextSize });
   }
 
   /** Encode text into an embedding vector. */
@@ -56,6 +69,6 @@ export class Encoder {
    * After calling this, the Encoder instance is no longer usable.
    */
   destroy(): void {
-    this._inner.uniffiDestroy();
+    (this._inner as any).uniffiDestroy();
   }
 }

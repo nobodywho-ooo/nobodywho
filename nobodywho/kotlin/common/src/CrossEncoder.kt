@@ -3,6 +3,7 @@ package ai.nobodywho
 import java.io.Closeable
 import org.json.JSONArray
 import uniffi.nobodywho.RustCrossEncoder as InternalCrossEncoder
+import uniffi.nobodywho.loadCrossEncoder
 
 /**
  * A cross-encoder for ranking documents by relevance to a query.
@@ -13,19 +14,23 @@ import uniffi.nobodywho.RustCrossEncoder as InternalCrossEncoder
  * val sorted = crossEncoder.rankAndSort("query", listOf("doc1", "doc2"))
  * ```
  */
-class CrossEncoder(
-    model: Model,
-    contextSize: UInt? = null
+class CrossEncoder private constructor(
+    private val inner: InternalCrossEncoder
 ) : Closeable {
-    private val inner: InternalCrossEncoder = InternalCrossEncoder(model.inner, contextSize)
+    /** Create synchronously from a loaded model, blocking until it is ready. Prefer [load] from coroutines. */
+    constructor(model: Model, contextSize: UInt? = null) : this(InternalCrossEncoder(model.inner, contextSize))
 
     companion object {
+        /** Create from a loaded model asynchronously. */
+        suspend fun load(model: Model, contextSize: UInt? = null): CrossEncoder =
+            CrossEncoder(loadCrossEncoder(model.inner, contextSize))
+
         /** Create a cross-encoder directly from a model path. */
         suspend fun fromPath(
             modelPath: String,
             useGpu: Boolean = true,
             contextSize: UInt? = null
-        ): CrossEncoder = CrossEncoder(Model.load(modelPath, useGpu), contextSize)
+        ): CrossEncoder = load(Model.load(modelPath, useGpu), contextSize)
     }
 
     suspend fun rank(query: String, documents: List<String>): List<Float> =

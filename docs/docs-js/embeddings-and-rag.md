@@ -30,6 +30,15 @@ console.log(`Vector with ${embedding.length} dimensions`);
 
 The resulting embedding is an array of numbers (typically 384 or 768 dimensions depending on the model).
 
+You can also create an encoder from an already-loaded model:
+
+```typescript
+import { Encoder, Model } from "react-native-nobodywho";
+
+const model = await Model.load({ modelPath: "/path/to/embedding-model.gguf" });
+const encoder = await Encoder.load({ model });
+```
+
 ### Batch Encoding
 
 Use `encodeBatch` for multiple texts. It returns embeddings in input order:
