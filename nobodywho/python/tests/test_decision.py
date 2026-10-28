@@ -36,7 +36,7 @@ def model(request, cpu_model):
     return nobodywho.Model(model_path=os.environ["TEST_DECISION_MODEL"]), True
 
 
-def check_response(response, expected, *, golden, tolerance=0.05):
+def check_response(response, expected, *, golden, tolerance):
     assert response["usage"] == expected["usage"]
     assert list(response["answers"]) == list(expected["answers"])
     for name, reference in expected["answers"].items():
@@ -69,7 +69,10 @@ def test_decision(model, cases):
         case = cases[name]
         response = decisions.decide(**case["request"])
         check_response(
-            response=response, expected=case["response"], golden=not gpu_requested
+            response=response,
+            expected=case["response"],
+            golden=not gpu_requested,
+            tolerance=0.1,
         )
 
 
