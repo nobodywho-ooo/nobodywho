@@ -1,1 +1,4 @@
-{}
+{
+  "git+https://github.com/nobodywho-ooo/llama-cpp-rs.git?branch=lfm-support-hack#llama-cpp-2@0.1.161": "0jggb8fl8s1aiz1d2rwq6yckq8428f0n3aqcrqa6k0qx8s2fwwpc",
+  "git+https://github.com/nobodywho-ooo/llama-cpp-rs.git?branch=lfm-support-hack#llama-cpp-sys-2@0.1.161": "0jggb8fl8s1aiz1d2rwq6yckq8428f0n3aqcrqa6k0qx8s2fwwpc"
+}

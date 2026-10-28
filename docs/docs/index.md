@@ -13,7 +13,7 @@ We provide a simple, efficient, offline and privacy forward way of interacting w
 In short, if you want to run a LLM, integrate it with [tools](/python/tool-calling), configure its output,
 enable real-time streaming of tokens, create embeddings, or synthesize speech, NobodyWho makes it easy.
 
-All of this is enabled by [Llama.cpp](https://github.com/ggml-org/llama.cpp), while having nice, simple API.
+All of this is enabled by [Llama.cpp](https://github.com/ggml-org/llama.cpp) (currently version 0.8.0), while having nice, simple API.
 
 No need to mess around with docker containers, GPU servers, API keys, etc. We make it easy to run local models in Kotlin, Swift, Python, Flutter, React Native, Expo and Godot!
 

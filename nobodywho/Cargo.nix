@@ -1479,7 +1479,7 @@ rec {
           }
           {
             name = "itertools";
-            packageId = "itertools 0.13.0";
+            packageId = "itertools 0.10.5";
             usesDefaultFeatures = false;
           }
           {
@@ -8291,26 +8291,6 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "use_alloc" "use_std" ];
       };
-      "itertools 0.13.0" = rec {
-        crateName = "itertools";
-        version = "0.13.0";
-        edition = "2018";
-        sha256 = "11hiy3qzl643zcigknclh446qb9zlg4dpdzfkjaa9q9fqpgyfgj1";
-        authors = [
-          "bluss"
-        ];
-        dependencies = [
-          {
-            name = "either";
-            packageId = "either";
-            usesDefaultFeatures = false;
-          }
-        ];
-        features = {
-          "default" = [ "use_std" ];
-          "use_std" = [ "use_alloc" "either/use_std" ];
-        };
-      };
       "itertools 0.14.0" = rec {
         crateName = "itertools";
         version = "0.14.0";
@@ -9207,9 +9187,14 @@ rec {
       };
       "llama-cpp-2" = rec {
         crateName = "llama-cpp-2";
-        version = "0.1.160";
+        version = "0.1.161";
         edition = "2021";
-        sha256 = "1zkk535z954dq26qybz31dbr8nzkfx2vvw2hlljllidpf44rz3mr";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/nobodywho-ooo/llama-cpp-rs.git";
+          rev = "22e58741ca94a78abf43ffd1f74763b6945d312f";
+          sha256 = "0jggb8fl8s1aiz1d2rwq6yckq8428f0n3aqcrqa6k0qx8s2fwwpc";
+        };
         libName = "llama_cpp_2";
         dependencies = [
           {
@@ -9276,10 +9261,15 @@ rec {
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
-        version = "0.1.160";
+        version = "0.1.161";
         edition = "2021";
         links = "llama";
-        sha256 = "16kyjaxvfj877xh0lmqqdapwhrs04dk962bxw0m05v5c482qlbci";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/nobodywho-ooo/llama-cpp-rs.git";
+          rev = "22e58741ca94a78abf43ffd1f74763b6945d312f";
+          sha256 = "0jggb8fl8s1aiz1d2rwq6yckq8428f0n3aqcrqa6k0qx8s2fwwpc";
+        };
         libName = "llama_cpp_sys_2";
         buildDependencies = [
           {
@@ -19667,7 +19657,7 @@ rec {
         dependencies = [
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.48.0";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Storage_FileSystem" "Win32_System_Console" "Win32_System_SystemInformation" ];
           }
@@ -20114,7 +20104,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_IO" "Win32_System_Pipes" "Win32_System_Threading" "Win32_System_WindowsProgramming" "default" ];
+        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_IO" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_Threading" "Win32_System_WindowsProgramming" "default" ];
       };
       "windows-sys 0.52.0" = rec {
         crateName = "windows-sys";
