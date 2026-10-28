@@ -56,7 +56,7 @@ impl NobodyWhoTask {
 /// Run `future` on the Godot executor; return a latched task.
 ///
 /// For blocking work (model load, worker init), drive it via
-/// [`on_blocking_thread`] from inside the future.
+/// `AsyncWorker` from inside the future.
 ///
 /// Never panic in `future` — gdext swallows it and the GDScript await hangs.
 /// Resolve with `null` + `godot_error!` on any failure instead.
@@ -76,20 +76,4 @@ where
         held.signals().done().emit(&value);
     });
     obj
-}
-
-/// Run a blocking closure on a dedicated thread; await its result.
-///
-/// Returns `None` if the closure panicked. Use for core constructors that
-/// block (e.g. `ChatHandle::new`).
-pub async fn on_blocking_thread<T, F>(f: F) -> Option<T>
-where
-    T: Send + 'static,
-    F: FnOnce() -> T + Send + 'static,
-{
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    std::thread::spawn(move || {
-        let _ = tx.send(f());
-    });
-    rx.await.ok() // None if the sender dropped (closure panicked)
 }

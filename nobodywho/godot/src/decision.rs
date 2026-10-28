@@ -10,7 +10,7 @@ use crate::convert::{
     variant_to_json,
 };
 use crate::model::NobodyWhoModel;
-use crate::task::{on_blocking_thread, task};
+use crate::task::task;
 
 /// Typed, non-generative decisions with a Laya model. Every answer comes with
 /// probabilities instead of generated text. Build it with the async factory:
@@ -74,17 +74,13 @@ impl NobodyWhoDecision {
                 return Variant::nil();
             };
             // LayaWorker::new allocates the llama context before spawning the worker.
-            match on_blocking_thread(move || DecisionAsync::new(arc, n_ctx)).await {
-                Some(Ok(handle)) => Gd::from_init_fn(|base| Self { handle, base }).to_variant(),
-                Some(Err(e)) => {
+            match worker.run(move || DecisionAsync::new(arc, n_ctx)).await {
+                Ok(handle) => Gd::from_init_fn(|base| Self { handle, base }).to_variant(),
+                Err(e) => {
                     godot_error!(
                         "Failed to create decision handle: {}",
                         nobodywho::render_miette(&e)
                     );
-                    Variant::nil()
-                }
-                None => {
-                    godot_error!("Decision worker init panicked");
                     Variant::nil()
                 }
             }

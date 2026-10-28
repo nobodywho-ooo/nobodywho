@@ -54,11 +54,6 @@ nix shell nixpkgs#godot_4 --command godot --headless --path .
 
 ### Expected noise
 
-- The `task: blocking-panic` test deliberately panics inside
-  `on_blocking_thread`; gdext logs it as `ERROR: [panic ...] deliberate panic
-  in on_blocking_thread` followed by `NobodyWhoTask._test_blocking_panic:
-  closure panicked`. The test then asserts the result is `null` and passes —
-  those error lines are the *expected* behavior, not a failure.
 - A few `ObjectDB instances were leaked at exit` / `resources still in use`
   warnings may appear at shutdown. They're cosmetic (spawned task objects
   outliving the immediate quit) and don't affect the exit code.
