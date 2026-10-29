@@ -10,11 +10,30 @@ import NobodyWhoGenerated
 public class CrossEncoder {
     private let inner: NobodyWhoGenerated.RustCrossEncoder
 
+    /// Create a cross-encoder from a loaded model, blocking the calling thread
+    /// until it is ready. Prefer ``load(model:contextSize:)`` from async code.
+    ///
     /// - Parameters:
     ///   - model: A loaded model to use for ranking.
     ///   - contextSize: Maximum context size in tokens. Defaults to 4096 if nil.
-    public init(model: Model, contextSize: UInt32? = nil) {
-        self.inner = NobodyWhoGenerated.RustCrossEncoder(model: model.inner, contextSize: contextSize)
+    /// - Throws: If the context cannot be created.
+    public init(model: Model, contextSize: UInt32? = nil) throws {
+        self.inner = try NobodyWhoGenerated.RustCrossEncoder(model: model.inner, contextSize: contextSize)
+    }
+
+    private init(inner: NobodyWhoGenerated.RustCrossEncoder) {
+        self.inner = inner
+    }
+
+    /// Create a cross-encoder from a loaded model asynchronously.
+    ///
+    /// - Parameters:
+    ///   - model: A loaded model to use for ranking.
+    ///   - contextSize: Maximum context size in tokens. Defaults to 4096 if nil.
+    /// - Throws: If the context cannot be created.
+    public static func load(model: Model, contextSize: UInt32? = nil) async throws -> CrossEncoder {
+        let inner = try await NobodyWhoGenerated.loadCrossEncoder(model: model.inner, contextSize: contextSize)
+        return CrossEncoder(inner: inner)
     }
 
     /// Create a cross-encoder directly from a model path.
@@ -24,7 +43,7 @@ public class CrossEncoder {
         contextSize: UInt32? = nil
     ) async throws -> CrossEncoder {
         let model = try await Model.load(modelPath: modelPath, useGpu: useGpu)
-        return CrossEncoder(model: model, contextSize: contextSize)
+        return try await CrossEncoder.load(model: model, contextSize: contextSize)
     }
 
     /// Rank documents by relevance to a query. Returns similarity scores.

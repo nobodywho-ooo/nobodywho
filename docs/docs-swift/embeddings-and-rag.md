@@ -37,7 +37,7 @@ You can also create an encoder from an already-loaded model:
 
 ```swift
 let model = try await Model.load(modelPath: "/path/to/embeddings.gguf", useGpu: true)
-let encoder = Encoder(model: model, contextSize: 512)
+let encoder = try await Encoder.load(model: model, contextSize: 512)
 ```
 
 ## Cross-Encoder for reranking

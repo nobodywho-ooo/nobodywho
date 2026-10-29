@@ -1308,9 +1308,9 @@ open class RustCrossEncoder: RustCrossEncoderProtocol, @unchecked Sendable {
     /**
      * Create a new cross-encoder for ranking documents by relevance.
      */
-public convenience init(model: RustModel, contextSize: UInt32?) {
+public convenience init(model: RustModel, contextSize: UInt32?)throws  {
     let handle =
-        try! rustCall() {
+        try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
     uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
         FfiConverterTypeRustModel_lower(model),
         FfiConverterOptionUInt32.lower(contextSize),$0
@@ -1632,9 +1632,9 @@ open class RustEncoder: RustEncoderProtocol, @unchecked Sendable {
     /**
      * Create a new encoder for generating text embeddings.
      */
-public convenience init(model: RustModel, contextSize: UInt32?) {
+public convenience init(model: RustModel, contextSize: UInt32?)throws  {
     let handle =
-        try! rustCall() {
+        try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
     uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
         FfiConverterTypeRustModel_lower(model),
         FfiConverterOptionUInt32.lower(contextSize),$0
@@ -5695,6 +5695,40 @@ public func getCachedModels()throws  -> [CachedModel]  {
 })
 }
 /**
+ * Create a new cross-encoder without blocking the calling thread.
+ */
+public func loadCrossEncoder(model: RustModel, contextSize: UInt32?)async throws  -> RustCrossEncoder  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_func_load_cross_encoder(FfiConverterTypeRustModel_lower(model),FfiConverterOptionUInt32.lower(contextSize)
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_u64,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_u64,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypeRustCrossEncoder_lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
+}
+/**
+ * Create a new encoder without blocking the calling thread.
+ */
+public func loadEncoder(model: RustModel, contextSize: UInt32?)async throws  -> RustEncoder  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_func_load_encoder(FfiConverterTypeRustModel_lower(model),FfiConverterOptionUInt32.lower(contextSize)
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_u64,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_u64,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypeRustEncoder_lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
+}
+/**
  * Load a GGUF model from a local path or remote URL.
  *
  * Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
@@ -5906,6 +5940,12 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_get_cached_models() != 12002) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_func_load_cross_encoder() != 53022) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_func_load_encoder() != 21999) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 30733) {
@@ -6142,13 +6182,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 4810) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 63560) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rustdecision_new() != 3605) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 27902) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 36527) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new() != 9249) {

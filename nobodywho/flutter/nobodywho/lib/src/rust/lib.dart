@@ -118,6 +118,14 @@ abstract class CrossEncoder implements RustOpaqueInterface {
     useGpu: useGpu,
   );
 
+  /// Create a cross-encoder from an already-loaded model.
+  ///
+  /// Args:
+  ///     model: A loaded model.
+  ///     n_ctx: Context size for the cross-encoder. Defaults to 4096.
+  static Future<CrossEncoder> load({required Model model, int nCtx = 4096}) =>
+      NobodyWho.instance.api.crateCrossEncoderLoad(model: model, nCtx: nCtx);
+
   factory CrossEncoder({required Model model, int nCtx = 4096}) =>
       NobodyWho.instance.api.crateCrossEncoderNew(model: model, nCtx: nCtx);
 
@@ -203,6 +211,14 @@ abstract class Encoder implements RustOpaqueInterface {
     nCtx: nCtx,
     useGpu: useGpu,
   );
+
+  /// Create an encoder from an already-loaded model.
+  ///
+  /// Args:
+  ///     model: A loaded model.
+  ///     n_ctx: Context size for the encoder. Defaults to 4096.
+  static Future<Encoder> load({required Model model, int nCtx = 4096}) =>
+      NobodyWho.instance.api.crateEncoderLoad(model: model, nCtx: nCtx);
 
   factory Encoder({required Model model, int nCtx = 4096}) =>
       NobodyWho.instance.api.crateEncoderNew(model: model, nCtx: nCtx);

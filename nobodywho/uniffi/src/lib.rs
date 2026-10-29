@@ -1141,16 +1141,44 @@ pub struct RustEncoder {
     inner: nobodywho::encoder::EncoderAsync,
 }
 
+/// Create a new encoder without blocking the calling thread.
+#[uniffi::export]
+pub async fn load_encoder(
+    model: Arc<RustModel>,
+    context_size: Option<u32>,
+) -> Result<Arc<RustEncoder>, NobodyWhoError> {
+    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
+    // because UniFFI's async bridge doesn't provide a Tokio runtime.
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+    std::thread::spawn(move || {
+        let result = nobodywho::encoder::EncoderAsync::new(
+            Arc::clone(&model.inner),
+            context_size.unwrap_or(4096),
+        )
+        .map_err(|e| NobodyWhoError::Error {
+            message: e.to_string(),
+        })
+        .map(|handle| Arc::new(RustEncoder { inner: handle }));
+        let _ = tx.blocking_send(result);
+    });
+    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
+        message: "encoder load thread terminated unexpectedly".into(),
+    })?
+}
+
 #[uniffi::export]
 impl RustEncoder {
     /// Create a new encoder for generating text embeddings.
     #[uniffi::constructor]
-    pub fn new(model: &RustModel, context_size: Option<u32>) -> Arc<Self> {
+    pub fn new(model: &RustModel, context_size: Option<u32>) -> Result<Arc<Self>, NobodyWhoError> {
         let handle = nobodywho::encoder::EncoderAsync::new(
             Arc::clone(&model.inner),
             context_size.unwrap_or(4096),
-        );
-        Arc::new(Self { inner: handle })
+        )
+        .map_err(|e| NobodyWhoError::Error {
+            message: e.to_string(),
+        })?;
+        Ok(Arc::new(Self { inner: handle }))
     }
 
     /// Encode text into an embedding vector.
@@ -1508,16 +1536,44 @@ pub struct RustCrossEncoder {
     inner: nobodywho::crossencoder::CrossEncoderAsync,
 }
 
+/// Create a new cross-encoder without blocking the calling thread.
+#[uniffi::export]
+pub async fn load_cross_encoder(
+    model: Arc<RustModel>,
+    context_size: Option<u32>,
+) -> Result<Arc<RustCrossEncoder>, NobodyWhoError> {
+    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
+    // because UniFFI's async bridge doesn't provide a Tokio runtime.
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+    std::thread::spawn(move || {
+        let result = nobodywho::crossencoder::CrossEncoderAsync::new(
+            Arc::clone(&model.inner),
+            context_size.unwrap_or(4096),
+        )
+        .map_err(|e| NobodyWhoError::Error {
+            message: e.to_string(),
+        })
+        .map(|handle| Arc::new(RustCrossEncoder { inner: handle }));
+        let _ = tx.blocking_send(result);
+    });
+    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
+        message: "cross-encoder load thread terminated unexpectedly".into(),
+    })?
+}
+
 #[uniffi::export]
 impl RustCrossEncoder {
     /// Create a new cross-encoder for ranking documents by relevance.
     #[uniffi::constructor]
-    pub fn new(model: &RustModel, context_size: Option<u32>) -> Arc<Self> {
+    pub fn new(model: &RustModel, context_size: Option<u32>) -> Result<Arc<Self>, NobodyWhoError> {
         let handle = nobodywho::crossencoder::CrossEncoderAsync::new(
             Arc::clone(&model.inner),
             context_size.unwrap_or(4096),
-        );
-        Arc::new(Self { inner: handle })
+        )
+        .map_err(|e| NobodyWhoError::Error {
+            message: e.to_string(),
+        })?;
+        Ok(Arc::new(Self { inner: handle }))
     }
 
     /// Rank documents by relevance to a query. Returns similarity scores.

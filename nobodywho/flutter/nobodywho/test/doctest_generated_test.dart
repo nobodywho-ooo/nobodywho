@@ -268,6 +268,11 @@ void main() {
       final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
       final embedding = await encoder.encode(text: "What is the weather like?");
       print("Vector with ${embedding.length} dimensions");
+    });
+
+    test('embeddings-and-rag.md:33', () async {
+      final model = await nobodywho.Model.load(modelPath: './embedding-model.gguf');
+      final encoder = await nobodywho.Encoder.load(model: model);
       final texts = [
         "Paris is the capital of France.",
         "Berlin is the capital of Germany.",
@@ -275,7 +280,7 @@ void main() {
       final embeddings = await encoder.encodeBatch(texts: texts);
     });
 
-    test('embeddings-and-rag.md:47', () async {
+    test('embeddings-and-rag.md:54', () async {
       final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
       
       final query = await encoder.encode(text: "How do I reset my password?");
@@ -295,7 +300,7 @@ void main() {
       print("Document 2 similarity: ${similarity2.toStringAsFixed(3)}");  // Lower score
     });
 
-    test('embeddings-and-rag.md:74', () async {
+    test('embeddings-and-rag.md:81', () async {
       final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
       
       // Your knowledge base
@@ -331,7 +336,7 @@ void main() {
       print("Similarity score: ${maxSimilarity.toStringAsFixed(3)}");
     });
 
-    test('embeddings-and-rag.md:136', () async {
+    test('embeddings-and-rag.md:143', () async {
       // Download a reranking model like bge-reranker-v2-m3-Q8_0.gguf
       final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
       
@@ -353,15 +358,15 @@ void main() {
       }
     });
 
-    test('embeddings-and-rag.md:175', () async {
-      await _doctest_21();
-    });
-
-    test('embeddings-and-rag.md:225', () async {
+    test('embeddings-and-rag.md:182', () async {
       await _doctest_22();
     });
 
-    test('embeddings-and-rag.md:272', () async {
+    test('embeddings-and-rag.md:232', () async {
+      await _doctest_23();
+    });
+
+    test('embeddings-and-rag.md:279', () async {
       // For longer documents, increase context size
       final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
       
@@ -385,7 +390,7 @@ void main() {
     });
 
     test('logging-and-troubleshooting.md:13', () async {
-      await _doctest_27();
+      await _doctest_28();
     });
 
     test('sampling.md:14', () async {
@@ -585,8 +590,8 @@ void main() {
   });
 }
 
-// Extracted from embeddings-and-rag.md:175
-Future<void> _doctest_21() async {
+// Extracted from embeddings-and-rag.md:182
+Future<void> _doctest_22() async {
   // Initialize the cross-encoder for document ranking
   final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
 
@@ -626,8 +631,8 @@ Future<void> _doctest_21() async {
   print(response);
 }
 
-// Extracted from embeddings-and-rag.md:225
-Future<void> _doctest_22() async {
+// Extracted from embeddings-and-rag.md:232
+Future<void> _doctest_23() async {
   final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
   
   final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
@@ -650,7 +655,7 @@ Future<void> _doctest_22() async {
 }
 
 // Extracted from logging-and-troubleshooting.md:13
-Future<void> _doctest_27() async {
+Future<void> _doctest_28() async {
   // Initialize logger.
   Logger.root.level = Level.ALL;
   Logger.root.onRecord.listen((record) {
