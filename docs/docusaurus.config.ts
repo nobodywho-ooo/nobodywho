@@ -6,12 +6,12 @@ import {nobodywhoDark, nobodywhoLight} from './src/prismTheme';
 // at /<binding>/. Bumping this requires a matching snapshot in
 // `<binding>_versioned_docs/` (see docs/README.md).
 const latestReleases: Record<string, string> = {
-  kotlin: '5.1.0',
-  python: '4.1.0',
-  swift: '5.1.0',
-  js: '5.1.0',
-  flutter: '5.1.0',
-  godot: '12.1.0',
+  kotlin: '6.0.0',
+  python: '5.0.0',
+  swift: '6.0.0',
+  js: '6.0.0',
+  flutter: '6.0.0',
+  godot: '13.0.0',
 };
 
 // `current` reflects the `main` branch — possibly ahead of the latest tag.
