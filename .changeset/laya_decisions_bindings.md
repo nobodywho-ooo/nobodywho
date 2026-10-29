@@ -1,6 +1,7 @@
 ---
 section: added
 bindings:
+  python: minor
   godot: minor
   flutter: minor
   kotlin: minor
@@ -8,4 +9,4 @@ bindings:
   react-native: minor
 ---
 
-Add decision models to the Godot, Flutter, Kotlin, Swift, and React Native bindings. Decisions take a state plus typed questions (choice, Boolean, ordinal score) and return answers with probabilities and token usage.
+Add support for Laya decision model inference, with choices, Boolean judgments, ordinal scores, and answer probabilities.

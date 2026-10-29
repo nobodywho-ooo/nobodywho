@@ -1,5 +1,5 @@
 ---
-section: changed
+section: added
 bindings:
   python: minor
   godot: minor
