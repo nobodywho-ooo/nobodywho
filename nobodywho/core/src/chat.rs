@@ -696,8 +696,10 @@ impl ChatHandle {
 
     /// Flush in-progress generation and lock the chat.
     ///
+    /// Locking without flushing would cause deadlocks.
+    ///
     /// This is probably not the best API we could design, but it does handle
-    /// cases like the following without crashing and deadlocking:
+    /// cases like the following:
     /// ```python
     /// chat = Chat(...)
     /// resp = chat.ask("xyz")
