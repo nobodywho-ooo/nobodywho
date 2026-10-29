@@ -23,6 +23,7 @@ pub mod text_to_speech;
 pub mod tokenizer;
 pub mod tool_calling;
 pub mod voice_activity_detection;
+pub mod worker;
 
 /// Re-exported so bindings can name `Diagnostic` without depending on miette directly.
 pub use miette;
