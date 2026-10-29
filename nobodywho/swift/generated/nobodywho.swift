@@ -598,7 +598,7 @@ public protocol RustChatProtocol: AnyObject, Sendable {
     /**
      * Send a message and get a token stream for the response.
      */
-    func ask(message: String)  -> RustTokenStream
+    func ask(message: String) async throws  -> RustTokenStream
     
     /**
      * Send a JSON-encoded prompt and get a token stream.
@@ -606,7 +606,7 @@ public protocol RustChatProtocol: AnyObject, Sendable {
      * `json` must be a valid JSON string. The wrapper layer is responsible for
      * serializing native objects (dicts, arrays, etc.) to JSON before calling this.
      */
-    func askWithJsonPrompt(json: String) throws  -> RustTokenStream
+    func askWithJsonPrompt(json: String) async throws  -> RustTokenStream
     
     /**
      * Send a multimodal prompt (text + images/audio) and get a token stream.
@@ -614,7 +614,7 @@ public protocol RustChatProtocol: AnyObject, Sendable {
      * `parts` is an ordered list of `ContentPart` items.
      * Image and audio parts should contain a local file-system path.
      */
-    func askWithPrompt(parts: [ContentPart])  -> RustTokenStream
+    func askWithPrompt(parts: [ContentPart]) async throws  -> RustTokenStream
     
     /**
      * Answer a full list of messages and get a token stream, replacing the chat
@@ -628,7 +628,7 @@ public protocol RustChatProtocol: AnyObject, Sendable {
      *
      * `options` follows the same rule for the chat's other settings.
      */
-    func complete(messages: [Message], options: Options) throws  -> RustTokenStream
+    func complete(messages: [Message], options: Options) async throws  -> RustTokenStream
     
     /**
      * Get the current chat history as a list of messages.
@@ -807,13 +807,21 @@ public convenience init(model: RustModel, systemPrompt: String?, contextSize: UI
     /**
      * Send a message and get a token stream for the response.
      */
-open func ask(message: String) -> RustTokenStream  {
-    return try!  FfiConverterTypeRustTokenStream_lift(try! rustCall() {
-    uniffi_nobodywho_uniffi_fn_method_rustchat_ask(
-            self.uniffiCloneHandle(),
-        FfiConverterString.lower(message),$0
-    )
-})
+open func ask(message: String)async throws  -> RustTokenStream  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_method_rustchat_ask(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(message)
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_u64,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_u64,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypeRustTokenStream_lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
 }
     
     /**
@@ -822,13 +830,21 @@ open func ask(message: String) -> RustTokenStream  {
      * `json` must be a valid JSON string. The wrapper layer is responsible for
      * serializing native objects (dicts, arrays, etc.) to JSON before calling this.
      */
-open func askWithJsonPrompt(json: String)throws  -> RustTokenStream  {
-    return try  FfiConverterTypeRustTokenStream_lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
-    uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(
-            self.uniffiCloneHandle(),
-        FfiConverterString.lower(json),$0
-    )
-})
+open func askWithJsonPrompt(json: String)async throws  -> RustTokenStream  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(json)
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_u64,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_u64,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypeRustTokenStream_lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
 }
     
     /**
@@ -837,13 +853,21 @@ open func askWithJsonPrompt(json: String)throws  -> RustTokenStream  {
      * `parts` is an ordered list of `ContentPart` items.
      * Image and audio parts should contain a local file-system path.
      */
-open func askWithPrompt(parts: [ContentPart]) -> RustTokenStream  {
-    return try!  FfiConverterTypeRustTokenStream_lift(try! rustCall() {
-    uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(
-            self.uniffiCloneHandle(),
-        FfiConverterSequenceTypeContentPart.lower(parts),$0
-    )
-})
+open func askWithPrompt(parts: [ContentPart])async throws  -> RustTokenStream  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(
+                    self.uniffiCloneHandle(),
+                    FfiConverterSequenceTypeContentPart.lower(parts)
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_u64,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_u64,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypeRustTokenStream_lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
 }
     
     /**
@@ -858,14 +882,21 @@ open func askWithPrompt(parts: [ContentPart]) -> RustTokenStream  {
      *
      * `options` follows the same rule for the chat's other settings.
      */
-open func complete(messages: [Message], options: Options)throws  -> RustTokenStream  {
-    return try  FfiConverterTypeRustTokenStream_lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
-    uniffi_nobodywho_uniffi_fn_method_rustchat_complete(
-            self.uniffiCloneHandle(),
-        FfiConverterSequenceTypeMessage.lower(messages),
-        FfiConverterTypeOptions_lower(options),$0
-    )
-})
+open func complete(messages: [Message], options: Options)async throws  -> RustTokenStream  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_method_rustchat_complete(
+                    self.uniffiCloneHandle(),
+                    FfiConverterSequenceTypeMessage.lower(messages),FfiConverterTypeOptions_lower(options)
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_u64,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_u64,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypeRustTokenStream_lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
 }
     
     /**
@@ -5950,16 +5981,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p() != 22588) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() != 53575) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() != 37876) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt() != 63877) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt() != 47029) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 46807) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 53402) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 24327) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 51900) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 12722) {

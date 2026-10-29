@@ -86,8 +86,13 @@ class Chat:
         Args:
             prompt: The user prompt to send (plain text or a multimodal Prompt)
 
+        Blocks while the context is prefilled, then returns the stream.
+
         Returns:
             A TokenStream that yields tokens as they are generated
+
+        Raises:
+            ValueError: If prefilling the context fails
         """
     def complete(
         self,
@@ -123,7 +128,8 @@ class Chat:
             A TokenStream that yields tokens as they are generated
 
         Raises:
-            ValueError: If the message format or the conversation shape is invalid
+            ValueError: If the message format or the conversation shape is invalid,
+                or prefilling the context fails
         """
     def get_chat_history(self, /) -> "list[dict]":
         """
@@ -361,17 +367,22 @@ class ChatAsync:
         Raises:
             RuntimeError: If the model cannot be loaded
         """
-    def ask(self, /, prompt: "str | Prompt") -> "TokenStreamAsync":
+    async def ask(self, /, prompt: "str | Prompt") -> "TokenStreamAsync":
         """
         Send a message to the model and get a streaming response asynchronously.
 
         Args:
             prompt: The user prompt to send (plain text or a multimodal Prompt)
 
+        Resolves after prefilling the context.
+
         Returns:
             A TokenStreamAsync that yields tokens as they are generated
+
+        Raises:
+            ValueError: If prefilling the context fails
         """
-    def complete(
+    async def complete(
         self,
         /,
         messages: "list[dict]",
@@ -405,7 +416,8 @@ class ChatAsync:
             A TokenStreamAsync that yields tokens as they are generated
 
         Raises:
-            ValueError: If the message format or the conversation shape is invalid
+            ValueError: If the message format or the conversation shape is invalid,
+                or prefilling the context fails
         """
     async def get_chat_history(self, /) -> "list[dict]":
         """

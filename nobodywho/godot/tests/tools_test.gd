@@ -47,7 +47,7 @@ func _test_python_tool(runner: Node) -> void:
 		runner.fail("tools: python: could not create chat")
 		return
 
-	var stream = chat.ask("Use the run_python tool to compute 7 * 6 and tell me the answer.")
+	var stream = await chat.ask("Use the run_python tool to compute 7 * 6 and tell me the answer.")
 	var _text: String = await stream.completed()
 	# Built-in tool: we can't easily observe whether it was called from here,
 	# but the chat must not hang and must produce *some* output.
@@ -75,7 +75,7 @@ func _test_schema_lambda_tool(runner: Node) -> void:
 		runner.fail("tools: schema/lambda: could not create chat")
 		return
 
-	var stream = chat.ask("Use the press_button tool to press the green button, then tell me what it said.")
+	var stream = await chat.ask("Use the press_button tool to press the green button, then tell me what it said.")
 	var text: String = await stream.completed()
 	if _lambda_arg == null:
 		runner.fail("tools: schema/lambda: tool was never called")
@@ -100,7 +100,7 @@ func _test_reentrancy_guard(runner: Node) -> void:
 		runner.fail("tools: reentrancy: could not create chat")
 		return
 
-	var stream = _reentrant_chat.ask("Use the naughty_tool tool with box_name 'blue' and tell me what it says.")
+	var stream = await _reentrant_chat.ask("Use the naughty_tool tool with box_name 'blue' and tell me what it says.")
 	var _text: String = await stream.completed()
 	# The generation must complete (no hang), and the re-entrant call inside
 	# the tool must have resolved null via the guard.
@@ -127,7 +127,7 @@ func _test_sync_tool(runner: Node) -> void:
 		runner.fail("tools: sync: could not create chat")
 		return
 
-	var stream = chat.ask("Use the get_magic_word tool with box_name 'red' and tell me the magic word.")
+	var stream = await chat.ask("Use the get_magic_word tool with box_name 'red' and tell me the magic word.")
 	var text: String = await stream.completed()
 	if not _sync_tool_called:
 		runner.fail("tools: sync: tool was never called")
@@ -158,7 +158,7 @@ func _test_async_tool(runner: Node) -> void:
 		runner.fail("tools: async: could not create chat")
 		return
 
-	var stream = chat.ask("Use the get_oracle_answer tool to ask the oracle 'what is best?' and tell me its answer.")
+	var stream = await chat.ask("Use the get_oracle_answer tool to ask the oracle 'what is best?' and tell me its answer.")
 	var text: String = await stream.completed()
 	if not _async_tool_called:
 		runner.fail("tools: async: tool was never called")

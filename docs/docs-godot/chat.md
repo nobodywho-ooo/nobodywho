@@ -39,10 +39,11 @@ generating a response.
 
 ```gdscript
 var chat = await NobodyWhoChat.create("./model.gguf", {})
-var stream = chat.ask("Is water wet?")
+var stream = await chat.ask("Is water wet?")
 ```
 
-The return type of `ask` is a `NobodyWhoTokenStream`. If you want to start reading the response as
+`ask` resolves to a `NobodyWhoTokenStream` after prefilling the context, or to `null`
+(with an error logged) if prefill fails. If you want to start reading the response as
 soon as possible, pull tokens one at a time. Each token is either an individual word or a fragment
 of a word:
 
@@ -103,7 +104,7 @@ If you would rather pass the whole conversation on every call than let the chat 
 `complete()`:
 
 ```gdscript
-var stream = chat.complete([
+var stream = await chat.complete([
     {"role": "system", "content": "You are a helpful assistant."},
     {"role": "user", "content": "Who was the first person to walk on the moon?"},
     {"role": "assistant", "content": "Neil Armstrong."},
@@ -130,14 +131,15 @@ resolves to `null` with an error.
 rule as the system message: what you pass stays set, what you leave out is kept.
 
 ```gdscript
-var stream = chat.complete(
+var stream = await chat.complete(
     [{"role": "user", "content": "Name one fruit."}],
     {"sampler": NobodyWhoSamplerPresets.greedy(), "template_variables": {"enable_thinking": false}},
 )
 print(await stream.completed())
 
 # Both are now the chat's settings, so the next call need not repeat them
-print(await chat.ask("Name another.").completed())
+stream = await chat.ask("Name another.")
+print(await stream.completed())
 ```
 
 Pass all three and the call no longer depends on what the chat is currently holding — useful if
@@ -361,7 +363,7 @@ controls whether the model should engage in explicit reasoning steps before answ
 var chat = await NobodyWhoChat.create("./model.gguf", {
     "template_variables": {"enable_thinking": true},
 })
-var stream = chat.ask("Solve this logic puzzle: ...")
+var stream = await chat.ask("Solve this logic puzzle: ...")
 ```
 
 When `enable_thinking` is enabled, these models will show their reasoning process before

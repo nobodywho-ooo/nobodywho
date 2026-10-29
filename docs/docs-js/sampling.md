@@ -62,7 +62,8 @@ const chat = await Chat.fromPath({
   modelPath: "/path/to/model.gguf",
   sampler: SamplerPresets.constrainWithRegex(/yes|no/),
 });
-const answer = await chat.ask("Is the sky blue?").completed();
+const stream = await chat.ask("Is the sky blue?");
+const answer = await stream.completed();
 ```
 
 ### JSON schema
@@ -93,7 +94,8 @@ const chat = await Chat.fromPath({
     additionalProperties: false,
   }),
 });
-const response = await chat.ask("Give me a person as JSON with name and age fields.").completed();
+const stream = await chat.ask("Give me a person as JSON with name and age fields.");
+const response = await stream.completed();
 const person = JSON.parse(response); // always valid JSON matching the schema
 ```
 

@@ -2654,21 +2654,30 @@ export interface RustChatLike {
   /**
    * Send a message and get a token stream for the response.
    */
-  ask(message: string): RustTokenStreamLike;
+  ask(
+    message: string,
+    asyncOpts_?: { signal: AbortSignal },
+  ) /*throws*/ : Promise<RustTokenStreamLike>;
   /**
    * Send a JSON-encoded prompt and get a token stream.
    *
    * `json` must be a valid JSON string. The wrapper layer is responsible for
    * serializing native objects (dicts, arrays, etc.) to JSON before calling this.
    */
-  askWithJsonPrompt(json: string) /*throws*/ : RustTokenStreamLike;
+  askWithJsonPrompt(
+    json: string,
+    asyncOpts_?: { signal: AbortSignal },
+  ) /*throws*/ : Promise<RustTokenStreamLike>;
   /**
    * Send a multimodal prompt (text + images/audio) and get a token stream.
    *
    * `parts` is an ordered list of `ContentPart` items.
    * Image and audio parts should contain a local file-system path.
    */
-  askWithPrompt(parts: Array<ContentPart>): RustTokenStreamLike;
+  askWithPrompt(
+    parts: Array<ContentPart>,
+    asyncOpts_?: { signal: AbortSignal },
+  ) /*throws*/ : Promise<RustTokenStreamLike>;
   /**
    * Answer a full list of messages and get a token stream, replacing the chat
    * history.
@@ -2684,7 +2693,8 @@ export interface RustChatLike {
   complete(
     messages: Array<Message>,
     options: Options,
-  ) /*throws*/ : RustTokenStreamLike;
+    asyncOpts_?: { signal: AbortSignal },
+  ) /*throws*/ : Promise<RustTokenStreamLike>;
   /**
    * Get the current chat history as a list of messages.
    */
@@ -2890,19 +2900,48 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
   /**
    * Send a message and get a token stream for the response.
    */
-  ask(message: string): RustTokenStreamLike {
-    return FfiConverterTypeRustTokenStream.lift(
-      uniffiCaller.rustCall(
-        /*caller:*/ (callStatus) => {
+  async ask(
+    message: string,
+    asyncOpts_?: { signal: AbortSignal },
+  ): Promise<RustTokenStreamLike> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+      return await uniffiRustCallAsync(
+        /*rustCaller:*/ uniffiCaller,
+        /*rustFutureFunc:*/ () => {
           return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask(
             uniffiTypeRustChatObjectFactory.clonePointer(this),
             FfiConverterString.lower(message, nativeModule().rustbuffer_alloc),
-            callStatus,
           );
         },
+        /*pollFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
+        /*cancelFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
+        /*completeFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
+        /*freeFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
+        // Async returns always go through the JS-side converter: the
+        // FFI symbol returns the future handle (u64), and the user-level
+        // RustBuffer comes back via the shared `rust_future_complete_*`
+        // export. The bytes the runtime hands back must be deserialized
+        // here using the per-callable return-type converter.
+        /*liftFunc:*/ FfiConverterTypeRustTokenStream.lift.bind(
+          FfiConverterTypeRustTokenStream,
+        ),
         /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
-      ),
-    );
+        /*asyncOpts:*/ asyncOpts_,
+        /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+          FfiConverterTypeNobodyWhoError,
+        ),
+      );
+    } catch (__error: any) {
+      if (uniffiIsDebug && __error instanceof Error) {
+        __error.stack = __stack;
+      }
+      throw __error;
+    }
   }
 
   /**
@@ -2911,22 +2950,48 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
    * `json` must be a valid JSON string. The wrapper layer is responsible for
    * serializing native objects (dicts, arrays, etc.) to JSON before calling this.
    */
-  askWithJsonPrompt(json: string): RustTokenStreamLike /*throws*/ {
-    return FfiConverterTypeRustTokenStream.lift(
-      uniffiCaller.rustCallWithError(
-        /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(
-          FfiConverterTypeNobodyWhoError,
-        ),
-        /*caller:*/ (callStatus) => {
+  async askWithJsonPrompt(
+    json: string,
+    asyncOpts_?: { signal: AbortSignal },
+  ): Promise<RustTokenStreamLike> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+      return await uniffiRustCallAsync(
+        /*rustCaller:*/ uniffiCaller,
+        /*rustFutureFunc:*/ () => {
           return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(
             uniffiTypeRustChatObjectFactory.clonePointer(this),
             FfiConverterString.lower(json, nativeModule().rustbuffer_alloc),
-            callStatus,
           );
         },
+        /*pollFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
+        /*cancelFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
+        /*completeFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
+        /*freeFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
+        // Async returns always go through the JS-side converter: the
+        // FFI symbol returns the future handle (u64), and the user-level
+        // RustBuffer comes back via the shared `rust_future_complete_*`
+        // export. The bytes the runtime hands back must be deserialized
+        // here using the per-callable return-type converter.
+        /*liftFunc:*/ FfiConverterTypeRustTokenStream.lift.bind(
+          FfiConverterTypeRustTokenStream,
+        ),
         /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
-      ),
-    );
+        /*asyncOpts:*/ asyncOpts_,
+        /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+          FfiConverterTypeNobodyWhoError,
+        ),
+      );
+    } catch (__error: any) {
+      if (uniffiIsDebug && __error instanceof Error) {
+        __error.stack = __stack;
+      }
+      throw __error;
+    }
   }
 
   /**
@@ -2935,22 +3000,51 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
    * `parts` is an ordered list of `ContentPart` items.
    * Image and audio parts should contain a local file-system path.
    */
-  askWithPrompt(parts: Array<ContentPart>): RustTokenStreamLike {
-    return FfiConverterTypeRustTokenStream.lift(
-      uniffiCaller.rustCall(
-        /*caller:*/ (callStatus) => {
+  async askWithPrompt(
+    parts: Array<ContentPart>,
+    asyncOpts_?: { signal: AbortSignal },
+  ): Promise<RustTokenStreamLike> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+      return await uniffiRustCallAsync(
+        /*rustCaller:*/ uniffiCaller,
+        /*rustFutureFunc:*/ () => {
           return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(
             uniffiTypeRustChatObjectFactory.clonePointer(this),
             FfiConverterSequenceTypeContentPart.lower(
               parts,
               nativeModule().rustbuffer_alloc,
             ),
-            callStatus,
           );
         },
+        /*pollFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
+        /*cancelFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
+        /*completeFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
+        /*freeFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
+        // Async returns always go through the JS-side converter: the
+        // FFI symbol returns the future handle (u64), and the user-level
+        // RustBuffer comes back via the shared `rust_future_complete_*`
+        // export. The bytes the runtime hands back must be deserialized
+        // here using the per-callable return-type converter.
+        /*liftFunc:*/ FfiConverterTypeRustTokenStream.lift.bind(
+          FfiConverterTypeRustTokenStream,
+        ),
         /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
-      ),
-    );
+        /*asyncOpts:*/ asyncOpts_,
+        /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+          FfiConverterTypeNobodyWhoError,
+        ),
+      );
+    } catch (__error: any) {
+      if (uniffiIsDebug && __error instanceof Error) {
+        __error.stack = __stack;
+      }
+      throw __error;
+    }
   }
 
   /**
@@ -2965,16 +3059,16 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
    *
    * `options` follows the same rule for the chat's other settings.
    */
-  complete(
+  async complete(
     messages: Array<Message>,
     options: Options,
-  ): RustTokenStreamLike /*throws*/ {
-    return FfiConverterTypeRustTokenStream.lift(
-      uniffiCaller.rustCallWithError(
-        /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(
-          FfiConverterTypeNobodyWhoError,
-        ),
-        /*caller:*/ (callStatus) => {
+    asyncOpts_?: { signal: AbortSignal },
+  ): Promise<RustTokenStreamLike> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+      return await uniffiRustCallAsync(
+        /*rustCaller:*/ uniffiCaller,
+        /*rustFutureFunc:*/ () => {
           return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_complete(
             uniffiTypeRustChatObjectFactory.clonePointer(this),
             FfiConverterSequenceTypeMessage.lower(
@@ -2985,12 +3079,36 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
               options,
               nativeModule().rustbuffer_alloc,
             ),
-            callStatus,
           );
         },
+        /*pollFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
+        /*cancelFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
+        /*completeFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
+        /*freeFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
+        // Async returns always go through the JS-side converter: the
+        // FFI symbol returns the future handle (u64), and the user-level
+        // RustBuffer comes back via the shared `rust_future_complete_*`
+        // export. The bytes the runtime hands back must be deserialized
+        // here using the per-callable return-type converter.
+        /*liftFunc:*/ FfiConverterTypeRustTokenStream.lift.bind(
+          FfiConverterTypeRustTokenStream,
+        ),
         /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
-      ),
-    );
+        /*asyncOpts:*/ asyncOpts_,
+        /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+          FfiConverterTypeNobodyWhoError,
+        ),
+      );
+    } catch (__error: any) {
+      if (uniffiIsDebug && __error instanceof Error) {
+        __error.stack = __stack;
+      }
+      throw __error;
+    }
   }
 
   /**
@@ -6800,7 +6918,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() !==
-    53575
+    37876
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_method_rustchat_ask",
@@ -6808,7 +6926,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt() !==
-    63877
+    47029
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt",
@@ -6816,7 +6934,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() !==
-    46807
+    53402
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt",
@@ -6824,7 +6942,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() !==
-    24327
+    51900
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_method_rustchat_complete",

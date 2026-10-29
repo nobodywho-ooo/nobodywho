@@ -58,7 +58,8 @@ For simpler patterns, you can constrain the output with a regex:
 var chat = await NobodyWhoChat.create("./model.gguf", {
     "sampler": NobodyWhoSamplerPresets.constrain_with_regex("yes|no"),
 })
-var answer: String = await chat.ask("Is the sky blue?").completed()
+var stream = await chat.ask("Is the sky blue?")
+var answer: String = await stream.completed()
 ```
 
 ### JSON schema
@@ -78,7 +79,8 @@ var chat = await NobodyWhoChat.create("./model.gguf", {
         "additionalProperties": false,
     })),
 })
-var response: String = await chat.ask("Give me a person as JSON with name and age fields.").completed()
+var stream = await chat.ask("Give me a person as JSON with name and age fields.")
+var response: String = await stream.completed()
 var person = JSON.parse_string(response) # always valid JSON matching the schema
 ```
 

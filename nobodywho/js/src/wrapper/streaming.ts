@@ -8,12 +8,12 @@ import type { RustTokenStreamInterface } from "../generated";
  *
  * @example
  * ```typescript
- * const stream = chat.ask("Hello!");
+ * const stream = await chat.ask("Hello!");
  * for await (const token of stream) {
  *   process.stdout.write(token);
  * }
  * // Or get the complete response:
- * const stream = chat.ask("Hello!");
+ * const stream = await chat.ask("Hello!");
  * const fullResponse = await stream.completed();
  * ```
  */

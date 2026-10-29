@@ -170,7 +170,7 @@ void main() {
     });
 
     test('Capital of Denmark test', () async {
-      final responseStream = chat!.ask("What is the capital of Denmark?");
+      final responseStream = await chat!.ask("What is the capital of Denmark?");
       String response = "";
       await for (final token in responseStream) {
         response += token;
@@ -227,7 +227,7 @@ void main() {
     });
 
     test('Tool calling test', () async {
-      final responseStream = chat!.ask(
+      final responseStream = await chat!.ask(
         "Can you please sparklify the string 'Foopdoop'?",
       );
       String response = "";
@@ -238,7 +238,7 @@ void main() {
     });
 
     test('Async tool calling test', () async {
-      final responseStream = chat!.ask(
+      final responseStream = await chat!.ask(
         "Can you please strongify the string 'Wrawr'?",
       );
       String response = "";
@@ -272,8 +272,8 @@ void main() {
     });
 
     test('Complete rejects a history ending in an assistant message', () async {
-      expect(
-        () => chat!.complete([
+      await expectLater(
+        chat!.complete([
           nobodywho.userMessage("Was the cat a tabby?"),
           nobodywho.assistantMessage("Aye, "),
         ]),

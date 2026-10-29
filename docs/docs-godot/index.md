@@ -35,7 +35,7 @@ With the extension installed, your first conversation is three lines:
 ```gdscript
 func _ready():
     var chat = await NobodyWhoChat.create("hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf", {})
-    var stream = chat.ask("Hello! Who are you?")
+    var stream = await chat.ask("Hello! Who are you?")
     print(await stream.completed())
 ```
 

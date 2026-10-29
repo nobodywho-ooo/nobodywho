@@ -50,7 +50,7 @@ void main() {
       // Streaming
       await chat.resetContext(systemPrompt: 'Reply briefly.', tools: []);
       int tokenCount = 0;
-      await for (final String _ in chat.ask('Say hi')) {
+      await for (final String _ in await chat.ask('Say hi')) {
         tokenCount++;
       }
       expect(

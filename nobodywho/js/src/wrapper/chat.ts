@@ -36,7 +36,7 @@ export type Options = {
  *   model,
  *   systemPrompt: "You are a helpful assistant.",
  * });
- * for await (const token of chat.ask("Hello!")) {
+ * for await (const token of await chat.ask("Hello!")) {
  *   process.stdout.write(token);
  * }
  * ```
@@ -115,15 +115,19 @@ export class Chat {
     return new Chat({ model, ...opts });
   }
 
-  /** Send a text message or multimodal prompt and get a token stream for the response. */
-  ask(message: string | Prompt): TokenStream {
+  /**
+   * Send a text message or multimodal prompt and get a token stream for the response.
+   *
+   * Resolves after prefilling the context; rejects if prefill fails.
+   */
+  async ask(message: string | Prompt): Promise<TokenStream> {
     if (typeof message === "string") {
-      return new TokenStream(this._inner.ask(message));
+      return new TokenStream(await this._inner.ask(message));
     }
     if (message._jsonString !== null) {
-      return new TokenStream(this._inner.askWithJsonPrompt(message._jsonString!));
+      return new TokenStream(await this._inner.askWithJsonPrompt(message._jsonString!));
     }
-    return new TokenStream(this._inner.askWithPrompt(message._parts!));
+    return new TokenStream(await this._inner.askWithPrompt(message._parts!));
   }
 
   /**
@@ -136,10 +140,13 @@ export class Chat {
    * is appended, and the next `ask` continues from there.
    *
    * `options` follows the same rule for the chat's other settings.
+   *
+   * Resolves after prefilling the context; rejects if the list is invalid or
+   * prefill fails.
    */
-  complete(messages: Message[], options: Options = {}): TokenStream {
+  async complete(messages: Message[], options: Options = {}): Promise<TokenStream> {
     return new TokenStream(
-      this._inner.complete(messages.map(toInternal), {
+      await this._inner.complete(messages.map(toInternal), {
         sampler: options.sampler,
         templateVariables: options.templateVariables
           ? new Map(Object.entries(options.templateVariables))

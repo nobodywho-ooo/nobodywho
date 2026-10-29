@@ -8,7 +8,7 @@ import NobodyWhoGenerated
 ///     modelPath: "model.gguf",
 ///     systemPrompt: "You are a helpful assistant."
 /// )
-/// for await token in chat.ask("Hello!") {
+/// for try await token in try await chat.ask("Hello!") {
 ///     print(token, terminator: "")
 /// }
 /// ```
@@ -84,16 +84,20 @@ public class Chat {
     }
 
     /// Send a text message and get a token stream for the response.
-    public func ask(_ message: String) -> TokenStream {
-        return TokenStream(inner.ask(message: message))
+    ///
+    /// Returns after prefilling the context; throws if prefill fails.
+    public func ask(_ message: String) async throws -> TokenStream {
+        return TokenStream(try await inner.ask(message: message))
     }
 
     /// Send a multimodal prompt and get a token stream.
-    public func ask(_ prompt: Prompt) throws -> TokenStream {
+    ///
+    /// Returns after prefilling the context; throws if prefill fails.
+    public func ask(_ prompt: Prompt) async throws -> TokenStream {
         if let json = prompt.jsonString {
-            return TokenStream(try inner.askWithJsonPrompt(json: json))
+            return TokenStream(try await inner.askWithJsonPrompt(json: json))
         }
-        return TokenStream(inner.askWithPrompt(parts: prompt.parts!))
+        return TokenStream(try await inner.askWithPrompt(parts: prompt.parts!))
     }
 
     /// Answer a full list of messages, replacing the chat history.
@@ -105,8 +109,11 @@ public class Chat {
     /// is appended, and the next `ask` continues from there.
     ///
     /// `options` follows the same rule for the chat's other settings.
-    public func complete(_ messages: [Message], options: Options = Options()) throws -> TokenStream {
-        return TokenStream(try inner.complete(messages: messages, options: options.toGenerated()))
+    ///
+    /// Returns after prefilling the context; throws if the list is invalid or
+    /// prefill fails.
+    public func complete(_ messages: [Message], options: Options = Options()) async throws -> TokenStream {
+        return TokenStream(try await inner.complete(messages: messages, options: options.toGenerated()))
     }
 
     /// Stop the current generation.

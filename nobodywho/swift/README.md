@@ -43,7 +43,7 @@ let chat = try await Chat.fromPath(
 )
 
 // Stream tokens as they are generated
-for await token in chat.ask("What is the capital of Denmark?") {
+for try await token in try await chat.ask("What is the capital of Denmark?") {
     print(token, terminator: "")
 }
 

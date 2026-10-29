@@ -89,7 +89,7 @@ void main() {
 
     test('chat.md:35', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
-      final response = chat.ask("Is water wet?");
+      final response = await chat.ask("Is water wet?");
       await for (final token in response) {
          print(token);
       }

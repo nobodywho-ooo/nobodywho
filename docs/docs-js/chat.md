@@ -38,10 +38,10 @@ The `chat.ask()` function is central to NobodyWho. This function sends your mess
 
 ```typescript
 const chat = await Chat.fromPath({ modelPath: "/path/to/model.gguf" });
-const response = chat.ask("Is water wet?");
+const response = await chat.ask("Is water wet?");
 ```
 
-The return type of `ask` is a `TokenStream`.
+`ask` returns a promise of a `TokenStream`, which resolves after prefilling the context, and rejects if prefill fails.
 If you want to start reading the response as soon as possible, you can iterate over the `TokenStream` using `for await`.
 Each token is either an individual word or a fragment of a word.
 
@@ -82,12 +82,13 @@ await chat.setChatHistory([
 If you would rather pass the whole conversation on every call than let the `Chat` remember it, use `complete()`:
 
 ```typescript
-const response = await chat.complete([
+const stream = await chat.complete([
   { role: "system", content: "You are a helpful assistant." },
   { role: "user", content: "Who was the first person to walk on the moon?" },
   { role: "assistant", content: "Neil Armstrong." },
   { role: "user", content: "Which year did he do it?" },
-]).completed();
+]);
+const response = await stream.completed();
 ```
 
 You get back the same `TokenStream` as from `ask()`, so you can also `for await` over it.
@@ -103,15 +104,15 @@ The list must not be empty and must end in a user or tool message. Anything else
 `complete()` takes an optional `Options` carrying the chat's other settings. It follows the same rule as the system message: what it sets stays set, what it leaves out is kept.
 
 ```typescript
-await chat
-  .complete([{ role: "user", content: "Name one fruit." }], {
-    sampler: SamplerPresets.greedy(),
-    templateVariables: { enable_thinking: false },
-  })
-  .completed();
+let stream = await chat.complete([{ role: "user", content: "Name one fruit." }], {
+  sampler: SamplerPresets.greedy(),
+  templateVariables: { enable_thinking: false },
+});
+await stream.completed();
 
 // Both are now the chat's settings, so the next call need not repeat them
-await chat.complete([{ role: "user", content: "Name another." }]).completed();
+stream = await chat.complete([{ role: "user", content: "Name another." }]);
+await stream.completed();
 ```
 
 Fill in all three fields and the call no longer depends on what the chat is currently holding — useful if you drive it entirely through `complete()`.
@@ -319,7 +320,7 @@ const chat = await Chat.fromPath({
   modelPath: '/path/to/model.gguf',
   templateVariables: { enable_thinking: true },
 });
-const response = chat.ask("Solve this logic puzzle: ...");
+const response = await chat.ask("Solve this logic puzzle: ...");
 ```
 
 When `enable_thinking` is enabled, these models will show their reasoning process before providing the final answer.

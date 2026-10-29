@@ -899,13 +899,13 @@ external fun uniffi_nobodywho_uniffi_fn_free_rustchat(`handle`: Long,uniffi_out_
 ): Unit
 external fun uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(`model`: Long,`systemPrompt`: RustBuffer.ByValue,`contextSize`: Int,`templateVariables`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,`sampler`: RustBuffer.ByValue,`mtp`: RustBuffer.ByValue,`threadCount`: RustBuffer.ByValue,`contextShift`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask(`ptr`: Long,`message`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask(`ptr`: Long,`message`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(`ptr`: Long,`json`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(`ptr`: Long,`json`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(`ptr`: Long,`parts`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(`ptr`: Long,`parts`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_rustchat_complete(`ptr`: Long,`messages`: RustBuffer.ByValue,`options`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_complete(`ptr`: Long,`messages`: RustBuffer.ByValue,`options`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(`ptr`: Long,
 ): Long
@@ -1301,16 +1301,16 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p() != 22588) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() != 53575) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() != 37876) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt() != 63877) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt() != 47029) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 46807) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 53402) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 24327) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 51900) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 12722) {
@@ -2072,7 +2072,7 @@ public interface RustChatInterface {
     /**
      * Send a message and get a token stream for the response.
      */
-    fun `ask`(`message`: kotlin.String): RustTokenStream
+    suspend fun `ask`(`message`: kotlin.String): RustTokenStream
     
     /**
      * Send a JSON-encoded prompt and get a token stream.
@@ -2080,7 +2080,7 @@ public interface RustChatInterface {
      * `json` must be a valid JSON string. The wrapper layer is responsible for
      * serializing native objects (dicts, arrays, etc.) to JSON before calling this.
      */
-    fun `askWithJsonPrompt`(`json`: kotlin.String): RustTokenStream
+    suspend fun `askWithJsonPrompt`(`json`: kotlin.String): RustTokenStream
     
     /**
      * Send a multimodal prompt (text + images/audio) and get a token stream.
@@ -2088,7 +2088,7 @@ public interface RustChatInterface {
      * `parts` is an ordered list of `ContentPart` items.
      * Image and audio parts should contain a local file-system path.
      */
-    fun `askWithPrompt`(`parts`: List<ContentPart>): RustTokenStream
+    suspend fun `askWithPrompt`(`parts`: List<ContentPart>): RustTokenStream
     
     /**
      * Answer a full list of messages and get a token stream, replacing the chat
@@ -2102,7 +2102,7 @@ public interface RustChatInterface {
      *
      * `options` follows the same rule for the chat's other settings.
      */
-    fun `complete`(`messages`: List<Message>, `options`: Options): RustTokenStream
+    suspend fun `complete`(`messages`: List<Message>, `options`: Options): RustTokenStream
     
     /**
      * Get the current chat history as a list of messages.
@@ -2318,18 +2318,26 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     
     /**
      * Send a message and get a token stream for the response.
-     */override fun `ask`(`message`: kotlin.String): RustTokenStream {
-            return FfiConverterTypeRustTokenStream.lift(
-    callWithHandle {
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_ask(
-        it,
-        FfiConverterString.lower(`message`),_status)
-}
-    }
+     */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `ask`(`message`: kotlin.String) : RustTokenStream {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_ask(
+                uniffiHandle,
+                FfiConverterString.lower(`message`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
+        // lift function
+        { FfiConverterTypeRustTokenStream.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
     )
     }
-    
 
     
     /**
@@ -2338,18 +2346,25 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
      * `json` must be a valid JSON string. The wrapper layer is responsible for
      * serializing native objects (dicts, arrays, etc.) to JSON before calling this.
      */
-    @Throws(NobodyWhoException::class)override fun `askWithJsonPrompt`(`json`: kotlin.String): RustTokenStream {
-            return FfiConverterTypeRustTokenStream.lift(
-    callWithHandle {
-    uniffiRustCallWithError(NobodyWhoException) { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(
-        it,
-        FfiConverterString.lower(`json`),_status)
-}
-    }
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `askWithJsonPrompt`(`json`: kotlin.String) : RustTokenStream {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(
+                uniffiHandle,
+                FfiConverterString.lower(`json`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
+        // lift function
+        { FfiConverterTypeRustTokenStream.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
     )
     }
-    
 
     
     /**
@@ -2357,18 +2372,26 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
      *
      * `parts` is an ordered list of `ContentPart` items.
      * Image and audio parts should contain a local file-system path.
-     */override fun `askWithPrompt`(`parts`: List<ContentPart>): RustTokenStream {
-            return FfiConverterTypeRustTokenStream.lift(
-    callWithHandle {
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(
-        it,
-        FfiConverterSequenceTypeContentPart.lower(`parts`),_status)
-}
-    }
+     */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `askWithPrompt`(`parts`: List<ContentPart>) : RustTokenStream {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(
+                uniffiHandle,
+                FfiConverterSequenceTypeContentPart.lower(`parts`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
+        // lift function
+        { FfiConverterTypeRustTokenStream.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
     )
     }
-    
 
     
     /**
@@ -2383,18 +2406,25 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
      *
      * `options` follows the same rule for the chat's other settings.
      */
-    @Throws(NobodyWhoException::class)override fun `complete`(`messages`: List<Message>, `options`: Options): RustTokenStream {
-            return FfiConverterTypeRustTokenStream.lift(
-    callWithHandle {
-    uniffiRustCallWithError(NobodyWhoException) { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_complete(
-        it,
-        FfiConverterSequenceTypeMessage.lower(`messages`),FfiConverterTypeOptions.lower(`options`),_status)
-}
-    }
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `complete`(`messages`: List<Message>, `options`: Options) : RustTokenStream {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_complete(
+                uniffiHandle,
+                FfiConverterSequenceTypeMessage.lower(`messages`),FfiConverterTypeOptions.lower(`options`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
+        // lift function
+        { FfiConverterTypeRustTokenStream.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
     )
     }
-    
 
     
     /**

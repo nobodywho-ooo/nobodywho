@@ -17,7 +17,7 @@
 //!     .with_system_prompt(Some("You are a helpful assistant"))
 //!     .build()?;
 //!
-//! let response = chat.ask("Hello!").completed()?;
+//! let response = chat.ask("Hello!")?.completed()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -677,21 +677,30 @@ impl ChatHandle {
     /// # Example
     /// ```
     /// # use nobodywho::chat::ChatHandleAsync;
-    /// # async fn example(chat: &ChatHandleAsync) -> Result<(), nobodywho::errors::CompletionError> {
-    /// let mut stream = chat.ask("Tell me a story");
+    /// # async fn example(chat: &ChatHandleAsync) -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut stream = chat.ask("Tell me a story").await?;
     /// while let Some(token) = stream.next_token().await? {
     ///     print!("{}", token);
     /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub fn ask(&self, prompt: impl Promptable) -> TokenStream {
+    pub fn ask(&self, prompt: impl Promptable) -> Result<TokenStream, SayError> {
+        let (initial_result_tx, initial_result_rx) = tokio::sync::oneshot::channel();
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
         self.guard.send(ChatMsg::Turn {
             input: TurnInput::Ask(prompt.to_prompt()),
+            initial_result_tx,
             output: TurnOutput::Text(output_tx),
         });
-        TokenStream::new(output_rx)
+        initial_result_rx
+            .blocking_recv()
+            .unwrap()
+            .map_err(|e| match e {
+                TurnError::Text(e) => e,
+                TurnError::Completion(_) => unreachable!(),
+            })?;
+        Ok(TokenStream::new(output_rx))
     }
 
     /// Answer a full message list, which replaces the chat history.
@@ -726,9 +735,10 @@ impl ChatHandle {
         &self,
         messages: Vec<Message>,
         options: Options,
-    ) -> Result<TokenStream, InvalidHistoryError> {
+    ) -> Result<TokenStream, CompleteError> {
         let messages = History::new(messages)?;
         check_answerable(&messages)?;
+        let (initial_result_tx, initial_result_rx) = tokio::sync::oneshot::channel();
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
         self.guard.send(ChatMsg::Turn {
             input: TurnInput::Complete {
@@ -737,8 +747,16 @@ impl ChatHandle {
                 max_tokens: None,
                 execute_tools: true,
             },
+            initial_result_tx,
             output: TurnOutput::Text(output_tx),
         });
+        initial_result_rx
+            .blocking_recv()
+            .unwrap()
+            .map_err(|e| match e {
+                TurnError::Text(_) => unreachable!(),
+                TurnError::Completion(e) => e,
+            })?;
         Ok(TokenStream::new(output_rx))
     }
 
@@ -748,14 +766,29 @@ impl ChatHandle {
         options: Options,
         max_tokens: Option<usize>,
         execute_tools: bool,
-    ) -> Result<CompletionStream, InvalidHistoryError> {
-        Ok(CompletionStream(completion_receiver(
-            &self.guard,
-            messages,
-            options,
-            max_tokens,
-            execute_tools,
-        )?))
+    ) -> Result<CompletionStream, CompleteError> {
+        let messages = History::new(messages)?;
+        check_answerable(&messages)?;
+        let (initial_result_tx, initial_result_rx) = tokio::sync::oneshot::channel();
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel(32);
+        self.guard.send(ChatMsg::Turn {
+            input: TurnInput::Complete {
+                messages,
+                options,
+                max_tokens,
+                execute_tools,
+            },
+            initial_result_tx,
+            output: TurnOutput::Completion(output_tx),
+        });
+        initial_result_rx
+            .blocking_recv()
+            .unwrap()
+            .map_err(|e| match e {
+                TurnError::Text(_) => unreachable!(),
+                TurnError::Completion(e) => e,
+            })?;
+        Ok(CompletionStream(CompletionReceiver::new(output_rx)))
     }
 
     /// Send a setter message and block until the worker answers. The outer error
@@ -1043,21 +1076,27 @@ impl ChatHandleAsync {
     /// # Example
     /// ```
     /// # use nobodywho::chat::ChatHandleAsync;
-    /// # async fn example(chat: &ChatHandleAsync) -> Result<(), nobodywho::errors::CompletionError> {
-    /// let mut stream = chat.ask("Tell me a story");
+    /// # async fn example(chat: &ChatHandleAsync) -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut stream = chat.ask("Tell me a story").await?;
     /// while let Some(token) = stream.next_token().await? {
     ///     print!("{}", token);
     /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub fn ask(&self, prompt: impl Promptable) -> TokenStreamAsync {
+    pub async fn ask(&self, prompt: impl Promptable) -> Result<TokenStreamAsync, SayError> {
+        let (initial_result_tx, initial_result_rx) = tokio::sync::oneshot::channel();
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
         self.guard.send(ChatMsg::Turn {
             input: TurnInput::Ask(prompt.to_prompt()),
+            initial_result_tx,
             output: TurnOutput::Text(output_tx),
         });
-        TokenStreamAsync::new(output_rx)
+        initial_result_rx.await.unwrap().map_err(|e| match e {
+            TurnError::Text(e) => e,
+            TurnError::Completion(_) => unreachable!(),
+        })?;
+        Ok(TokenStreamAsync::new(output_rx))
     }
 
     /// Answer a full message list, which replaces the chat history.
@@ -1078,18 +1117,19 @@ impl ChatHandleAsync {
     /// let mut stream = chat.complete(
     ///     vec![Message::new_user("Who first walked on the moon?".to_string())],
     ///     Options::new(),
-    /// )?;
+    /// ).await?;
     /// println!("{}", stream.completed().await?);
     /// # Ok(())
     /// # }
     /// ```
-    pub fn complete(
+    pub async fn complete(
         &self,
         messages: Vec<Message>,
         options: Options,
-    ) -> Result<TokenStreamAsync, InvalidHistoryError> {
+    ) -> Result<TokenStreamAsync, CompleteError> {
         let messages = History::new(messages)?;
         check_answerable(&messages)?;
+        let (initial_result_tx, initial_result_rx) = tokio::sync::oneshot::channel();
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
         self.guard.send(ChatMsg::Turn {
             input: TurnInput::Complete {
@@ -1098,8 +1138,13 @@ impl ChatHandleAsync {
                 max_tokens: None,
                 execute_tools: true,
             },
+            initial_result_tx,
             output: TurnOutput::Text(output_tx),
         });
+        initial_result_rx.await.unwrap().map_err(|e| match e {
+            TurnError::Text(_) => unreachable!(),
+            TurnError::Completion(e) => e,
+        })?;
         Ok(TokenStreamAsync::new(output_rx))
     }
 
@@ -1107,20 +1152,32 @@ impl ChatHandleAsync {
     ///
     /// If `execute_tools` is `false`, this returns return tool calls for the
     /// caller to execute and submit in a following request.
-    pub fn completion_stream(
+    pub async fn completion_stream(
         &self,
         messages: Vec<Message>,
         options: Options,
         max_tokens: Option<usize>,
         execute_tools: bool,
-    ) -> Result<CompletionStreamAsync, InvalidHistoryError> {
-        Ok(CompletionStreamAsync(completion_receiver(
-            &self.guard,
-            messages,
-            options,
-            max_tokens,
-            execute_tools,
-        )?))
+    ) -> Result<CompletionStreamAsync, CompleteError> {
+        let messages = History::new(messages)?;
+        check_answerable(&messages)?;
+        let (initial_result_tx, initial_result_rx) = tokio::sync::oneshot::channel();
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel(32);
+        self.guard.send(ChatMsg::Turn {
+            input: TurnInput::Complete {
+                messages,
+                options,
+                max_tokens,
+                execute_tools,
+            },
+            initial_result_tx,
+            output: TurnOutput::Completion(output_tx),
+        });
+        initial_result_rx.await.unwrap().map_err(|e| match e {
+            TurnError::Text(_) => unreachable!(),
+            TurnError::Completion(e) => e,
+        })?;
+        Ok(CompletionStreamAsync(CompletionReceiver::new(output_rx)))
     }
 
     /// Send a setter message and wait for the worker's answer. The outer error
@@ -1520,28 +1577,6 @@ impl CompletionReceiver {
     }
 }
 
-fn completion_receiver(
-    guard: &WorkerGuard<ChatMsg>,
-    messages: Vec<Message>,
-    options: Options,
-    max_tokens: Option<usize>,
-    execute_tools: bool,
-) -> Result<CompletionReceiver, InvalidHistoryError> {
-    let messages = History::new(messages)?;
-    check_answerable(&messages)?;
-    let (output_tx, output_rx) = tokio::sync::mpsc::channel(32);
-    guard.send(ChatMsg::Turn {
-        input: TurnInput::Complete {
-            messages,
-            options,
-            max_tokens,
-            execute_tools,
-        },
-        output: TurnOutput::Completion(output_tx),
-    });
-    Ok(CompletionReceiver::new(output_rx))
-}
-
 pub struct CompletionStream(CompletionReceiver);
 
 impl CompletionStream {
@@ -1586,6 +1621,12 @@ enum TurnInput {
     },
 }
 
+// TMP
+enum TurnError {
+    Text(SayError),
+    Completion(CompleteError),
+}
+
 /// Where a turn's output goes, as the API that asked for the turn reports it.
 enum TurnOutput {
     /// Tokens, then the answer's text, as `ask` and `complete` stream them.
@@ -1614,8 +1655,8 @@ impl TurnOutput {
         }
     }
 
-    fn fail(&self, error: Box<dyn miette::Diagnostic + Send + Sync>) {
-        let error = CompletionError::WorkerError(error);
+    fn fail(&self, error: GenerateResponseError) {
+        let error = CompletionError::GenerateResponse(error);
         let _ = match self {
             TurnOutput::Text(tx) => tx.send(crate::stream::StreamOutput::Error(error)).is_ok(),
             TurnOutput::Completion(tx) => tx
@@ -1628,6 +1669,7 @@ impl TurnOutput {
 enum ChatMsg {
     Turn {
         input: TurnInput,
+        initial_result_tx: tokio::sync::oneshot::Sender<Result<(), TurnError>>,
         output: TurnOutput,
     },
     ResetChat {
@@ -1771,12 +1813,16 @@ impl std::fmt::Debug for ChatMsg {
 fn process_worker_msg(worker_state: &mut Chat, msg: ChatMsg) {
     info!(?msg, "Worker processing:");
     match msg {
-        ChatMsg::Turn { input, output } => {
+        ChatMsg::Turn {
+            input,
+            initial_result_tx,
+            output,
+        } => {
             let (mut generator, max_tokens, execute_tools) = match input {
                 TurnInput::Ask(prompt) => match worker_state.ask(prompt) {
                     Ok(generator) => (generator, None, true),
                     Err(e) => {
-                        output.fail(Box::new(e));
+                        let _ = initial_result_tx.send(Err(TurnError::Text(e)));
                         return;
                     }
                 },
@@ -1788,11 +1834,12 @@ fn process_worker_msg(worker_state: &mut Chat, msg: ChatMsg) {
                 } => match worker_state.complete(messages, options) {
                     Ok(generator) => (generator, max_tokens, execute_tools),
                     Err(e) => {
-                        output.fail(Box::new(e));
+                        let _ = initial_result_tx.send(Err(TurnError::Completion(e)));
                         return;
                     }
                 },
             };
+            let _ = initial_result_tx.send(Ok(()));
 
             loop {
                 match generator.next(worker_state, max_tokens, execute_tools) {
@@ -1810,7 +1857,7 @@ fn process_worker_msg(worker_state: &mut Chat, msg: ChatMsg) {
                         return;
                     }
                     Err(e) => {
-                        output.fail(Box::new(e));
+                        output.fail(e);
                         return;
                     }
                 }
@@ -3583,7 +3630,7 @@ mod tests {
             .build()
             .expect("chat build failed in test");
 
-        let dog_response = chat.ask("Hello!").completed().unwrap();
+        let dog_response = chat.ask("Hello!").unwrap().completed().unwrap();
 
         assert!(dog_response.to_lowercase().contains("woof"));
 
@@ -3591,6 +3638,7 @@ mod tests {
             .unwrap();
         let cat_response = chat
             .ask("Now say the correct animal sound!")
+            .unwrap()
             .completed()
             .unwrap();
         assert!(cat_response.to_lowercase().contains("meow"));
@@ -4097,7 +4145,9 @@ mod tests {
                 .build()
                 .expect("chat build failed in test");
 
-            chat.ask("What is the capital of Denmark?").completed()
+            chat.ask("What is the capital of Denmark?")
+                .unwrap()
+                .completed()
         });
 
         // Start Germany chat thread
@@ -4108,7 +4158,9 @@ mod tests {
                 .build()
                 .expect("chat build failed in test");
 
-            chat.ask("What is the capital of Germany?").completed()
+            chat.ask("What is the capital of Germany?")
+                .unwrap()
+                .completed()
         });
 
         // Wait for both threads to complete and get responses
@@ -4139,6 +4191,8 @@ mod tests {
 
         let res1: String = chat
             .ask("What is the capital of Denmark?".to_string())
+            .await
+            .unwrap()
             .completed()
             .await?;
 
@@ -4152,6 +4206,8 @@ mod tests {
 
         let res2: String = chat
             .ask("What is the capital of the Czech Republic?".to_string())
+            .await
+            .unwrap()
             .completed()
             .await?;
 
@@ -4179,9 +4235,17 @@ mod tests {
         chat.set_sampler_config(chat.get_sampler_config().unwrap())
             .unwrap();
 
-        let response1 = chat.ask("Say exactly: 'Hello'").completed().unwrap();
+        let response1 = chat
+            .ask("Say exactly: 'Hello'")
+            .unwrap()
+            .completed()
+            .unwrap();
         chat.reset_history().unwrap();
-        let response2 = chat.ask("Say exactly: 'Hello'").completed().unwrap();
+        let response2 = chat
+            .ask("Say exactly: 'Hello'")
+            .unwrap()
+            .completed()
+            .unwrap();
 
         assert_eq!(
             response1, response2,
@@ -4200,6 +4264,7 @@ mod tests {
         let _ = chat.reset_history();
         let resp = chat
             .ask("What is the capital of Denmark?")
+            .unwrap()
             .completed()
             .unwrap();
         assert!(
@@ -4226,7 +4291,10 @@ mod tests {
             .build()
             .expect("chat build failed in test");
 
-        chat.ask("My favorite color is teal.").completed().unwrap();
+        chat.ask("My favorite color is teal.")
+            .unwrap()
+            .completed()
+            .unwrap();
 
         let messages = vec![
             user("Who was the first person to walk on the moon?"),
@@ -4312,7 +4380,7 @@ mod tests {
             .build()
             .expect("chat build failed in test");
 
-        let dog = chat.ask("Hello!").completed().unwrap();
+        let dog = chat.ask("Hello!").unwrap().completed().unwrap();
         assert!(dog.to_lowercase().contains("woof"), "{dog}");
 
         let cat = chat
@@ -4332,7 +4400,7 @@ mod tests {
             Some("You are a cat. End all responses with meow.")
         );
 
-        let cat_again = chat.ask("Hello again!").completed().unwrap();
+        let cat_again = chat.ask("Hello again!").unwrap().completed().unwrap();
         assert!(cat_again.to_lowercase().contains("meow"), "{cat_again}");
 
         let still_cat = chat
@@ -4400,6 +4468,7 @@ mod tests {
             .expect("chat build failed in test");
 
         chat.ask("My favorite color is teal. Remember it.")
+            .unwrap()
             .completed()
             .unwrap();
 
@@ -4417,6 +4486,7 @@ mod tests {
 
         let resp = chat
             .ask("Who are we talking about? Answer with only the name.")
+            .unwrap()
             .completed()
             .unwrap();
         assert!(
@@ -4487,9 +4557,8 @@ mod tests {
                     .with_sampler(SamplerPresets::greedy())
                     .with_tools(vec![bad_tool]),
             )
-            .expect("the history itself is fine")
-            .completed()
-            .expect_err("an uncompilable tool schema should be rejected");
+            .err()
+            .expect("an uncompilable tool schema should be rejected");
         eprintln!("rejected as expected: {err}");
 
         // The sampler config is the observable half: it is applied first, so
@@ -4511,12 +4580,14 @@ mod tests {
 
         assert!(matches!(
             chat.complete(vec![], Options::new()),
-            Err(InvalidHistoryError::Empty)
+            Err(CompleteError::InvalidHistory(InvalidHistoryError::Empty))
         ));
 
         assert!(matches!(
             chat.complete(vec![user("Hi"), assistant("Aye, ")], Options::new()),
-            Err(InvalidHistoryError::DoesNotEndInUserOrTool { role: "assistant" })
+            Err(CompleteError::InvalidHistory(
+                InvalidHistoryError::DoesNotEndInUserOrTool { role: "assistant" }
+            ))
         ));
 
         // The system prompt is stored as text, so media in it would flatten to a
@@ -4532,7 +4603,9 @@ mod tests {
                 ],
                 Options::new()
             ),
-            Err(InvalidHistoryError::MediaInSystemMessage)
+            Err(CompleteError::InvalidHistory(
+                InvalidHistoryError::MediaInSystemMessage
+            ))
         ));
 
         // Media is rejected in a mid-conversation system message too: that one
@@ -4551,7 +4624,9 @@ mod tests {
                 ],
                 Options::new()
             ),
-            Err(InvalidHistoryError::MediaInSystemMessage)
+            Err(CompleteError::InvalidHistory(
+                InvalidHistoryError::MediaInSystemMessage
+            ))
         ));
     }
 
@@ -4711,6 +4786,7 @@ mod tests {
         chat.set_sampler_config(SamplerPresets::greedy())
             .expect("a valid sampler config is fine");
         chat.ask("Say hi")
+            .unwrap()
             .completed()
             .expect("worker still answers");
     }
@@ -5016,7 +5092,8 @@ mod tests {
             .complete(
                 vec![user("What is the capital of Denmark?")],
                 Options::new(),
-            )?
+            )
+            .await?
             .completed()
             .await?;
 

@@ -597,40 +597,44 @@ impl RustChat {
         Ok(Self { chat })
     }
 
-    #[flutter_rust_bridge::frb(sync, positional)]
-    pub fn ask(&self, message: String) -> RustTokenStream {
-        RustTokenStream {
-            stream: self.chat.ask(message),
-        }
+    #[flutter_rust_bridge::frb(positional)]
+    pub async fn ask(&self, message: String) -> Result<RustTokenStream, String> {
+        let stream = self
+            .chat
+            .ask(message)
+            .await
+            .map_err(|e| nobodywho::render_miette(&e))?;
+        Ok(RustTokenStream { stream })
     }
 
     /// Send a multimodal prompt (text + images) and get a stream of response tokens.
     ///
     /// Args:
     ///     parts: List of PromptPart (text or image) making up the prompt
-    #[flutter_rust_bridge::frb(sync)]
-    pub fn ask_with_prompt(&self, parts: Vec<PromptPart>) -> RustTokenStream {
+    pub async fn ask_with_prompt(&self, parts: Vec<PromptPart>) -> Result<RustTokenStream, String> {
         let prompt = nobodywho::tokenizer::Prompt::parts(
             parts.into_iter().map(Into::into).collect::<Vec<_>>(),
         );
-
-        RustTokenStream {
-            stream: self.chat.ask(prompt),
-        }
+        let stream = self
+            .chat
+            .ask(prompt)
+            .await
+            .map_err(|e| nobodywho::render_miette(&e))?;
+        Ok(RustTokenStream { stream })
     }
 
     /// Send a raw JSON prompt and get a stream of response tokens.
     /// The JSON string is parsed and passed as a structured content field.
     /// Called by the Dart SDK layer — the json argument is always valid JSON.
-    #[flutter_rust_bridge::frb(sync)]
-    pub fn ask_with_json_prompt(&self, json: String) -> RustTokenStream {
+    pub async fn ask_with_json_prompt(&self, json: String) -> Result<RustTokenStream, String> {
         let value: serde_json::Value = serde_json::from_str(&json)
             .expect("ask_with_json_prompt: invalid JSON (this is a bug in the SDK)");
-        RustTokenStream {
-            stream: self
-                .chat
-                .ask(nobodywho::tokenizer::Prompt::from_json(value)),
-        }
+        let stream = self
+            .chat
+            .ask(nobodywho::tokenizer::Prompt::from_json(value))
+            .await
+            .map_err(|e| nobodywho::render_miette(&e))?;
+        Ok(RustTokenStream { stream })
     }
 
     /// Answer a full list of messages, replacing the chat history.
@@ -643,8 +647,8 @@ impl RustChat {
     ///
     /// The trailing arguments follow the same rule for the chat's other settings:
     /// what you pass stays set, what you leave out is kept.
-    #[flutter_rust_bridge::frb(sync)]
-    pub fn complete(
+    #[flutter_rust_bridge::frb]
+    pub async fn complete(
         &self,
         messages: Vec<Message>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
@@ -663,6 +667,7 @@ impl RustChat {
         let stream = self
             .chat
             .complete(messages, options)
+            .await
             .map_err(|e| nobodywho::render_miette(&e))?;
         Ok(RustTokenStream { stream })
     }

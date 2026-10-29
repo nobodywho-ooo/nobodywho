@@ -71,11 +71,19 @@ class Chat(
         }
     }
 
-    /** Send a text message and get a token stream for the response. */
-    fun ask(message: String) = TokenStream(inner.ask(message))
+    /**
+     * Send a text message and get a token stream for the response.
+     *
+     * Returns after prefilling the context; throws if prefill fails.
+     */
+    suspend fun ask(message: String) = TokenStream(inner.ask(message))
 
-    /** Send a multimodal prompt and get a token stream. */
-    fun ask(prompt: Prompt): TokenStream {
+    /**
+     * Send a multimodal prompt and get a token stream.
+     *
+     * Returns after prefilling the context; throws if prefill fails.
+     */
+    suspend fun ask(prompt: Prompt): TokenStream {
         prompt.jsonString?.let { return TokenStream(inner.askWithJsonPrompt(it)) }
         return TokenStream(inner.askWithPrompt(prompt.parts!!))
     }
@@ -90,8 +98,10 @@ class Chat(
      * there.
      *
      * [options] follows the same rule for the chat's other settings.
+     *
+     * Returns after prefilling the context; throws if the list is invalid or prefill fails.
      */
-    fun complete(messages: List<Message>, options: Options = Options()) =
+    suspend fun complete(messages: List<Message>, options: Options = Options()) =
         TokenStream(inner.complete(messages.map { Message.toUniFFI(it) }, options.toUniFFI()))
 
     fun stopGeneration() = inner.stopGeneration()

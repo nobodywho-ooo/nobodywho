@@ -481,9 +481,9 @@ fn request_completion_stream(
     }
     let chat = py.detach(|| builder.build()).map_err(err)?;
     let max_tokens = validate_output_limit(&chat, max_tokens, py)?;
-    let stream = chat
-        .completion_stream(messages, completion_options, max_tokens, true)
-        .map_err(|error| pyo3::exceptions::PyValueError::new_err(render_miette(&error)))?;
+    let stream = py
+        .detach(|| chat.completion_stream(messages, completion_options, max_tokens, true))
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(render_miette(&e)))?;
     Ok((chat, stream))
 }
 
@@ -2641,20 +2641,23 @@ impl Chat {
     /// Args:
     ///     prompt: The user prompt to send (plain text or a multimodal Prompt)
     ///
+    /// Blocks while the context is prefilled, then returns the stream.
+    ///
     /// Returns:
     ///     A TokenStream that yields tokens as they are generated
+    ///
+    /// Raises:
+    ///     ValueError: If prefilling the context fails
     #[pyo3(signature = (prompt: "str | Prompt") -> "TokenStream")]
-    pub fn ask(&self, prompt: PromptOrText) -> TokenStream {
-        let stream = match prompt {
-            PromptOrText::Text(text) => self.handle().ask(text),
-            PromptOrText::PromptObj(prompt_obj) => {
-                self.handle().ask(prompt_obj.borrow().prompt.clone())
-            }
-        };
+    pub fn ask(&self, prompt: PromptOrText, py: Python) -> PyResult<TokenStream> {
+        let prompt = prompt.into_prompt();
+        let stream = py
+            .detach(|| self.handle().ask(prompt))
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(render_miette(&e)))?;
 
-        TokenStream {
+        Ok(TokenStream {
             inner: SyncStreamInner::Chat(stream),
-        }
+        })
     }
 
     /// Answer a full list of messages, replacing the chat history.
@@ -2681,7 +2684,8 @@ impl Chat {
     ///     A TokenStream that yields tokens as they are generated
     ///
     /// Raises:
-    ///     ValueError: If the message format or the conversation shape is invalid
+    ///     ValueError: If the message format or the conversation shape is invalid,
+    ///         or prefilling the context fails
     #[pyo3(signature = (messages: "list[dict]", *, sampler: "SamplerConfig | None" = None, template_variables: "dict[str, bool] | None" = None, tools: "list[Tool] | None" = None) -> "TokenStream")]
     pub fn complete(
         &self,
@@ -2689,16 +2693,14 @@ impl Chat {
         sampler: Option<SamplerConfig>,
         template_variables: Option<std::collections::HashMap<String, bool>>,
         tools: Option<Vec<Tool>>,
+        py: Python,
     ) -> PyResult<TokenStream> {
         let messages = pythonize::depythonize(&messages)
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        let options = py_completion_options(sampler, template_variables, tools);
 
-        let stream = self
-            .handle()
-            .complete(
-                messages,
-                py_completion_options(sampler, template_variables, tools),
-            )
+        let stream = py
+            .detach(|| self.handle().complete(messages, options))
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(render_miette(&e)))?;
 
         Ok(TokenStream {
@@ -3122,20 +3124,30 @@ impl ChatAsync {
     /// Args:
     ///     prompt: The user prompt to send (plain text or a multimodal Prompt)
     ///
+    /// Resolves after prefilling the context.
+    ///
     /// Returns:
     ///     A TokenStreamAsync that yields tokens as they are generated
+    ///
+    /// Raises:
+    ///     ValueError: If prefilling the context fails
     #[pyo3(signature = (prompt: "str | Prompt") -> "TokenStreamAsync")]
-    pub fn ask(&self, prompt: PromptOrText) -> TokenStreamAsync {
-        let stream = match prompt {
-            PromptOrText::Text(text) => self.handle().ask(text),
-            PromptOrText::PromptObj(prompt_obj) => {
-                self.handle().ask(prompt_obj.borrow().prompt.clone())
-            }
-        };
+    pub async fn ask(&self, prompt: Py<PyAny>) -> PyResult<TokenStreamAsync> {
+        let prompt = Python::attach(|py| {
+            prompt
+                .bind(py)
+                .extract::<PromptOrText>()
+                .map(PromptOrText::into_prompt)
+        })?;
+        let stream = self
+            .handle()
+            .ask(prompt)
+            .await
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(render_miette(&e)))?;
 
-        TokenStreamAsync {
+        Ok(TokenStreamAsync {
             inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::Chat(stream))),
-        }
+        })
     }
 
     /// Answer a full list of messages, replacing the chat history.
@@ -3162,17 +3174,20 @@ impl ChatAsync {
     ///     A TokenStreamAsync that yields tokens as they are generated
     ///
     /// Raises:
-    ///     ValueError: If the message format or the conversation shape is invalid
+    ///     ValueError: If the message format or the conversation shape is invalid,
+    ///         or prefilling the context fails
     #[pyo3(signature = (messages: "list[dict]", *, sampler: "SamplerConfig | None" = None, template_variables: "dict[str, bool] | None" = None, tools: "list[Tool] | None" = None) -> "TokenStreamAsync")]
-    pub fn complete(
+    pub async fn complete(
         &self,
-        messages: Bound<'_, PyAny>,
+        messages: Py<PyAny>,
         sampler: Option<SamplerConfig>,
         template_variables: Option<std::collections::HashMap<String, bool>>,
         tools: Option<Vec<Tool>>,
     ) -> PyResult<TokenStreamAsync> {
-        let messages = pythonize::depythonize(&messages)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        let messages = Python::attach(|py| {
+            pythonize::depythonize(messages.bind(py))
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+        })?;
 
         let stream = self
             .handle()
@@ -3180,6 +3195,7 @@ impl ChatAsync {
                 messages,
                 py_completion_options(sampler, template_variables, tools),
             )
+            .await
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(render_miette(&e)))?;
 
         Ok(TokenStreamAsync {
@@ -4660,6 +4676,15 @@ impl Prompt {
 pub enum PromptOrText<'py> {
     PromptObj(Bound<'py, Prompt>),
     Text(String),
+}
+
+impl PromptOrText<'_> {
+    fn into_prompt(self) -> nobodywho::tokenizer::Prompt {
+        match self {
+            PromptOrText::Text(text) => nobodywho::tokenizer::Prompt::text(text),
+            PromptOrText::PromptObj(prompt_obj) => prompt_obj.borrow().prompt.clone(),
+        }
+    }
 }
 
 /// Decorator to convert a Python function into a Chat-compatible Tool instance.

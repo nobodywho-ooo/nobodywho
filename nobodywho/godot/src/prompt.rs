@@ -12,7 +12,7 @@ use crate::convert::{resolve_godot_path, variant_to_json};
 ///     NobodyWhoPrompt.text("What is in this image?"),
 ///     NobodyWhoPrompt.image("res://images/photo.jpg"),
 /// ])
-/// var stream = chat.ask(prompt)
+/// var stream = await chat.ask(prompt)
 /// ```
 ///
 /// For a raw chat-template message dict (no Godot path resolution), use

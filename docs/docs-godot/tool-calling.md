@@ -22,7 +22,7 @@ func get_magic_word(box_name: String) -> String:
 func _ready():
     var tool = NobodyWhoTool.create(get_magic_word, "Gets the magic word for a box.")
     var chat = await NobodyWhoChat.create("./model.gguf", {"tools": [tool]})
-    var stream = chat.ask("Open the red box using the magic word.")
+    var stream = await chat.ask("Open the red box using the magic word.")
     print(await stream.completed())
 ```
 
@@ -91,7 +91,7 @@ access** to the filesystem, the network, or environment variables:
 ```gdscript
 var tool = NobodyWhoTool.python()
 var chat = await NobodyWhoChat.create("./model.gguf", {"tools": [tool]})
-var stream = chat.ask("What is 6 times 7? Use the run_python tool to compute it.")
+var stream = await chat.ask("What is 6 times 7? Use the run_python tool to compute it.")
 print(await stream.completed())
 ```
 
