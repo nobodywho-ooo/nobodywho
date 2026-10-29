@@ -6,6 +6,33 @@ We follow [Semantic Versioning](https://semver.org/) for published bindings, whi
 
 Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), but we keep unreleased changes in individual files in [`.changeset/`](.changeset/) rather than editing them into this file directly. See [CONTRIBUTING.md](CONTRIBUTING.md#changelog-entries) for details.
 
+## [Python v5.0.0, Flutter v6.0.0, Godot v13.0.0, Kotlin v6.0.0, React Native v6.0.0, Swift v6.0.0] - 2026-10-29
+
+### Added
+
+- Add support for Laya decision model inference, with choices, Boolean judgments, ordinal scores, and answer probabilities.
+- Updated llama.cpp version from v0.5.0 (roughly) to v0.8.0.
+
+  In particular, this adds support for GLM-5.3-Flash, EmbeddingGemma 2 and LiquidAI LFM3.
+
+### Changed
+
+- **Breaking:** Several changes to how tool calls are read from a model's output:
+
+  - With tools, a chat now fails to start if the model's vocabulary doesn't have its format's tool call markers as single special tokens. All supported models have them.
+  - A tool call cut off by stopping the generation or by the token limit is now kept as text and never runs. An LFM2 call could run before.
+  - Qwen3.5, Qwen3.6 and FunctionGemma tool calls now pass an argument to the tool with the type its schema gives. Previously anything that parsed as JSON was converted, so a string parameter given `10` received the number `10` instead of `"10"`.
+  - A tool call marker a model writes inside its reasoning is now part of the reasoning, and no longer starts a tool call.
+  - A block of tool calls that can't be read is now streamed as text, not only returned in the response.
+- ONNX Runtime, used for speech-to-text, text-to-speech and voice activity detection, is updated from 1.28 to 1.31.
+
+### Fixed
+
+- Conversation history as rendered to the LLM now matches exactly what the model saw and wrote. Previously some special tokens and whitespace could be added or lost. This can change output, but probably won't do so much.
+- **Flutter:** No longer needs to download `onnxruntime.so` on Android x86_64, it is bundled with the rest of `libnobodywho_flutter.so`.
+- A Hugging Face model path without a file name, such as `hf://owner/repo`, now fails with an error that shows the expected `hf://owner/repo/filename.gguf` format instead of a raw parser error.
+- **React Native:** Added missing proguard-rules.pro, which should allow enabling R8 on Android.
+
 ## [Python v4.1.0, Flutter v5.1.0, Godot v12.1.0, Kotlin v5.1.0, React Native v5.1.0, Swift v5.1.0] - 2026-10-09
 
 ### Added
