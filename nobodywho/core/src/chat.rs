@@ -649,13 +649,11 @@ pub struct ChatHandle {
     /// The currently in-progress generation, if any.
     ///
     /// Held here so that we can flush it when required, to unlock the mutex
-    /// guard on the `Chat` that it's holding internally.
+    /// guard on the [`Chat`] that the [`CompletionGenerator`] is holding
+    /// internally.
     ///
-    /// This double-mutex is a bit weird, but it actually makes sense:
-    /// 1. The inner `Weak<Mutex<...>>` is for the `CompletionStream` itself,
-    ///    which we need to mutate to do the flushing.
-    /// 2. The outer mutex is because we need to be able to set it behind
-    ///    `&ChatHandle`.
+    /// We also need a mutex here to allow replacing the current stream behind
+    /// `&ChatHandle`.
     ///
     /// Finally, note that there can be multiple _independent_
     /// `CompletionStream`s alive at the same time (which is important for
@@ -663,7 +661,7 @@ pub struct ChatHandle {
     /// generating. For this reason, it doesn't make sense to store the
     /// completion stream state on the `ChatHandle` (which would probably
     /// otherwise be nicer).
-    current_stream: tokio::sync::Mutex<Weak<tokio::sync::Mutex<CompletionStreamInner>>>,
+    current_stream: tokio::sync::Mutex<WeakCompletionStream>,
 }
 
 // FIXME(madsmtm): Derive this instead.
@@ -681,7 +679,7 @@ impl ChatHandle {
         Ok(Self {
             chat: Arc::new(tokio::sync::Mutex::new(chat)),
             should_stop,
-            current_stream: tokio::sync::Mutex::new(Weak::new()),
+            current_stream: tokio::sync::Mutex::new(WeakCompletionStream::new()),
         })
     }
 
@@ -2932,12 +2930,17 @@ impl CompletionGenerator {
     }
 }
 
-/// A wrapper over [`CompletionGenerator`] that stores the [`Chat`] in a
-/// mutex, and allows flushing the generation from another place (or thread).
+/// A wrapper over [`CompletionGenerator`] that allows flushing the generation
+/// from [`ChatHandle`].
 #[derive(Debug)]
 pub struct CompletionStream {
+    /// We use an `Arc` + `Mutex` here to allow the state to be shared weakly
+    /// (via `WeakCompletionStream`) with `ChatHandle` for later flushing.
     inner: Arc<tokio::sync::Mutex<CompletionStreamInner>>,
 }
+
+/// A weak reference to the completion stream state.
+type WeakCompletionStream = Weak<tokio::sync::Mutex<CompletionStreamInner>>;
 
 #[derive(Debug)]
 pub struct CompletionStreamInner {
