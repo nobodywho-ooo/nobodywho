@@ -21,9 +21,10 @@ name: "Mobile Device Tests"
 # would be redacted out of the result links the run prints.
 on:
   # Nightly. GitHub only runs scheduled workflows on the default branch, so this
-  # is the canonical "does main still work on real hardware" run.
+  # is the canonical "does main still work on real hardware" run. Off the hour,
+  # since GitHub delays scheduled runs most at the top of the hour.
   schedule:
-    - cron: "0 4 * * *"
+    - cron: "23 2 * * *"
 
   workflow_dispatch:
     inputs:
