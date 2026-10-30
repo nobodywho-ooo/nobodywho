@@ -683,17 +683,6 @@ impl ChatHandle {
         })
     }
 
-    /// Synchronously flush / complete the in-progress generation.
-    ///
-    /// After this, the chat should be unlocked (or at least not deadlocked),
-    /// so it should be safe to lock again.
-    fn flush(&self) {
-        if let Some(inner) = self.current_stream.blocking_lock().upgrade() {
-            let mut stream = CompletionStream { inner };
-            stream.flush();
-        }
-    }
-
     /// Flush in-progress generation and lock the chat.
     ///
     /// Locking without flushing would cause deadlocks.
@@ -717,7 +706,11 @@ impl ChatHandle {
     /// should probably handle this in some other way (maybe by cancelling
     /// generation?)
     fn flush_and_lock(&self) -> tokio::sync::MutexGuard<'_, Chat> {
-        self.flush();
+        // Keep the stream locked until we've locked the chat, to avoid
+        // another task racing in between these locks and grabbing the chat
+        // before us.
+        let current_stream = self.current_stream.blocking_lock();
+        current_stream.flush();
         self.chat.blocking_lock()
     }
 
@@ -735,12 +728,13 @@ impl ChatHandle {
     /// # }
     /// ```
     pub fn ask(&self, prompt: impl Promptable) -> Result<TokenStream, SayError> {
-        self.flush();
+        let mut current_stream = self.current_stream.blocking_lock();
+        current_stream.flush();
         let mut chat = Arc::clone(&self.chat).blocking_lock_owned();
 
         let generator = chat.ask(prompt.to_prompt())?;
         let stream = CompletionStream::new(chat, generator, None, true);
-        *self.current_stream.blocking_lock() = Arc::downgrade(&stream.inner);
+        *current_stream = stream.downgrade();
         Ok(TokenStream::new(stream))
     }
 
@@ -791,12 +785,13 @@ impl ChatHandle {
         let messages = History::new(messages)?;
         check_answerable(&messages)?;
 
-        self.flush();
+        let mut current_stream = self.current_stream.blocking_lock();
+        current_stream.flush();
         let mut chat = Arc::clone(&self.chat).blocking_lock_owned();
 
         let generator = chat.complete(messages, options)?;
         let stream = CompletionStream::new(chat, generator, max_tokens, execute_tools);
-        *self.current_stream.blocking_lock() = Arc::downgrade(&stream.inner);
+        *current_stream = stream.downgrade();
         Ok(stream)
     }
 
@@ -2936,9 +2931,6 @@ pub struct CompletionStream {
     inner: Arc<tokio::sync::Mutex<CompletionStreamInner>>,
 }
 
-/// A weak reference to the completion stream state.
-type WeakCompletionStream = Weak<tokio::sync::Mutex<CompletionStreamInner>>;
-
 #[derive(Debug)]
 pub struct CompletionStreamInner {
     generator: CompletionGenerator,
@@ -2969,15 +2961,9 @@ impl CompletionStream {
         }
     }
 
-    /// Block and finish generation on the current thread / stack frame.
-    fn flush(&mut self) {
-        loop {
-            let mut inner = self.inner.blocking_lock();
-            match inner.generator.next() {
-                Ok(None) => break,
-                Ok(Some(chunk)) => inner.pending.push_back(Ok(chunk)),
-                Err(e) => inner.pending.push_back(Err(e)),
-            }
+    fn downgrade(&self) -> WeakCompletionStream {
+        WeakCompletionStream {
+            inner: Arc::downgrade(&self.inner),
         }
     }
 
@@ -2991,6 +2977,36 @@ impl CompletionStream {
         }
 
         inner.generator.next()
+    }
+}
+
+/// A weak reference to the completion stream state.
+struct WeakCompletionStream {
+    inner: Weak<tokio::sync::Mutex<CompletionStreamInner>>,
+}
+
+impl WeakCompletionStream {
+    fn new() -> Self {
+        Self { inner: Weak::new() }
+    }
+
+    /// Block and finish generation on the current thread / stack frame.
+    ///
+    /// After this, the chat should be unlocked (or at least not deadlocked),
+    /// so it should be safe to lock again.
+    fn flush(&self) {
+        if let Some(inner) = self.inner.upgrade() {
+            loop {
+                // Re-lock every generation, to allow another thread to
+                // consume the in-progress tokens.
+                let mut inner = inner.blocking_lock();
+                match inner.generator.next() {
+                    Ok(None) => break,
+                    Ok(Some(chunk)) => inner.pending.push_back(Ok(chunk)),
+                    Err(e) => inner.pending.push_back(Err(e)),
+                }
+            }
+        }
     }
 }
 
