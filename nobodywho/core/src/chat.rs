@@ -2891,7 +2891,6 @@ impl CompletionGenerator {
                 // Loop until we get a non-empty text token.
                 loop {
                     if let Some(text) = pending_text.pop_front() {
-                        // Continue generating.
                         return Ok(Some(CompletionChunk::Token(text)));
                     }
 
