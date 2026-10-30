@@ -134,8 +134,8 @@ abstract class CrossEncoder implements RustOpaqueInterface {
   });
 }
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderWorkerError>>
-abstract class CrossEncoderWorkerError implements RustOpaqueInterface {}
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderError>>
+abstract class CrossEncoderError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Decision>>
 abstract class Decision implements RustOpaqueInterface {
@@ -215,8 +215,8 @@ abstract class Encoder implements RustOpaqueInterface {
   );
 }
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderWorkerError>>
-abstract class EncoderWorkerError implements RustOpaqueInterface {}
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderError>>
+abstract class EncoderError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< GenerateResponseError>>
 abstract class GenerateResponseError implements RustOpaqueInterface {}

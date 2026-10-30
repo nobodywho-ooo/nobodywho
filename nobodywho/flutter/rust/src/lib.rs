@@ -1112,10 +1112,7 @@ impl Encoder {
         Ok(Self { handle })
     }
 
-    pub async fn encode(
-        &self,
-        text: String,
-    ) -> Result<Vec<f32>, nobodywho::errors::EncoderWorkerError> {
+    pub async fn encode(&self, text: String) -> Result<Vec<f32>, nobodywho::errors::EncoderError> {
         self.handle.encode(text).await
     }
 
@@ -1123,7 +1120,7 @@ impl Encoder {
     pub async fn encode_batch(
         &self,
         texts: Vec<String>,
-    ) -> Result<Vec<Vec<f32>>, nobodywho::errors::EncoderWorkerError> {
+    ) -> Result<Vec<Vec<f32>>, nobodywho::errors::EncoderError> {
         self.handle.encode_batch(texts).await
     }
 }
@@ -1185,7 +1182,7 @@ impl CrossEncoder {
         &self,
         query: String,
         documents: Vec<String>,
-    ) -> Result<Vec<f32>, nobodywho::errors::CrossEncoderWorkerError> {
+    ) -> Result<Vec<f32>, nobodywho::errors::CrossEncoderError> {
         self.handle.rank(query, documents).await
     }
 
@@ -1193,7 +1190,7 @@ impl CrossEncoder {
         &self,
         query: String,
         documents: Vec<String>,
-    ) -> Result<Vec<(String, f32)>, nobodywho::errors::CrossEncoderWorkerError> {
+    ) -> Result<Vec<(String, f32)>, nobodywho::errors::CrossEncoderError> {
         self.handle.rank_and_sort(query, documents).await
     }
 }

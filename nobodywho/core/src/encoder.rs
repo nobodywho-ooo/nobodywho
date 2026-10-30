@@ -1,127 +1,19 @@
-use crate::errors::{EncoderWorkerError, InitWorkerError};
+use crate::errors::{EncoderError, InitWorkerError};
 use crate::inference::{BatchedReadError, InferenceEngine};
 use crate::llm;
-use crate::llm::WorkerGuard;
+use crate::worker::AsyncWorker;
 use llama_cpp_2::context::params::LlamaPoolingType;
 use std::sync::Arc;
 use yoke::Yoke;
 
-#[derive(Clone)]
+#[derive(Debug)]
 pub struct Encoder {
-    async_handle: EncoderAsync,
-}
-
-#[derive(Clone)]
-pub struct EncoderAsync {
-    guard: Arc<WorkerGuard<EncoderMsg>>,
-}
-
-impl Encoder {
-    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
-        let async_handle = futures::executor::block_on(EncoderAsync::new(model, n_ctx))?;
-        Ok(Self { async_handle })
-    }
-
-    pub fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
-        futures::executor::block_on(async { self.async_handle.encode(text).await })
-    }
-
-    pub fn encode_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, EncoderWorkerError> {
-        futures::executor::block_on(async { self.async_handle.encode_batch(texts).await })
-    }
-}
-
-impl EncoderAsync {
-    pub async fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
-        let (init_tx, init_rx) = tokio::sync::oneshot::channel();
-        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
-
-        let join_handle = std::thread::spawn(move || {
-            let mut worker = match EncoderWorker::new(model, n_ctx) {
-                Ok(worker) => {
-                    let _ = init_tx.send(Ok(()));
-                    worker
-                }
-                Err(e) => {
-                    let _ = init_tx.send(Err(e));
-                    return;
-                }
-            };
-
-            while let Ok(msg) = msg_rx.recv() {
-                process_worker_msg(&mut worker, msg);
-            }
-        });
-
-        init_rx.await.expect("creating encoder panicked")?;
-
-        Ok(Self {
-            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, None)),
-        })
-    }
-
-    pub async fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
-        self.encode_batch(vec![text])
-            .await?
-            .pop()
-            .ok_or_else(|| EncoderWorkerError::Encode("Encoder returned no embedding.".into()))
-    }
-
-    pub async fn encode_batch(
-        &self,
-        texts: Vec<String>,
-    ) -> Result<Vec<Vec<f32>>, EncoderWorkerError> {
-        let (embedding_tx, mut embedding_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(EncoderMsg::EncodeBatch {
-            texts,
-            output_tx: embedding_tx,
-        });
-        embedding_rx.recv().await.ok_or(EncoderWorkerError::Encode(
-            "Could not encode the texts. Worker never responded.".into(),
-        ))?
-    }
-}
-
-enum EncoderMsg {
-    EncodeBatch {
-        texts: Vec<String>,
-        output_tx: tokio::sync::mpsc::Sender<Result<Vec<Vec<f32>>, EncoderWorkerError>>,
-    },
-}
-
-/// Handle one message, reporting success or failure on its reply channel.
-fn process_worker_msg(worker_state: &mut EncoderWorker, msg: EncoderMsg) {
-    match msg {
-        EncoderMsg::EncodeBatch { texts, output_tx } => {
-            let pooling = worker_state.pooling;
-            let embeddings = worker_state
-                .engine
-                .with_mut_return(move |e| {
-                    e.read_strings_batched::<_, EncoderWorkerError>(texts, |ctx, sequence_id| {
-                        let embedding = if pooling == LlamaPoolingType::None {
-                            ctx.embeddings_ith(-1)?
-                        } else {
-                            ctx.embeddings_seq_ith(sequence_id)?
-                        };
-                        Ok(embedding.to_vec())
-                    })
-                })
-                .map_err(|error| match error {
-                    BatchedReadError::Read(error) => EncoderWorkerError::Read(error),
-                    BatchedReadError::Output(error) => error,
-                });
-            let _ = output_tx.blocking_send(embeddings);
-        }
-    }
-}
-
-struct EncoderWorker {
     engine: Yoke<InferenceEngine<'static>, Arc<llm::Model>>,
     pooling: LlamaPoolingType,
 }
 
-impl EncoderWorker {
-    fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
+impl Encoder {
+    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
         let arch = model
             .language_model
             .meta_val_str("general.architecture")
@@ -140,6 +32,31 @@ impl EncoderWorker {
         Ok(Self { engine, pooling })
     }
 
+    pub fn encode_batch(&mut self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, EncoderError> {
+        let pooling = self.pooling;
+        self.engine
+            .with_mut_return(move |e| {
+                e.read_strings_batched::<_, EncoderError>(texts, |ctx, sequence_id| {
+                    let embedding = if pooling == LlamaPoolingType::None {
+                        ctx.embeddings_ith(-1)?
+                    } else {
+                        ctx.embeddings_seq_ith(sequence_id)?
+                    };
+                    Ok(embedding.to_vec())
+                })
+            })
+            .map_err(|error| match error {
+                BatchedReadError::Read(error) => EncoderError::Read(error),
+                BatchedReadError::Output(error) => error,
+            })
+    }
+
+    pub fn encode(&mut self, text: String) -> Result<Vec<f32>, EncoderError> {
+        self.encode_batch(vec![text])?
+            .pop()
+            .ok_or(EncoderError::NoEmbedding)
+    }
+
     #[cfg(test)]
     fn get_embedding(&self) -> Result<Vec<f32>, llama_cpp_2::EmbeddingsSeqError> {
         Ok(self.engine.get().ctx.embeddings_seq_ith(0)?.to_vec())
@@ -152,6 +69,33 @@ impl EncoderWorker {
         let chunks = self.engine.get().tokenize(text, vec![])?;
         self.engine.with_mut_return(|e| e.read_chunks(chunks))?;
         Ok(self)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EncoderAsync {
+    encoder: Arc<tokio::sync::Mutex<Encoder>>,
+    worker: Arc<AsyncWorker>,
+}
+
+impl EncoderAsync {
+    pub async fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
+        let worker = AsyncWorker::new();
+        let encoder = worker.run(move || Encoder::new(model, n_ctx)).await?;
+        Ok(Self {
+            encoder: Arc::new(tokio::sync::Mutex::new(encoder)),
+            worker: Arc::new(worker),
+        })
+    }
+
+    pub async fn encode(&self, text: String) -> Result<Vec<f32>, EncoderError> {
+        let mut encoder = Arc::clone(&self.encoder).lock_owned().await;
+        self.worker.run(move || encoder.encode(text)).await
+    }
+
+    pub async fn encode_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, EncoderError> {
+        let mut encoder = Arc::clone(&self.encoder).lock_owned().await;
+        self.worker.run(move || encoder.encode_batch(texts)).await
     }
 }
 
@@ -176,7 +120,7 @@ mod tests {
     #[test]
     fn test_encoder_sync() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_embeddings_model();
-        let encoder = Encoder::new(model, 1024)?;
+        let mut encoder = Encoder::new(model, 1024)?;
 
         let copenhagen_embedding =
             encoder.encode("Copenhagen is the capital of Denmark.".to_string())?;
@@ -217,17 +161,17 @@ mod tests {
     fn test_encoder_worker_direct() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_embeddings_model();
 
-        let mut worker = EncoderWorker::new(model, 1024)?;
+        let mut encoder = Encoder::new(model, 1024)?;
 
-        let copenhagen_embedding = worker
+        let copenhagen_embedding = encoder
             .read_string("Copenhagen is the capital of Denmark.".to_string())?
             .get_embedding()?;
 
-        let berlin_embedding = worker
+        let berlin_embedding = encoder
             .read_string("Berlin is the capital of Germany.".to_string())?
             .get_embedding()?;
 
-        let insult_embedding = worker
+        let insult_embedding = encoder
             .read_string(
                 "Your mother was a hamster and your father smelt of elderberries!".to_string(),
             )?
@@ -261,7 +205,7 @@ mod tests {
     fn test_encoder_batch_matches_individual_embeddings() -> Result<(), Box<dyn std::error::Error>>
     {
         let model = test_utils::load_embeddings_model();
-        let encoder = Encoder::new(model, 20)?;
+        let mut encoder = Encoder::new(model, 20)?;
         let texts = vec![
             "Copenhagen is the capital of Denmark.".to_string(),
             "Berlin is the capital of Germany.".to_string(),
@@ -288,7 +232,7 @@ mod tests {
     #[test]
     fn test_deterministic_encoder() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_embeddings_model();
-        let encoder = Encoder::new(model, 1024)?;
+        let mut encoder = Encoder::new(model, 1024)?;
 
         let input = "I don't want to be different";
 
@@ -307,13 +251,13 @@ mod tests {
     #[test]
     fn test_oversized_input_keeps_encoder_alive() {
         let model = test_utils::load_embeddings_model();
-        let encoder = Encoder::new(model, 64).unwrap();
+        let mut encoder = Encoder::new(model, 64).unwrap();
 
         let err = encoder.encode("word ".repeat(500)).unwrap_err();
         assert!(
             matches!(
                 err,
-                EncoderWorkerError::Read(crate::errors::ReadError::InputExceedsContext { .. })
+                EncoderError::Read(crate::errors::ReadError::InputExceedsContext { .. })
             ),
             "the read error should reach the caller, got {err:?}"
         );

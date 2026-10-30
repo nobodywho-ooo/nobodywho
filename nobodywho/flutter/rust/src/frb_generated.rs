@@ -186,7 +186,7 @@ fn wire__crate__CrossEncoder_rank_impl(
             let api_documents = <Vec<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, CrossEncoderWorkerError>(
+                transform_result_sse::<_, CrossEncoderError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -245,7 +245,7 @@ fn wire__crate__CrossEncoder_rank_and_sort_impl(
             let api_documents = <Vec<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, CrossEncoderWorkerError>(
+                transform_result_sse::<_, CrossEncoderError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -513,7 +513,7 @@ fn wire__crate__Encoder_encode_impl(
             let api_text = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, EncoderWorkerError>(
+                transform_result_sse::<_, EncoderError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -569,7 +569,7 @@ fn wire__crate__Encoder_encode_batch_impl(
             let api_texts = <Vec<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, EncoderWorkerError>(
+                transform_result_sse::<_, EncoderError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -4987,7 +4987,7 @@ flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoder>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoderWorkerError>
+    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoderError>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Decision>
@@ -4996,7 +4996,7 @@ flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Encoder>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<EncoderWorkerError>
+    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<EncoderError>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GenerateResponseError>
@@ -5061,11 +5061,11 @@ impl SseDecode for CrossEncoder {
     }
 }
 
-impl SseDecode for CrossEncoderWorkerError {
+impl SseDecode for CrossEncoderError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoderWorkerError>,
+            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoderError>,
         >>::sse_decode(deserializer);
         return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
     }
@@ -5091,11 +5091,11 @@ impl SseDecode for Encoder {
     }
 }
 
-impl SseDecode for EncoderWorkerError {
+impl SseDecode for EncoderError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<EncoderWorkerError>,
+            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<EncoderError>,
         >>::sse_decode(deserializer);
         return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
     }
@@ -5284,9 +5284,7 @@ impl SseDecode
 }
 
 impl SseDecode
-    for RustOpaqueMoi<
-        flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoderWorkerError>,
-    >
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoderError>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -5314,7 +5312,7 @@ impl SseDecode for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpa
 }
 
 impl SseDecode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<EncoderWorkerError>>
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<EncoderError>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -6332,21 +6330,16 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<CrossEncoder>> for CrossEncode
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<CrossEncoderWorkerError> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<CrossEncoderError> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
             .into_dart()
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<CrossEncoderWorkerError>
-{
-}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<CrossEncoderError> {}
 
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<CrossEncoderWorkerError>>
-    for CrossEncoderWorkerError
-{
-    fn into_into_dart(self) -> FrbWrapper<CrossEncoderWorkerError> {
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<CrossEncoderError>> for CrossEncoderError {
+    fn into_into_dart(self) -> FrbWrapper<CrossEncoderError> {
         self.into()
     }
 }
@@ -6382,19 +6375,16 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<Encoder>> for Encoder {
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<EncoderWorkerError> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<EncoderError> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
             .into_dart()
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<EncoderWorkerError>
-{
-}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<EncoderError> {}
 
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<EncoderWorkerError>> for EncoderWorkerError {
-    fn into_into_dart(self) -> FrbWrapper<EncoderWorkerError> {
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<EncoderError>> for EncoderError {
+    fn into_into_dart(self) -> FrbWrapper<EncoderError> {
         self.into()
     }
 }
@@ -6857,15 +6847,10 @@ impl SseEncode for CrossEncoder {
     }
 }
 
-impl SseEncode for CrossEncoderWorkerError {
+impl SseEncode for CrossEncoderError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoderWorkerError>,
-        >>::sse_encode(
-            flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self),
-            serializer,
-        );
+        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderError>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
     }
 }
 
@@ -6883,10 +6868,10 @@ impl SseEncode for Encoder {
     }
 }
 
-impl SseEncode for EncoderWorkerError {
+impl SseEncode for EncoderError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderWorkerError>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
+        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderError>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
     }
 }
 
@@ -7046,9 +7031,7 @@ impl SseEncode
 }
 
 impl SseEncode
-    for RustOpaqueMoi<
-        flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoderWorkerError>,
-    >
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoderError>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -7079,7 +7062,7 @@ impl SseEncode for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpa
 }
 
 impl SseEncode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<EncoderWorkerError>>
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<EncoderError>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -7915,17 +7898,17 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderWorkerError>>::increment_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderError>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderWorkerError>>::decrement_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderError>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
@@ -7957,17 +7940,17 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderWorkerError>>::increment_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderError>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderWorkerError>>::decrement_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderError>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
@@ -8210,17 +8193,17 @@ mod web {
     }
 
     #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
+    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderWorkerError>>::increment_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderError>>::increment_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
+    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderWorkerError>>::decrement_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderError>>::decrement_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]
@@ -8252,17 +8235,17 @@ mod web {
     }
 
     #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
+    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderWorkerError>>::increment_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderError>>::increment_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
+    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderWorkerError>>::decrement_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderError>>::decrement_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]

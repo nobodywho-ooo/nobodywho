@@ -2014,12 +2014,15 @@ impl DecisionAsync {
 /// See `EncoderAsync` for the async version of this class.
 #[pyclass]
 pub struct Encoder {
-    encoder: Option<nobodywho::encoder::Encoder>,
+    encoder: Option<tokio::sync::Mutex<nobodywho::encoder::Encoder>>,
 }
 
 impl Encoder {
-    fn inner(&self) -> &nobodywho::encoder::Encoder {
-        self.encoder.as_ref().expect("Encoder used after drop")
+    fn inner(&self) -> tokio::sync::MutexGuard<'_, nobodywho::encoder::Encoder> {
+        self.encoder
+            .as_ref()
+            .expect("Encoder used after drop")
+            .blocking_lock()
     }
 }
 
@@ -2051,7 +2054,7 @@ impl Encoder {
             .detach(|| nobodywho::encoder::Encoder::new(nw_model, n_ctx))
             .map_err(err)?;
         Ok(Self {
-            encoder: Some(encoder),
+            encoder: Some(tokio::sync::Mutex::new(encoder)),
         })
     }
 
@@ -2181,14 +2184,15 @@ impl EncoderAsync {
 /// See `CrossEncoderAsync` for the async version of this class.
 #[pyclass]
 pub struct CrossEncoder {
-    crossencoder: Option<nobodywho::crossencoder::CrossEncoder>,
+    crossencoder: Option<tokio::sync::Mutex<nobodywho::crossencoder::CrossEncoder>>,
 }
 
 impl CrossEncoder {
-    fn inner(&self) -> &nobodywho::crossencoder::CrossEncoder {
+    fn inner(&self) -> tokio::sync::MutexGuard<'_, nobodywho::crossencoder::CrossEncoder> {
         self.crossencoder
             .as_ref()
             .expect("CrossEncoder used after drop")
+            .blocking_lock()
     }
 }
 
@@ -2220,7 +2224,7 @@ impl CrossEncoder {
             .detach(|| nobodywho::crossencoder::CrossEncoder::new(nw_model, n_ctx))
             .map_err(err)?;
         Ok(Self {
-            crossencoder: Some(crossencoder),
+            crossencoder: Some(tokio::sync::Mutex::new(crossencoder)),
         })
     }
 

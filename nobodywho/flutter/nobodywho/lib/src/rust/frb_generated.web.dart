@@ -25,8 +25,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoder;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_CrossEncoderWorkerErrorPtr => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError;
+  get rust_arc_decrement_strong_count_CrossEncoderErrorPtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError;
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_DecisionPtr => wire
@@ -37,8 +37,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoder;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_EncoderWorkerErrorPtr => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError;
+  get rust_arc_decrement_strong_count_EncoderErrorPtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError;
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_GenerateResponseErrorPtr => wire
@@ -105,8 +105,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  CrossEncoderWorkerError
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
+  CrossEncoderError
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError(
     dynamic raw,
   );
 
@@ -123,8 +123,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  EncoderWorkerError
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
+  EncoderError
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError(
     dynamic raw,
   );
 
@@ -317,8 +317,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  CrossEncoderWorkerError
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
+  CrossEncoderError
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError(
     dynamic raw,
   );
 
@@ -335,8 +335,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  EncoderWorkerError
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
+  EncoderError
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError(
     dynamic raw,
   );
 
@@ -680,8 +680,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  CrossEncoderWorkerError
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
+  CrossEncoderError
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError(
     SseDeserializer deserializer,
   );
 
@@ -698,8 +698,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  EncoderWorkerError
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
+  EncoderError
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError(
     SseDeserializer deserializer,
   );
 
@@ -888,8 +888,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  CrossEncoderWorkerError
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
+  CrossEncoderError
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError(
     SseDeserializer deserializer,
   );
 
@@ -906,8 +906,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  EncoderWorkerError
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
+  EncoderError
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError(
     SseDeserializer deserializer,
   );
 
@@ -1286,8 +1286,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
-    CrossEncoderWorkerError self,
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError(
+    CrossEncoderError self,
     SseSerializer serializer,
   );
 
@@ -1307,8 +1307,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
-    EncoderWorkerError self,
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError(
+    EncoderError self,
     SseSerializer serializer,
   );
 
@@ -1543,8 +1543,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
-    CrossEncoderWorkerError self,
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError(
+    CrossEncoderError self,
     SseSerializer serializer,
   );
 
@@ -1564,8 +1564,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
-    EncoderWorkerError self,
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError(
+    EncoderError self,
     SseSerializer serializer,
   );
 
@@ -2033,18 +2033,18 @@ class NobodyWhoWire implements BaseWire {
       );
 
   void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError(
     int ptr,
   ) => wasmModule
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError(
         ptr,
       );
 
   void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError(
     int ptr,
   ) => wasmModule
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError(
         ptr,
       );
 
@@ -2081,18 +2081,18 @@ class NobodyWhoWire implements BaseWire {
       );
 
   void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError(
     int ptr,
   ) => wasmModule
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError(
         ptr,
       );
 
   void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError(
     int ptr,
   ) => wasmModule
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError(
         ptr,
       );
 
@@ -2338,12 +2338,12 @@ extension type NobodyWhoWasmModule._(JSObject _) implements JSObject {
   );
 
   external void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError(
     int ptr,
   );
 
   external void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderWorkerError(
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoderError(
     int ptr,
   );
 
@@ -2368,12 +2368,12 @@ extension type NobodyWhoWasmModule._(JSObject _) implements JSObject {
   );
 
   external void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError(
     int ptr,
   );
 
   external void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError(
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderError(
     int ptr,
   );
 
