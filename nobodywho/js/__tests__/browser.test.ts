@@ -1,7 +1,7 @@
 // Integration test of the WASM build in Chrome, run with `npm test`.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createReadStream, readFileSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,6 +10,8 @@ import type { AddressInfo } from "node:net";
 import { chromium } from "playwright-core";
 
 const modelPath = process.env.TEST_MODEL;
+// A local file is served to the browser; anything else (e.g. `hf://...`) is downloaded by it.
+const isLocalModel = modelPath !== undefined && existsSync(modelPath);
 const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 // `dist/index.mjs` leaves its dependencies as bare imports. Resolve them like
@@ -47,9 +49,10 @@ test("can chat in the browser", { skip: !modelPath && "TEST_MODEL not set" }, as
   tab.on("console", (msg) => t.diagnostic(`[browser] ${msg.text()}`));
   await tab.goto(origin);
 
-  const { tokens, response } = await tab.evaluate(async (origin) => {
+  const browserModelPath = isLocalModel ? `${origin}/model.gguf` : modelPath!;
+  const { tokens, response } = await tab.evaluate(async ([origin, browserModelPath]) => {
     const { Model, Chat } = await import(`${origin}/dist/index.mjs`);
-    const model = await Model.load({ modelPath: `${origin}/model.gguf` });
+    const model = await Model.load({ modelPath: browserModelPath });
     const chat = new Chat({
       model,
       systemPrompt: "You are a helpful assistant.",
@@ -62,7 +65,7 @@ test("can chat in the browser", { skip: !modelPath && "TEST_MODEL not set" }, as
     }
     const response: string = await (await chat.ask("And of Sweden?")).completed();
     return { tokens, response };
-  }, origin);
+  }, [origin, browserModelPath]);
 
   assert.match(tokens.join(""), /Copenhagen/);
   assert.match(response, /Stockholm/);

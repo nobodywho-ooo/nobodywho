@@ -485,7 +485,6 @@ const DEFINITIONS = {
         FfiType.Int8,
         FfiType.RustBuffer,
         FfiType.RustBuffer,
-        FfiType.RustBuffer,
       ],
       ret: FfiType.Handle,
       hasRustCallStatus: false,
@@ -524,6 +523,11 @@ const DEFINITIONS = {
       ],
       ret: FfiType.Handle,
       hasRustCallStatus: false,
+    },
+    uniffi_nobodywho_uniffi_fn_func_parse_model_path: {
+      args: [FfiType.RustBuffer],
+      ret: FfiType.RustBuffer,
+      hasRustCallStatus: true,
     },
     uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar: {
       args: [FfiType.RustBuffer],
@@ -573,6 +577,11 @@ const DEFINITIONS = {
     uniffi_nobodywho_uniffi_fn_func_sampler_preset_top_p: {
       args: [FfiType.Float32],
       ret: FfiType.Handle,
+      hasRustCallStatus: true,
+    },
+    uniffi_nobodywho_uniffi_fn_func_select_model_path: {
+      args: [FfiType.RustBuffer, FfiType.Int8],
+      ret: FfiType.RustBuffer,
       hasRustCallStatus: true,
     },
     uniffi_nobodywho_uniffi_fn_constructor_rustchat_new: {
@@ -1034,6 +1043,11 @@ const DEFINITIONS = {
       ret: FfiType.UInt16,
       hasRustCallStatus: false,
     },
+    uniffi_nobodywho_uniffi_checksum_func_parse_model_path: {
+      args: [],
+      ret: FfiType.UInt16,
+      hasRustCallStatus: false,
+    },
     uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar:
       {
         args: [],
@@ -1082,6 +1096,11 @@ const DEFINITIONS = {
       hasRustCallStatus: false,
     },
     uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p: {
+      args: [],
+      ret: FfiType.UInt16,
+      hasRustCallStatus: false,
+    },
+    uniffi_nobodywho_uniffi_checksum_func_select_model_path: {
       args: [],
       ret: FfiType.UInt16,
       hasRustCallStatus: false,
@@ -1817,7 +1836,6 @@ interface NativeModuleInterface {
     useGpu: number,
     projectionModelPath: Uint8Array,
     draftModelPath: Uint8Array,
-    onDownloadProgress: Uint8Array,
   ): bigint;
   uniffi_nobodywho_uniffi_fn_func_load_speech_to_text(
     source: Uint8Array,
@@ -1846,6 +1864,10 @@ interface NativeModuleInterface {
     prerollDurationMs: Uint8Array,
     device: Uint8Array,
   ): bigint;
+  uniffi_nobodywho_uniffi_fn_func_parse_model_path(
+    modelPath: Uint8Array,
+    uniffi_out_err: UniffiRustCallStatus,
+  ): Uint8Array;
   uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(
     grammar: Uint8Array,
     uniffi_out_err: UniffiRustCallStatus,
@@ -1882,6 +1904,11 @@ interface NativeModuleInterface {
     topP: number,
     uniffi_out_err: UniffiRustCallStatus,
   ): bigint;
+  uniffi_nobodywho_uniffi_fn_func_select_model_path(
+    modelPath: Uint8Array,
+    useGpu: number,
+    uniffi_out_err: UniffiRustCallStatus,
+  ): Uint8Array;
   uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
     model: bigint,
     systemPrompt: Uint8Array,
@@ -2255,6 +2282,7 @@ interface NativeModuleInterface {
   uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text(): number;
   uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(): number;
   uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(): number;
+  uniffi_nobodywho_uniffi_checksum_func_parse_model_path(): number;
   uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(): number;
   uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema(): number;
   uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_regex(): number;
@@ -2265,6 +2293,7 @@ interface NativeModuleInterface {
   uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature(): number;
   uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_k(): number;
   uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p(): number;
+  uniffi_nobodywho_uniffi_checksum_func_select_model_path(): number;
   uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new(): number;
   uniffi_nobodywho_uniffi_checksum_method_rustchat_ask(): number;
   uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt(): number;

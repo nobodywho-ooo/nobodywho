@@ -199,6 +199,36 @@ pub fn get_model_cancellable(
         None => None,
     };
 
+    load_model_from_files(
+        source,
+        real_model_path,
+        real_mmproj_path,
+        real_draft_model_path,
+        use_gpu,
+    )
+}
+
+/// Replace `auto` with a concrete model path chosen for the available memory.
+/// Any other path is returned unchanged. `use_gpu` should already account for [`has_gpu_backend`].
+pub fn select_model_path(model_path: &str, use_gpu: bool) -> Result<String, LoadModelError> {
+    Ok(model_selection::resolve_model_path(model_path, use_gpu)?.to_owned())
+}
+
+/// Load a model from GGUF files that are already on the local filesystem.
+///
+/// This is the last step of [`get_model_cancellable`] (after
+/// [`locate_model`](crate::huggingface::locate_model) and downloading): it does no path
+/// parsing or downloading, so callers that fetch the files some other way
+/// (e.g. JavaScript `fetch()` writing into a virtual filesystem) can use it directly.
+/// `use_gpu` should already account for [`has_gpu_backend`].
+pub fn load_model_from_files(
+    source: String,
+    real_model_path: std::path::PathBuf,
+    real_mmproj_path: Option<std::path::PathBuf>,
+    real_draft_model_path: Option<std::path::PathBuf>,
+    use_gpu: bool,
+) -> Result<Model, LoadModelError> {
+    LoadModelError::validate_model_file(&real_model_path)?;
     let loading_plan =
         memory::plan_model_loading(&real_model_path, real_mmproj_path.as_deref(), use_gpu);
     let gpu_layers = loading_plan.gpu_layers;

@@ -10,7 +10,7 @@
  * - Utilities: SamplerPresets, cosineSimilarity, downloadModel
  */
 
-import { downloadModel as _downloadModel } from "../generated";
+import { downloadModel as _downloadModel } from "../download";
 
 /**
  * Download a GGUF model from a remote URL or HuggingFace path and return the local file path.

@@ -46,11 +46,14 @@ js/
 │
 ├── src/                         # Hand-written TypeScript wrappers
 │   ├── index.react-native.ts    # React Native entry point — runs native init, re-exports ./wrapper
-│   ├── index.wasm.ts            # WASM entry point — instantiates the module, re-exports ./wrapper
+│   ├── index.wasm.ts            # WASM entry point — connects the module to the bindings, re-exports ./wrapper
+│   ├── emscripten.ts            # WASM only — instantiates the Emscripten module and sets up its filesystem
+│   ├── download.ts              # WASM: `downloadModel` using `fetch()` (Rust has no HTTP client there)
+│   ├── download.native.ts       # React Native: re-exports Rust's `downloadModel`
 │   ├── wrapper/                 # Hand-written TypeScript wrappers
 │   │   ├── index.ts             # Public API re-exports (and downloadModel)
 │   │   ├── chat.ts              # Chat wrapper (fromPath, destroy, etc.)
-│   │   ├── model.ts             # Model wrapper (Model.load factory)
+│   │   ├── model.ts             # Model wrapper (Model.load: select/parse path, download, load)
 │   │   ├── encoder.ts           # Encoder wrapper (fromPath, destroy)
 │   │   ├── cross_encoder.ts     # CrossEncoder wrapper (fromPath, destroy, rankAndSort)
 │   │   ├── streaming.ts         # TokenStream with AsyncIterable support
@@ -137,7 +140,7 @@ npm run generate-turbo-module
 
 **Do not regenerate for:** Rust API changes, adding new functions/types — those only affect the bindings layer above.
 
-### 3. TypeScript wrappers (`src/index.react-native.ts`, `src/index.wasm.ts` and `src/wrapper/`)
+### 3. TypeScript wrappers (`src/index.react-native.ts`, `src/index.wasm.ts`, `src/download*.ts` and `src/wrapper/`)
 
 **Never regenerated** — these are hand-written. Edit freely. Metro hot-reloads changes automatically; for the WASM build, run `npm run build`.
 
@@ -208,14 +211,33 @@ npm run wasm
 npm run build
 ```
 
-`src/index.wasm.ts` instantiates the module with that glue (which supplies Emscripten's imports, such as WebGPU and the filesystem),
-and then hands its exports to `@ubjs/wasm`. We don't use the `uniffiInitAsync` that uniffi-bindgen-react-native generates for WASM,
+`src/emscripten.ts` instantiates the module with that glue (which supplies Emscripten's imports, such as WebGPU and the filesystem),
+and `src/index.wasm.ts` then hands its exports to `@ubjs/wasm`. We don't use the `uniffiInitAsync` that uniffi-bindgen-react-native generates for WASM,
 since it instantiates the module itself and doesn't know about Emscripten; so the generated `src/generated/wasm/index.ts` is unused.
 
-And then run the tests with:
+#### Model loading and downloading
+
+`Model.load` is three steps, which the Rust side (`uniffi/src/lib.rs`) exposes separately:
+
+1. `selectModelPath` (resolves `auto`) and `parseModelPath` (works out whether a path is local, or the URL and cache path of a remote model). No I/O.
+2. `downloadModel`: downloads the model into the cache if necessary, and returns the local path.
+3. `loadModel`: loads the model into memory from a local path.
+
+On React Native, `downloadModel` is the Rust function (using `ureq`), re-exported by `src/download.native.ts`.
+Rust has no usable HTTP client on Emscripten, so on WASM `src/download.ts` provides a `fetch()`-based `downloadModel` instead,
+which reuses `parseModelPath` for the URL and cache layout, and writes the file into Emscripten's filesystem.
+Metro picks `download.native.ts` on iOS/Android, and everything else uses `download.ts`.
+
+The model cache lives in the temporary directory on Emscripten (`dirs` doesn't support it). Under Node.js that is the real
+temporary directory, since the host filesystem is mounted with NODEFS. In browsers the filesystem is in-memory,
+so `src/emscripten.ts` mounts IDBFS (IndexedDB) on `/tmp` to make models survive page reloads.
+
+### Running the tests
+
+Run the tests with:
 
 ```sh
-TEST_MODEL=/path/to/Qwen_Qwen3-0.6B-Q4_K_M.gguf npm test
+TEST_MODEL=hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf npm test
 ```
 
 ### Release builds (CI)
@@ -239,7 +261,8 @@ npm run typecheck
 These tests are also run as a nix flake check (`nix build .#checks.x86_64-linux.js-tests`).
 
 The WASM tests need the WASM build (see "Build for WASM"), and are skipped unless `TEST_MODEL` is set.
-The browser test uses the installed Google Chrome.
+`TEST_MODEL` is a local path or a remote model path like `hf://...`. The browser test serves a local file to the browser,
+and lets the browser download anything else itself. It uses the installed Google Chrome.
 
 ### Testing on Android
 
