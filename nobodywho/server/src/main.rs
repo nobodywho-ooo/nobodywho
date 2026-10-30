@@ -23,6 +23,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc, Mutex};
+use tokio::task::spawn_blocking;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
@@ -261,8 +262,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("nobodywho-server is experimental and subject to change");
     let config = ServerConfig::parse();
 
+    let path = config.model.clone();
     let model =
-        Arc::new(llm::get_model_async(config.model.clone(), !config.cpu, None, None, None).await?);
+        spawn_blocking(move || llm::get_model(&path, !config.cpu, None, None, None)).await??;
+    let model = Arc::new(model);
     let context_window = config.context_size.min(model.max_ctx());
     let mut builder = ChatBuilder::new(model).with_context_size(context_window);
     if let Some(threads) = config.threads {

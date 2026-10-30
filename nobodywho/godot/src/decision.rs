@@ -3,13 +3,14 @@ use std::sync::Arc;
 use godot::prelude::*;
 
 use nobodywho::decision::DecisionAsync;
+use nobodywho::worker::AsyncWorker;
 
 use crate::convert::{
     dict_get_positive_u32, json_to_variant, resolve_godot_path, validate_config_keys,
     variant_to_json,
 };
 use crate::model::NobodyWhoModel;
-use crate::task::{on_blocking_thread, task};
+use crate::task::task;
 
 /// Typed, non-generative decisions with a Laya model. Every answer comes with
 /// probabilities instead of generated text. Build it with the async factory:
@@ -50,12 +51,16 @@ impl NobodyWhoDecision {
             }
         };
         task(async move {
+            let worker = AsyncWorker::new();
             // Resolve model-or-path, mirroring NobodyWhoEncoder.create.
             let arc = if let Ok(m) = model.try_to::<Gd<NobodyWhoModel>>() {
                 m.bind().inner.clone()
             } else if let Ok(path) = model.try_to::<GString>() {
                 let path = resolve_godot_path(&path);
-                match nobodywho::llm::get_model_async(path, true, None, None, None).await {
+                match worker
+                    .run(move || nobodywho::llm::get_model(&path, true, None, None, None))
+                    .await
+                {
                     Ok(m) => Arc::new(m),
                     Err(e) => {
                         godot_error!("Failed to load model: {}", nobodywho::render_miette(&e));
@@ -69,17 +74,13 @@ impl NobodyWhoDecision {
                 return Variant::nil();
             };
             // LayaWorker::new allocates the llama context before spawning the worker.
-            match on_blocking_thread(move || DecisionAsync::new(arc, n_ctx)).await {
-                Some(Ok(handle)) => Gd::from_init_fn(|base| Self { handle, base }).to_variant(),
-                Some(Err(e)) => {
+            match worker.run(move || DecisionAsync::new(arc, n_ctx)).await {
+                Ok(handle) => Gd::from_init_fn(|base| Self { handle, base }).to_variant(),
+                Err(e) => {
                     godot_error!(
                         "Failed to create decision handle: {}",
                         nobodywho::render_miette(&e)
                     );
-                    Variant::nil()
-                }
-                None => {
-                    godot_error!("Decision worker init panicked");
                     Variant::nil()
                 }
             }

@@ -70,22 +70,14 @@ Add a `#[derive(GodotClass)]` struct to `nobodywho/godot/src/lib.rs` following t
 - `tokio::task::spawn_blocking` — needs the Tokio blocking thread pool
 - `tokio::runtime::Handle::current()` — no runtime handle exists
 
-To run blocking work from a `godot::task::spawn` closure, use `std::thread::spawn` and pass the result back via a `tokio::sync::oneshot` channel (oneshot uses standard Rust wakers and works with any executor):
+To run blocking work from a `godot::task::spawn` closure, use `nobodywho::worker::AsyncWorker`:
 
 ```rust
+let worker = AsyncWorker::new();
 godot::task::spawn(async move {
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    std::thread::spawn(move || {
-        let _ = tx.send(my_blocking_fn());
-    });
-    match rx.await {
-        Ok(result) => { /* handle result */ }
-        Err(_) => { /* thread panicked */ }
-    }
+    worker.run(move || my_blocking_fn()).await
 });
 ```
-
-`tokio::sync::mpsc` and `tokio::sync::oneshot` channels are fine to *use* (create, send, await) inside `godot::task::spawn` — they are just data structures backed by standard Rust wakers.
 
 **Godot integration test lifecycle.** Every Godot inference node requires `start_worker()` followed by `await <node>.worker_started` before calling any inference method (`transcribe_file`, `ask`, etc.). Skipping this causes an "SpeechToText/worker not started" error at runtime. See `grammar_test.gd` and `hf_path_test.gd` for the canonical pattern:
 

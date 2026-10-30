@@ -5,11 +5,12 @@ use nobodywho::onnx::Device;
 use nobodywho::voice_activity_detection::{
     VoiceActivityDetection as CoreVad, VoiceActivityDetectionConfig, VoiceActivityDetectionEvent,
 };
+use nobodywho::worker::AsyncWorker;
 
 use crate::convert::{
     dict_get, dict_get_positive_u32, dict_get_u32, resolve_godot_path, validate_config_keys,
 };
-use crate::task::{on_blocking_thread, task};
+use crate::task::task;
 
 /// A streaming voice activity detector (Silero VAD) for live microphone
 /// input. Build it with the async factory, then feed audio chunks and watch
@@ -68,15 +69,13 @@ impl NobodyWhoVoiceActivityDetection {
             }
         };
         task(async move {
-            let result = on_blocking_thread(move || CoreVad::with_device(cfg.0, cfg.1)).await;
+            let result = AsyncWorker::new()
+                .run(move || CoreVad::with_device(cfg.0, cfg.1))
+                .await;
             match result {
-                Some(Ok(vad)) => Gd::from_init_fn(|base| Self { vad, base }).to_variant(),
-                Some(Err(e)) => {
+                Ok(vad) => Gd::from_init_fn(|base| Self { vad, base }).to_variant(),
+                Err(e) => {
                     godot_error!("Failed to create VoiceActivityDetection: {e}");
-                    Variant::nil()
-                }
-                None => {
-                    godot_error!("VoiceActivityDetection worker init panicked");
                     Variant::nil()
                 }
             }

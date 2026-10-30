@@ -6,10 +6,11 @@ use godot::prelude::*;
 use nobodywho::errors::SpeechToTextError;
 use nobodywho::onnx::Device;
 use nobodywho::speech_to_text::{SpeechToText as CoreStt, SpeechToTextConfig, WhisperConfig};
+use nobodywho::worker::AsyncWorker;
 
 use crate::chat::NobodyWhoTokenStream;
 use crate::convert::{dict_get, resolve_godot_path, validate_config_keys};
-use crate::task::{on_blocking_thread, task};
+use crate::task::task;
 
 /// A speech-to-text transcriber (Whisper ONNX). Build it with the async
 /// factory, then transcribe files or raw PCM:
@@ -60,19 +61,17 @@ impl NobodyWhoSpeechToText {
             }
         };
         task(async move {
-            let result = on_blocking_thread(move || CoreStt::with_device(cfg.0, cfg.1)).await;
+            let result = AsyncWorker::new()
+                .run(move || CoreStt::with_device(cfg.0, cfg.1))
+                .await;
             match result {
-                Some(Ok(stt)) => Gd::from_init_fn(|base| Self {
+                Ok(stt) => Gd::from_init_fn(|base| Self {
                     stt: Arc::new(stt),
                     base,
                 })
                 .to_variant(),
-                Some(Err(e)) => {
+                Err(e) => {
                     godot_error!("Failed to create SpeechToText: {}", render_stt_error(&e));
-                    Variant::nil()
-                }
-                None => {
-                    godot_error!("SpeechToText worker init panicked");
                     Variant::nil()
                 }
             }

@@ -107,6 +107,23 @@ pub fn has_gpu_backend() -> bool {
     memory::select_best_gpu().is_some()
 }
 
+/// Load a GGUF model from disk.
+///
+/// # Arguments
+///
+/// * `model_path` - `auto` for memory-based LLM selection, or a path to a GGUF model
+/// * `use_gpu_if_available` - Whether to attempt GPU acceleration if a discrete GPU is available
+///
+/// # Returns
+///
+/// Returns a `Model` on success, or a `LoadModelError` on failure.
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// * The model file is not found (`LoadModelError::ModelNotFound`)
+/// * The model file is invalid or unsupported (`LoadModelError::InvalidModel`)
+/// * The communication channel closes unexpectedly (`LoadModelError::ModelChannelError`)
 #[tracing::instrument(level = "info", skip(progress))]
 pub fn get_model(
     model_path: &str,
@@ -285,52 +302,6 @@ pub fn get_model_cancellable(
         projection_model,
         draft_model,
     })
-}
-
-/// Asynchronously loads a GGUF model from disk.
-///
-/// This function offloads the blocking model load operation to a background thread,
-/// allowing the async runtime to remain responsive. This is particularly useful when
-/// loading large models that can take several seconds to initialize.
-///
-/// # Arguments
-///
-/// * `model_path` - `auto` for memory-based LLM selection, or a path to a GGUF model
-/// * `use_gpu_if_available` - Whether to attempt GPU acceleration if a discrete GPU is available
-///
-/// # Returns
-///
-/// Returns a `Model` on success, or a `LoadModelError` on failure.
-///
-/// # Errors
-///
-/// This function will return an error if:
-/// * The model file is not found (`LoadModelError::ModelNotFound`)
-/// * The model file is invalid or unsupported (`LoadModelError::InvalidModel`)
-/// * The communication channel closes unexpectedly (`LoadModelError::ModelChannelError`)
-#[tracing::instrument(level = "info", skip(progress))]
-pub async fn get_model_async(
-    model_path: String,
-    use_gpu_if_available: bool,
-    mmproj_path: Option<String>,
-    draft_model_path: Option<String>,
-    progress: Option<DownloadProgressCallback>,
-) -> Result<Model, LoadModelError> {
-    let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(4096);
-    std::thread::spawn(move || {
-        output_tx.blocking_send(get_model(
-            &model_path,
-            use_gpu_if_available,
-            mmproj_path.as_deref(),
-            draft_model_path.as_deref(),
-            progress,
-        ))
-    });
-
-    match output_rx.recv().await {
-        Some(model) => return model,
-        None => Err(LoadModelError::ModelChannelError),
-    }
 }
 
 pub fn download_model(

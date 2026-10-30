@@ -100,8 +100,7 @@ pub enum LoadModelError {
     InvalidModel(String),
     #[error("Multimodal error: {0}")]
     Multimodal(#[from] MultimodalError),
-    #[error("Channel for receiving model was closed unexpectedly")]
-    ModelChannelError,
+
     #[error("Invalid Hugging Face model path: {path}")]
     #[diagnostic(
         code(nobodywho::invalid_hugging_face_model_path),
@@ -840,11 +839,6 @@ pub enum TextToSpeechError {
     #[error("TextToSpeech is not supported on WebAssembly")]
     #[diagnostic(code(nobodywho::tts_wasm_unsupported))]
     WasmUnsupported,
-
-    // ── Worker thread plumbing ───────────────────────────────────────
-    #[error("TextToSpeech worker thread is no longer running")]
-    #[diagnostic(code(nobodywho::tts_worker_dead))]
-    WorkerDead,
 
     // ── External error pass-through ──────────────────────────────────
     #[error("ONNX Runtime error")]

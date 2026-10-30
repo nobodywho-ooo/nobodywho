@@ -4,6 +4,7 @@ use godot::builtin::PackedFloat32Array;
 use godot::prelude::*;
 
 use nobodywho::encoder::{EncoderAsync, cosine_similarity};
+use nobodywho::worker::AsyncWorker;
 
 use crate::convert::{
     collect_strings, dict_get_positive_u32, resolve_godot_path, validate_config_keys,
@@ -56,7 +57,10 @@ impl NobodyWhoEncoder {
                 m.bind().inner.clone()
             } else if let Ok(path) = model.try_to::<GString>() {
                 let path = resolve_godot_path(&path);
-                match nobodywho::llm::get_model_async(path, true, None, None, None).await {
+                match AsyncWorker::new()
+                    .run(move || nobodywho::llm::get_model(&path, true, None, None, None))
+                    .await
+                {
                     Ok(m) => Arc::new(m),
                     Err(e) => {
                         godot_error!("Failed to load model: {}", nobodywho::render_miette(&e));

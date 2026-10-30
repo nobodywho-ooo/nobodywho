@@ -7,9 +7,10 @@ use nobodywho::errors::TextToSpeechError;
 use nobodywho::text_to_speech::{
     TextToSpeech as CoreTts, TextToSpeechArchitecture, TextToSpeechConfig, TextToSpeechDevice,
 };
+use nobodywho::worker::AsyncWorker;
 
 use crate::convert::{dict_get, dict_get_u32, resolve_godot_path, validate_config_keys};
-use crate::task::{on_blocking_thread, task};
+use crate::task::task;
 
 /// A text-to-speech synthesizer. Build it with the async factory:
 ///
@@ -64,19 +65,17 @@ impl NobodyWhoTextToSpeech {
             }
         };
         task(async move {
-            let result = on_blocking_thread(move || CoreTts::with_device(cfg.0, cfg.1)).await;
+            let result = AsyncWorker::new()
+                .run(move || CoreTts::with_device(cfg.0, cfg.1))
+                .await;
             match result {
-                Some(Ok(tts)) => Gd::from_init_fn(|base| Self {
+                Ok(tts) => Gd::from_init_fn(|base| Self {
                     tts: Arc::new(tts),
                     base,
                 })
                 .to_variant(),
-                Some(Err(e)) => {
+                Err(e) => {
                     godot_error!("Failed to create TextToSpeech: {}", render_tts_error(&e));
-                    Variant::nil()
-                }
-                None => {
-                    godot_error!("TextToSpeech worker init panicked");
                     Variant::nil()
                 }
             }
