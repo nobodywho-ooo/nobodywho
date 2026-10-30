@@ -633,7 +633,7 @@ public protocol RustChatProtocol: AnyObject, Sendable {
     /**
      * Get the current chat history as a list of messages.
      */
-    func getChatHistory() async throws  -> [Message]
+    func getChatHistory() async  -> [Message]
     
     /**
      * Get the current sampler configuration as a JSON string.
@@ -643,24 +643,24 @@ public protocol RustChatProtocol: AnyObject, Sendable {
     /**
      * Get context usage statistics.
      */
-    func getStats() async throws  -> ChatStats
+    func getStats() async  -> ChatStats
     
     /**
      * Get the current system prompt.
      */
-    func getSystemPrompt() async throws  -> String?
+    func getSystemPrompt() async  -> String?
     
     /**
      * Get all template variables.
      */
-    func getTemplateVariables() async throws  -> [String: Bool]
+    func getTemplateVariables() async  -> [String: Bool]
     
     /**
      * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
      *
      * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
      */
-    func mtpAcceptanceRate() async throws  -> Float?
+    func mtpAcceptanceRate() async  -> Float?
     
     /**
      * Reset the chat context with a new system prompt and tools.
@@ -690,12 +690,12 @@ public protocol RustChatProtocol: AnyObject, Sendable {
     /**
      * Set the system prompt.
      */
-    func setSystemPrompt(systemPrompt: String?) async throws 
+    func setSystemPrompt(systemPrompt: String?) async 
     
     /**
      * Set a template variable.
      */
-    func setTemplateVariable(name: String, value: Bool) async throws 
+    func setTemplateVariable(name: String, value: Bool) async 
     
     /**
      * Set the tools available to the model.
@@ -902,9 +902,9 @@ open func complete(messages: [Message], options: Options)async throws  -> RustTo
     /**
      * Get the current chat history as a list of messages.
      */
-open func getChatHistory()async throws  -> [Message]  {
+open func getChatHistory()async  -> [Message]  {
     return
-        try  await uniffiRustCallAsync(
+        try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(
                     self.uniffiCloneHandle()
@@ -915,7 +915,8 @@ open func getChatHistory()async throws  -> [Message]  {
             completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterSequenceTypeMessage.lift,
-            errorHandler: FfiConverterTypeNobodyWhoError_lift
+            errorHandler: nil
+            
         )
 }
     
@@ -942,9 +943,9 @@ open func getSamplerConfigJson()async throws  -> String  {
     /**
      * Get context usage statistics.
      */
-open func getStats()async throws  -> ChatStats  {
+open func getStats()async  -> ChatStats  {
     return
-        try  await uniffiRustCallAsync(
+        try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_nobodywho_uniffi_fn_method_rustchat_get_stats(
                     self.uniffiCloneHandle()
@@ -955,16 +956,17 @@ open func getStats()async throws  -> ChatStats  {
             completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeChatStats_lift,
-            errorHandler: FfiConverterTypeNobodyWhoError_lift
+            errorHandler: nil
+            
         )
 }
     
     /**
      * Get the current system prompt.
      */
-open func getSystemPrompt()async throws  -> String?  {
+open func getSystemPrompt()async  -> String?  {
     return
-        try  await uniffiRustCallAsync(
+        try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(
                     self.uniffiCloneHandle()
@@ -975,16 +977,17 @@ open func getSystemPrompt()async throws  -> String?  {
             completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterOptionString.lift,
-            errorHandler: FfiConverterTypeNobodyWhoError_lift
+            errorHandler: nil
+            
         )
 }
     
     /**
      * Get all template variables.
      */
-open func getTemplateVariables()async throws  -> [String: Bool]  {
+open func getTemplateVariables()async  -> [String: Bool]  {
     return
-        try  await uniffiRustCallAsync(
+        try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(
                     self.uniffiCloneHandle()
@@ -995,7 +998,8 @@ open func getTemplateVariables()async throws  -> [String: Bool]  {
             completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterDictionaryStringBool.lift,
-            errorHandler: FfiConverterTypeNobodyWhoError_lift
+            errorHandler: nil
+            
         )
 }
     
@@ -1004,9 +1008,9 @@ open func getTemplateVariables()async throws  -> [String: Bool]  {
      *
      * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
      */
-open func mtpAcceptanceRate()async throws  -> Float?  {
+open func mtpAcceptanceRate()async  -> Float?  {
     return
-        try  await uniffiRustCallAsync(
+        try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(
                     self.uniffiCloneHandle()
@@ -1017,7 +1021,8 @@ open func mtpAcceptanceRate()async throws  -> Float?  {
             completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterOptionFloat.lift,
-            errorHandler: FfiConverterTypeNobodyWhoError_lift
+            errorHandler: nil
+            
         )
 }
     
@@ -1124,9 +1129,9 @@ open func setSamplerConfig(sampler: SamplerConfig)async throws   {
     /**
      * Set the system prompt.
      */
-open func setSystemPrompt(systemPrompt: String?)async throws   {
+open func setSystemPrompt(systemPrompt: String?)async   {
     return
-        try  await uniffiRustCallAsync(
+        try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_nobodywho_uniffi_fn_method_rustchat_set_system_prompt(
                     self.uniffiCloneHandle(),
@@ -1137,16 +1142,17 @@ open func setSystemPrompt(systemPrompt: String?)async throws   {
             completeFunc: ffi_nobodywho_uniffi_rust_future_complete_void,
             freeFunc: ffi_nobodywho_uniffi_rust_future_free_void,
             liftFunc: { $0 },
-            errorHandler: FfiConverterTypeNobodyWhoError_lift
+            errorHandler: nil
+            
         )
 }
     
     /**
      * Set a template variable.
      */
-open func setTemplateVariable(name: String, value: Bool)async throws   {
+open func setTemplateVariable(name: String, value: Bool)async   {
     return
-        try  await uniffiRustCallAsync(
+        try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_nobodywho_uniffi_fn_method_rustchat_set_template_variable(
                     self.uniffiCloneHandle(),
@@ -1157,7 +1163,8 @@ open func setTemplateVariable(name: String, value: Bool)async throws   {
             completeFunc: ffi_nobodywho_uniffi_rust_future_complete_void,
             freeFunc: ffi_nobodywho_uniffi_rust_future_free_void,
             liftFunc: { $0 },
-            errorHandler: FfiConverterTypeNobodyWhoError_lift
+            errorHandler: nil
+            
         )
 }
     
@@ -5993,22 +6000,22 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 51900) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 12722) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 18792) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json() != 33078) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats() != 59932) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats() != 357) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt() != 57727) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt() != 1030) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() != 19616) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() != 1114) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() != 727) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() != 6312) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context() != 47191) {
@@ -6026,10 +6033,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config() != 28012) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt() != 31690) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt() != 30912) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable() != 64000) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable() != 12690) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_set_tools() != 55680) {

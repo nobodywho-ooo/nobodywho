@@ -269,7 +269,7 @@ impl NobodyWhoChat {
     fn get_chat_history(&self) -> Variant {
         let handle = self.handle.clone();
         self.guarded("get_chat_history", async move {
-            let msgs = handle.get_chat_history().await.map_err(|e| e.to_string())?;
+            let msgs = handle.get_chat_history().await;
             let json = serde_json::to_value(&msgs)
                 .map_err(|e| format!("failed to serialize messages: {e}"))?;
             Ok(json_to_variant(&json))
@@ -329,10 +329,7 @@ impl NobodyWhoChat {
     fn get_system_prompt(&self) -> Variant {
         let handle = self.handle.clone();
         self.guarded("get_system_prompt", async move {
-            let prompt = handle
-                .get_system_prompt()
-                .await
-                .map_err(|e| e.to_string())?;
+            let prompt = handle.get_system_prompt().await;
             Ok(prompt.map_or(Variant::nil(), |s| GString::from(&s).to_variant()))
         })
     }
@@ -350,11 +347,8 @@ impl NobodyWhoChat {
         };
         let handle = self.handle.clone();
         self.guarded("set_system_prompt", async move {
-            handle
-                .set_system_prompt(prompt)
-                .await
-                .map(|()| Variant::nil())
-                .map_err(|e| nobodywho::render_miette(&e))
+            handle.set_system_prompt(prompt).await;
+            Ok(Variant::nil())
         })
     }
 
@@ -364,10 +358,7 @@ impl NobodyWhoChat {
     fn get_sampler_config(&self) -> Variant {
         let handle = self.handle.clone();
         self.guarded("get_sampler_config", async move {
-            let cfg = handle
-                .get_sampler_config()
-                .await
-                .map_err(|e| e.to_string())?;
+            let cfg = handle.get_sampler_config().await;
             Ok(NobodyWhoSamplerConfig::wrap(cfg).to_variant())
         })
     }
@@ -415,10 +406,7 @@ impl NobodyWhoChat {
     fn get_template_variables(&self) -> Variant {
         let handle = self.handle.clone();
         self.guarded("get_template_variables", async move {
-            let vars = handle
-                .get_template_variables()
-                .await
-                .map_err(|e| e.to_string())?;
+            let vars = handle.get_template_variables().await;
             let mut dict: VarDictionary = Dictionary::new();
             for (k, v) in vars {
                 let _ = dict.insert(&GString::from(&k), &v.to_variant());
@@ -434,11 +422,8 @@ impl NobodyWhoChat {
         let name = name.to_string();
         let handle = self.handle.clone();
         self.guarded("set_template_variable", async move {
-            handle
-                .set_template_variable(name, value)
-                .await
-                .map(|()| Variant::nil())
-                .map_err(|e| nobodywho::render_miette(&e))
+            handle.set_template_variable(name, value).await;
+            Ok(Variant::nil())
         })
     }
 
@@ -449,11 +434,8 @@ impl NobodyWhoChat {
         let vars = collect_template_variables(&vars);
         let handle = self.handle.clone();
         self.guarded("set_template_variables", async move {
-            handle
-                .set_template_variables(vars?)
-                .await
-                .map(|()| Variant::nil())
-                .map_err(|e| nobodywho::render_miette(&e))
+            handle.set_template_variables(vars?).await;
+            Ok(Variant::nil())
         })
     }
 
@@ -463,7 +445,7 @@ impl NobodyWhoChat {
     fn get_stats(&self) -> Variant {
         let handle = self.handle.clone();
         self.guarded("get_stats", async move {
-            let stats = handle.get_stats().await.map_err(|e| e.to_string())?;
+            let stats = handle.get_stats().await;
             let mut dict: VarDictionary = Dictionary::new();
             let _ = dict.insert(
                 &GString::from("context_size"),
@@ -483,10 +465,7 @@ impl NobodyWhoChat {
     fn mtp_acceptance_rate(&self) -> Variant {
         let handle = self.handle.clone();
         self.guarded("mtp_acceptance_rate", async move {
-            let rate = handle
-                .mtp_acceptance_rate()
-                .await
-                .map_err(|e| e.to_string())?;
+            let rate = handle.mtp_acceptance_rate().await;
             Ok(rate.map_or(Variant::nil(), |r| r.to_variant()))
         })
     }
