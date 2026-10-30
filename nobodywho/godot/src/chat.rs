@@ -772,9 +772,6 @@ fn build_core_tools(
 ///     $Label.text += tok
 /// var full = await stream.completed()       # full text
 /// ```
-///
-/// One pull (`next_token()` or `completed()`) at a time. Unpulled tokens are
-/// buffered by core's channel, so generation never stalls on a slow consumer.
 #[derive(GodotClass)]
 #[class(no_init, base=RefCounted)]
 pub struct NobodyWhoTokenStream {
@@ -814,13 +811,13 @@ impl StreamInner {
 
 /// Boxed error from either stream type, for uniform rendering.
 pub(crate) enum StreamError {
-    Chat(nobodywho::errors::CompletionError),
+    Chat(nobodywho::errors::GenerateResponseError),
     Stt(nobodywho::errors::SpeechToTextError),
 }
 
 fn render_stream_error(e: &StreamError) -> String {
     match e {
-        // CompletionError is miette::Diagnostic — rich rendering.
+        // GenerateResponseError is miette::Diagnostic — rich rendering.
         StreamError::Chat(c) => nobodywho::render_miette(c),
         // SpeechToTextError is thiserror-only — plain to_string().
         StreamError::Stt(s) => s.to_string(),
