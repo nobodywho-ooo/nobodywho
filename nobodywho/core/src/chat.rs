@@ -2880,39 +2880,35 @@ enum CompletionGenerator {
 
 impl CompletionGenerator {
     fn next(&mut self) -> Result<Option<CompletionChunk>, GenerateResponseError> {
-        // Replace the state with `Done`. We'll transition into `Generating`
-        // in the cases where we aren't yet done.
-        // If there's an error anywhere, then we end up in the `Done` state.
-        Ok(match mem::replace(self, Self::Done) {
+        Ok(match self {
             Self::Generating {
-                mut chat,
-                mut generator,
-                mut pending_text,
+                chat,
+                generator,
+                pending_text,
                 max_tokens,
                 execute_tools,
             } => {
-                // Loop until we get a text token.
+                // Loop until we get a non-empty text token.
                 loop {
                     if let Some(text) = pending_text.pop_front() {
                         // Continue generating.
-                        *self = Self::Generating {
-                            chat,
-                            generator,
-                            pending_text,
-                            max_tokens,
-                            execute_tools,
-                        };
                         break Some(CompletionChunk::Token(text));
                     }
 
-                    let res = generator.next(chat.get_mut(), max_tokens, execute_tools)?;
+                    let res = generator.next(chat.get_mut(), *max_tokens, *execute_tools);
                     match res {
-                        ControlFlow::Continue(tokens) => {
+                        Ok(ControlFlow::Continue(tokens)) => {
                             pending_text.extend(tokens.into_iter().filter(|t| !t.is_empty()));
                             continue;
                         }
-                        ControlFlow::Break(response) => {
+                        Ok(ControlFlow::Break(response)) => {
+                            *self = Self::Done;
                             break Some(CompletionChunk::Done(response));
+                        }
+                        Err(e) => {
+                            // Transition to the done state if we got an error.
+                            *self = Self::Done;
+                            return Err(e);
                         }
                     }
                 }
