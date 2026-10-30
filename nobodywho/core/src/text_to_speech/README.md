@@ -76,6 +76,14 @@ let tts = TextToSpeech::new(TextToSpeechConfig::Kokoro(cfg))?;
 let wav = tts.synthesize("Bonjour le monde.")?;
 ```
 
+## Cargo features
+
+Kokoro needs the `kokoro` feature, which is on by default. It links
+[espeak-ng](https://crates.io/crates/espeak-ng) (GPL-3.0-or-later) for phonemization. With
+`default-features = false`, Kokoro and espeak-ng are left out: `KokoroConfig` still exists, but
+`TextToSpeech::new` returns `TextToSpeechError::KokoroNotCompiled` for Kokoro configs. Supertonic
+and Pocket TTS are unaffected.
+
 ## Async
 
 `synthesize_async` is available for async contexts:

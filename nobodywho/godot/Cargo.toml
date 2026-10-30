@@ -7,8 +7,14 @@ edition = "2024"
 crate-type = ["cdylib"]
 path = "src/lib.rs"
 
+[features]
+default = ["kokoro"]
+# Kokoro text-to-speech, which links espeak-ng (GPL-3.0-or-later).
+# Build with `--no-default-features` to leave it out.
+kokoro = ["nobodywho/kokoro"]
+
 [dependencies]
-nobodywho = { path = "../core" }
+nobodywho = { path = "../core", default-features = false }
 godot = { version = "0.5.4", features = [ "register-docs", "experimental-threads" ] }
 tokio = "1.44.0"
 tracing = "0.1.41"

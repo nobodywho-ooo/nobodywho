@@ -40,6 +40,12 @@ jobs:
         # (lib tests themselves only run under `nix flake check`, which is opt-in).
         run: cargo clippy --no-deps --all-targets -- -D warnings
 
+      - name: "Run clippy check without default features"
+        working-directory: "./nobodywho/core"
+        # Builds without the `kokoro` feature (no Kokoro, no espeak-ng), so the gated code keeps
+        # compiling both ways.
+        run: cargo clippy --no-deps --all-targets --no-default-features -- -D warnings
+
   # Dart, TypeScript and Python static checks, ungated because they are seconds of work.
   python-scripts:
     runs-on: warp-ubuntu-latest-x64-2x

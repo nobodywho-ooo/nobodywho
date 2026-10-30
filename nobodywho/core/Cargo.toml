@@ -3,8 +3,16 @@ name = "nobodywho"
 version = "2.4.0"
 edition = "2021"
 
+[features]
+default = ["kokoro"]
+# Kokoro text-to-speech. Its phonemizer links espeak-ng (GPL-3.0-or-later).
+# Turn it off (`default-features = false`) to build without Kokoro and espeak-ng.
+kokoro = ["dep:espeak-ng", "dep:misaki-rs"]
+
 [dependencies]
-misaki-rs = { version = "0.6.0", default-features = false }
+# Keep `default-features = false`: misaki-rs' default `espeak` feature pulls in
+# espeak-rs, a binding to the C espeak-ng (also GPL).
+misaki-rs = { version = "0.6.0", default-features = false, optional = true }
 encoding_rs = "0.8.34"
 thiserror = "2.0.3"
 miette = { version = "7.6.0", features = ["fancy"] }
@@ -62,7 +70,7 @@ rand_distr = "0.6"
 unicode-normalization = "0.1"
 emojis = "0.9.0"
 unicode-segmentation = "1.13.3"
-espeak-ng = { version = "0.2.0", default-features = false, features = [
+espeak-ng = { version = "0.2.0", default-features = false, optional = true, features = [
     "bundled-data-en",
     "bundled-data-es",
     "bundled-data-fr",

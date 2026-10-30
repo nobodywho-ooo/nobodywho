@@ -22,6 +22,7 @@ fmt clean="false":
 
 clippy:
     cd nobodywho/core && cargo clippy --no-deps --all-targets -- -D warnings
+    cd nobodywho/core && cargo clippy --no-deps --all-targets --no-default-features -- -D warnings
 
 [arg("clean", long="require-clean", value="true")]
 regen-python clean="false":
