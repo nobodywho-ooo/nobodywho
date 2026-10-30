@@ -1,17 +1,19 @@
 use core::fmt;
 use std::{
-    future::Future,
     io::ErrorKind,
     panic::{catch_unwind, resume_unwind, AssertUnwindSafe},
 };
-
-use futures::future::BoxFuture;
 
 /// A worker that asynchronously processes CPU-blocking tasks.
 ///
 /// This is similar to [`tokio::task::spawn_blocking`], but doesn't require
 /// that a Tokio runtime is running (which is important for foreign languages'
 /// `async` runtimes).
+//
+// TODO: Add a custom worker variant, something like a
+// `Box<dyn Fn(Task) -> BoxFuture<'static, ()> + Send + Sync + 'static>`,
+// which would allow tasks to run on language-specific thread pools, such
+// as Swift's `Task { foo() }.await`.
 pub enum AsyncWorker {
     /// A native OS thread.
     ///
@@ -20,15 +22,6 @@ pub enum AsyncWorker {
     Thread {
         tx: Option<tokio::sync::mpsc::Sender<Task>>,
         join_handle: Option<std::thread::JoinHandle<()>>,
-    },
-
-    /// A custom worker.
-    ///
-    /// This is meant to be used for sending the task to a language-specific
-    /// worker thread pool, which usually works better with their `async`
-    /// support.
-    Custom {
-        spawn_blocking: Box<dyn Fn(Task) -> BoxFuture<'static, ()> + Send + Sync + 'static>,
     },
 
     /// A worker that runs blockingly on the current thread.
@@ -75,15 +68,6 @@ impl AsyncWorker {
         }
     }
 
-    /// Create a new worker with a custom `spawn_blocking` function.
-    pub fn with_custom<F: Future<Output = ()> + Send + 'static>(
-        spawn_blocking: impl Fn(Task) -> F + Send + Sync + 'static,
-    ) -> Self {
-        Self::Custom {
-            spawn_blocking: Box::new(move |task| Box::pin(spawn_blocking(task))),
-        }
-    }
-
     /// Run the closure on the worker thread, and wait for it asynchronously.
     ///
     /// On WASM / Emscripten (and similar targets that don't have threads),
@@ -93,32 +77,29 @@ impl AsyncWorker {
     /// like the generation of one token (e.g. don't generate all tokens at
     /// once inside the closure).
     pub async fn run<R: Send + 'static>(&self, task: impl FnOnce() -> R + Send + 'static) -> R {
-        let (result_tx, result_rx) = tokio::sync::oneshot::channel();
-
-        // Re-enter the current span when running the queued closure.
-        let span = tracing::Span::current();
-        let task: Task = Box::new(move || {
-            let _enter = span.enter();
-            let result = catch_unwind(AssertUnwindSafe(task));
-            // Ignore error from sending, this likely means that the
-            // `result_tx.await` was cancelled.
-            let _ = result_tx.send(result);
-        });
-
         match self {
-            Self::Thread { tx, .. } => tx
-                .as_ref()
-                .expect("dropped")
-                .send(task)
-                .await
-                .expect("worker thread has stopped"),
-            Self::Custom { spawn_blocking } => spawn_blocking(task).await,
-            Self::Blocking => task(),
-        }
+            Self::Thread { tx, .. } => {
+                let (result_tx, result_rx) = tokio::sync::oneshot::channel();
 
-        match result_rx.await.expect("worker failed to send back result") {
-            Ok(value) => value,
-            Err(panic) => resume_unwind(panic),
+                // Re-enter the current span when running the queued closure.
+                let span = tracing::Span::current();
+                let task: Task = Box::new(move || {
+                    let _enter = span.enter();
+                    let result = catch_unwind(AssertUnwindSafe(task));
+                    // Ignore error from sending, this likely means that the
+                    // `result_tx.await` was cancelled.
+                    let _ = result_tx.send(result);
+                });
+
+                let tx = tx.as_ref().expect("dropped");
+                tx.send(task).await.expect("worker thread has stopped");
+
+                match result_rx.await.expect("worker failed to send back result") {
+                    Ok(value) => value,
+                    Err(panic) => resume_unwind(panic),
+                }
+            }
+            Self::Blocking => task(),
         }
     }
 }
@@ -155,7 +136,6 @@ impl fmt::Debug for AsyncWorker {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             AsyncWorker::Thread { .. } => write!(f, "AsyncWorker::Thread {{ .. }}"),
-            AsyncWorker::Custom { .. } => write!(f, "AsyncWorker::Custom {{ .. }}"),
             AsyncWorker::Blocking => write!(f, "AsyncWorker::Blocking"),
         }
     }
@@ -177,12 +157,6 @@ mod tests {
     fn all_workers() -> Vec<(&'static str, AsyncWorker)> {
         vec![
             ("Thread", AsyncWorker::new()),
-            (
-                "Custom",
-                AsyncWorker::with_custom(|task| async move {
-                    task();
-                }),
-            ),
             ("Blocking", AsyncWorker::Blocking),
         ]
     }
@@ -346,127 +320,5 @@ mod tests {
         // worker thread. Dropping the worker must join it.
         drop(worker);
         assert_eq!(done.load(Ordering::SeqCst), 1);
-    }
-
-    #[test]
-    fn custom_spawn_is_actually_async() {
-        // Verify the spawn function receives a Future, not just a closure
-        // that runs synchronously — the whole point of Custom is that the
-        // host language can dispatch to its own async runtime.
-        let spawned_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let spawned_flag2 = spawned_flag.clone();
-
-        let worker = AsyncWorker::with_custom(move |task| {
-            let spawned_flag = spawned_flag2.clone();
-            async move {
-                spawned_flag.store(true, Ordering::SeqCst);
-                task();
-            }
-        });
-
-        // The spawn function isn't called until we await the future.
-        assert!(!spawned_flag.load(Ordering::SeqCst));
-        let value = futures::executor::block_on(worker.run(|| 99));
-        assert!(spawned_flag.load(Ordering::SeqCst));
-        assert_eq!(value, 99);
-    }
-
-    #[test]
-    #[cfg(not(target_os = "emscripten"))]
-    fn custom_with_spawn_blocking_runs_task() {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let worker = AsyncWorker::with_custom(|task| async move {
-            tokio::task::spawn_blocking(task).await.unwrap()
-        });
-        let value = rt.block_on(worker.run(|| 40 + 2));
-        assert_eq!(value, 42);
-    }
-
-    #[test]
-    #[cfg(not(target_os = "emscripten"))]
-    fn custom_with_spawn_blocking_panic_is_propagated() {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let worker = AsyncWorker::with_custom(|task| async move {
-            tokio::task::spawn_blocking(task).await.unwrap()
-        });
-        let result = catch_unwind(AssertUnwindSafe(|| {
-            rt.block_on(worker.run(|| -> () { panic!("boom") }))
-        }));
-        let payload = result.expect_err("panic should propagate to caller");
-        assert_eq!(payload.downcast_ref::<&str>(), Some(&"boom"));
-    }
-
-    #[test]
-    #[cfg(not(target_os = "emscripten"))]
-    fn custom_with_spawn_blocking_is_usable_after_panic() {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let worker = AsyncWorker::with_custom(|task| async move {
-            tokio::task::spawn_blocking(task).await.unwrap()
-        });
-        let _ = catch_unwind(AssertUnwindSafe(|| {
-            rt.block_on(worker.run(|| -> () { panic!("boom") }))
-        }));
-        assert_eq!(rt.block_on(worker.run(|| 7)), 7);
-    }
-
-    #[test]
-    #[cfg(not(target_os = "emscripten"))]
-    fn custom_with_spawn_blocking_runs_on_different_thread() {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let caller_thread = std::thread::current().id();
-        let worker = AsyncWorker::with_custom(|task| async move {
-            tokio::task::spawn_blocking(task).await.unwrap()
-        });
-        let task_thread = rt.block_on(worker.run(move || std::thread::current().id()));
-        assert_ne!(
-            task_thread, caller_thread,
-            "spawn_blocking must offload to a different OS thread"
-        );
-    }
-
-    #[test]
-    #[cfg(not(target_os = "emscripten"))]
-    fn custom_with_spawn_blocking_allows_concurrency() {
-        // Unlike the Thread variant (single worker thread → serialized),
-        // spawn_blocking dispatches to a thread pool so tasks can overlap.
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let worker = Arc::new(AsyncWorker::with_custom(|task| async move {
-            tokio::task::spawn_blocking(task).await.unwrap()
-        }));
-        let running = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let max_running = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-
-        let handles: Vec<_> = (0..32)
-            .map(|i| {
-                let worker = worker.clone();
-                let running = running.clone();
-                let max_running = max_running.clone();
-                rt.spawn(async move {
-                    worker
-                        .run(move || {
-                            let now = running.fetch_add(1, Ordering::SeqCst) + 1;
-                            max_running.fetch_max(now, Ordering::SeqCst);
-                            std::thread::sleep(std::time::Duration::from_millis(20));
-                            running.fetch_sub(1, Ordering::SeqCst);
-                            i
-                        })
-                        .await
-                })
-            })
-            .collect();
-
-        rt.block_on(async {
-            let mut results = Vec::new();
-            for handle in handles {
-                results.push(handle.await.unwrap());
-            }
-            results.sort();
-            assert_eq!(results, (0..32).collect::<Vec<_>>());
-            // At least some overlap across the thread pool.
-            assert!(
-                max_running.load(Ordering::SeqCst) > 1,
-                "spawn_blocking thread pool should provide concurrency"
-            );
-        });
     }
 }
