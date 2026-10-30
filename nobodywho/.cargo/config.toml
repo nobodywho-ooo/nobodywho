@@ -1,0 +1,55 @@
+[env]
+# FIXME(madsmtm): Fix this in cc-rs.
+CFLAGS_wasm32_unknown_emscripten = "-fPIC"
+CXXFLAGS_wasm32_unknown_emscripten = "-fPIC"
+CFLAGS_wasm64_unknown_emscripten = "-fPIC"
+CXXFLAGS_wasm64_unknown_emscripten = "-fPIC"
+
+# Use JSPI instead of ASYNCIFY for WebGPU calls. This is the default.
+# GGML_WEBGPU_JSPI = "ON"
+
+[target.'cfg(target_os = "emscripten")']
+# Needed because we're compiling C++ sources.
+linker = "em++"
+
+# General flags that are applicable everywhere our WASM runs.
+# We also set additional flags in `uniffi/build.rs`.
+rustflags = [
+    # Raise the stack size, our stacks can apparently get pretty deep.
+    "-Clink-arg=-sSTACK_SIZE=512KB",
+
+    # Allowing memory growth is important when we actually want to load a model.
+    "-Clink-arg=-sALLOW_MEMORY_GROWTH=1",
+
+    # Link to the Dawn WebGPU port, as needed by llama.cpp.
+    "-Clink-arg=--use-port=emdawnwebgpu",
+
+    # Tell emscripten to invoke wasm-bindgen on the linked .wasm, which
+    # auto-exports all #[wasm_bindgen] symbols and generates JS bindings.
+    # Not needed currently, but might be needed in the future?
+    # "-Clink-arg=-sWASM_BINDGEN",
+
+    # Allow setting environment variables that we read in tests.
+    "-Clink-arg=-sNODE_HOST_ENV=1",
+
+    # Allow accessing the host filesystem when running under Node.js.
+    "-Clink-arg=-lnodefs.js",
+    # And store in persistent storage when running in the browser.
+    "-Clink-arg=-lidbfs.js",
+    # Enable this when testing raw Rust binaries.
+    # "-Clink-arg=-lnoderawfs.js",
+
+    # TODO:
+    # "-Clink-arg=-sJSPI",
+    # "-Clink-arg=-sASYNCIFY",
+
+    # TODO: Enable pthreads in some configurations?
+    # "-Clink-arg=-pthread", # Also needs to be set in CFLAGS/CXXFLAGS
+
+    # TODO: Set appropriate target features.
+    # "-Ctarget-feature=+atomics,+bulk-memory,...",
+]
+
+# Allow running under `cargo test`.
+runner = "node" # Add --inspect-brk to debug with chrome://inspect
+# runner = "deno run --unstable-detect-cjs --allow-read --allow-env" # Test with deno

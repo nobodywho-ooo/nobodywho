@@ -1,0 +1,90 @@
+name: "JS CI"
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  wasm:
+    runs-on: warp-ubuntu-latest-x64-4x
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: nobodywho/js/package-lock.json
+
+      - name: "Install Rust nightly"
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-emscripten
+          components: rust-src
+          cache: false
+
+      - name: "Setup Emscripten"
+        uses: emscripten-core/setup-emsdk@v16
+        with:
+          version: 6.0.13
+
+      - name: "Install build dependencies"
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev cmake ninja-build
+
+      - name: "Cache Rust build"
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-js-wasm-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-js-wasm-cargo-
+
+      - name: "Install npm dependencies"
+        working-directory: ./nobodywho/js
+        run: npm ci
+
+      - name: "Type-check"
+        working-directory: ./nobodywho/js
+        run: npm run typecheck
+
+      # Test models are downloaded fresh, not cached, to not evict Rust build caches.
+      - name: "Download test model"
+        run: |
+          mkdir -p models
+          curl -L --fail --progress-bar --retry 5 --retry-delay 5 --retry-all-errors \
+            https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf \
+            -o models/model.gguf
+
+      - name: "Build package and run tests"
+        working-directory: ./nobodywho/js
+        env:
+          TEST_MODEL: ~/models/model.gguf
+        run: npm test
+
+  js-testapp:
+    runs-on: warp-ubuntu-latest-x64-2x
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: nobodywho/testing-apps/react-native/package-lock.json
+
+      - name: "Install app dependencies"
+        working-directory: ./nobodywho/testing-apps/react-native
+        run: npm ci
+
+      - name: "Type-check the React Native device-test app"
+        # Type checks the app against the package (the package itself is
+        # type-checked in the `wasm` job).
+        working-directory: ./nobodywho/testing-apps/react-native
+        run: npm run typecheck

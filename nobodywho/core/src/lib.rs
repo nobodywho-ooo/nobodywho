@@ -186,7 +186,10 @@ pub(crate) mod test_utils {
     }
 
     fn load_vocab(path: &str) -> LlamaModel {
-        let params = LlamaModelParams::default().with_vocab_only(true);
+        let mut params = LlamaModelParams::default().with_vocab_only(true);
+        if cfg!(target_os = "emscripten") {
+            params = params.with_use_mmap(false);
+        }
         LlamaModel::load_from_file(&crate::llm::LLAMA_BACKEND, path, &params)
             .unwrap_or_else(|e| panic!("failed to load vocabulary from {path}: {e}"))
     }

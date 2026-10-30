@@ -982,6 +982,7 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     #[test]
+    #[cfg_attr(target_os = "emscripten", ignore = "TcpListener::bind is unavailable")]
     fn cancelled_download_removes_partial_file() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
