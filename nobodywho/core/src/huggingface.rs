@@ -182,10 +182,11 @@ impl ModelCache {
         )))
     }
 
-    /// `dirs` doesn't support Emscripten.
+    /// `dirs` doesn't support Emscripten, so use the temporary directory.
     ///
-    /// Ideally, we'd probably want to mount IDBFS or NODEFS on `/tmp`, to
-    /// make the model persist between page reloads / node.js invocations.
+    /// On Node.js that's the real temporary directory (the JS package mounts the host filesystem with `NODEFS`). In browsers the
+    /// filesystem is in-memory, so the JS package mounts IDBFS (IndexedDB) on the model
+    /// cache directory inside it, to make models survive page reloads.
     #[cfg(target_os = "emscripten")]
     fn platform_cache_dir() -> Result<PathBuf, GetCacheDirError> {
         Ok(std::env::temp_dir())
@@ -410,8 +411,13 @@ impl HfRepo {
         format!("{}/{}", self.owner, self.repo)
     }
 
+    /// Cache directory of this repo, relative to the cache root.
+    fn relative_dir(&self) -> PathBuf {
+        PathBuf::from(&self.owner).join(&self.repo)
+    }
+
     fn cache_dir(&self, cache: &ModelCache) -> PathBuf {
-        cache.root.join(&self.owner).join(&self.repo)
+        cache.root.join(self.relative_dir())
     }
 
     fn resolve_url(&self, path: &str) -> String {
@@ -441,6 +447,38 @@ enum GgufSource {
     Url(String),
 }
 
+/// A file to fetch over HTTP, and where it lives relative to the cache root.
+///
+/// Computing this involves no I/O, so it can be shared with downloaders that
+/// don't go through [`ModelCache::fetch_to_path`] (e.g. JavaScript `fetch()`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct RemoteFile {
+    pub url: String,
+    /// Path of the file relative to the model cache root.
+    pub cache_path: PathBuf,
+}
+
+impl GgufSource {
+    /// Pure: work out the URL and cache location, without touching the network or disk.
+    fn remote_file(&self) -> RemoteFile {
+        match self {
+            GgufSource::HuggingFace { repo, filename } => RemoteFile {
+                url: repo.resolve_url(filename),
+                cache_path: repo.relative_dir().join(filename),
+            },
+            GgufSource::Url(url) => {
+                let path_part = url
+                    .trim_start_matches("https://")
+                    .trim_start_matches("http://");
+                RemoteFile {
+                    url: url.clone(),
+                    cache_path: PathBuf::from("http").join(path_part),
+                }
+            }
+        }
+    }
+}
+
 impl ModelCache {
     /// Resolve a [`GgufSource`] to a local file, downloading it first unless
     /// it's already cached.
@@ -451,20 +489,9 @@ impl ModelCache {
         headers: &[(String, String)],
         cancellation: Option<&DownloadCancellationCallback>,
     ) -> Result<PathBuf, LoadModelError> {
-        let (url, target) = match source {
-            GgufSource::HuggingFace { repo, filename } => (
-                repo.resolve_url(filename),
-                repo.cache_dir(self).join(filename),
-            ),
-            GgufSource::Url(url) => {
-                let path_part = url
-                    .trim_start_matches("https://")
-                    .trim_start_matches("http://");
-                (url.clone(), self.root.join("http").join(path_part))
-            }
-        };
-
-        self.fetch_to_path(&url, &target, progress, headers, cancellation)?;
+        let remote = source.remote_file();
+        let target = self.root.join(&remote.cache_path);
+        self.fetch_to_path(&remote.url, &target, progress, headers, cancellation)?;
         Ok(target)
     }
 
@@ -536,6 +563,66 @@ pub(crate) enum ParsedModelPath {
     LlamaCppUrl(LlamaCppUrl), // e.g. owner/repo:quantization -> (owner, repo, quantization)
     HttpUrl(String),          // e.g. https://example.com/lol/qwen3.gguf
     FilesystemPath(PathBuf),  // e.g. ./qwen3.gguf
+}
+
+impl ParsedModelPath {
+    /// Pure: the remote source of this path, or `None` for a local filesystem path.
+    fn gguf_source(&self) -> Option<GgufSource> {
+        match self {
+            ParsedModelPath::HuggingFaceUrl(owner, repo, filename) => {
+                Some(GgufSource::HuggingFace {
+                    repo: HfRepo::main(owner, repo),
+                    filename: filename.clone(),
+                })
+            }
+            ParsedModelPath::LlamaCppUrl(url) => Some(url.resolve_source()),
+            ParsedModelPath::HttpUrl(url) => Some(GgufSource::Url(url.clone())),
+            ParsedModelPath::FilesystemPath(_) => None,
+        }
+    }
+
+    /// Pure: the URL and cache-relative path to fetch, or `None` for a local path.
+    fn remote_file(&self) -> Option<RemoteFile> {
+        self.gguf_source().map(|s| s.remote_file())
+    }
+}
+
+/// Where to fetch a remote model from, and where it goes on the local filesystem.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RemoteModelFile {
+    pub url: String,
+    /// The absolute path in the model cache that [`download_model`](crate::llm::download_model) would use.
+    pub local_path: PathBuf,
+}
+
+/// Step 1 of loading a model: what a model path (`hf://...`, `https://...`,
+/// `owner/repo-GGUF:quant`, or a filesystem path) refers to.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ModelLocation {
+    /// Already on the local filesystem.
+    Local(PathBuf),
+    /// Has to be downloaded first.
+    Remote(RemoteModelFile),
+}
+
+/// Parse a model path, without doing any network or model I/O.
+///
+/// Lets a non-`ureq` downloader (e.g. JS `fetch()`) reuse the path parsing and cache layout.
+pub fn locate_model(model_path: &str) -> Result<ModelLocation, LoadModelError> {
+    let parsed = parse_model_path(model_path)?;
+    match parsed.remote_file() {
+        None => match parsed {
+            ParsedModelPath::FilesystemPath(path) => Ok(ModelLocation::Local(path)),
+            _ => unreachable!("only filesystem paths have no remote source"),
+        },
+        Some(remote) => {
+            let cache = ModelCache::open()?;
+            Ok(ModelLocation::Remote(RemoteModelFile {
+                url: remote.url,
+                local_path: cache.root.join(remote.cache_path),
+            }))
+        }
+    }
 }
 
 /// Why [`parse_model_path`] rejected a path.
@@ -646,31 +733,17 @@ pub(crate) fn download_gguf(
 ) -> Result<PathBuf, LoadModelError> {
     check_download_cancellation(cancellation)?;
     let cache = ModelCache::open()?;
-    let fs_model_path = match parsed_path {
-        ParsedModelPath::HuggingFaceUrl(owner, repo, filename) => {
-            let source = GgufSource::HuggingFace {
-                repo: HfRepo::main(owner, repo),
-                filename,
-            };
-            cache.download_file(&source, progress, headers, cancellation)?
-        }
-        ParsedModelPath::LlamaCppUrl(llama_cpp_url) => cache.download_file(
-            &llama_cpp_url.resolve_source(),
-            progress,
-            headers,
-            cancellation,
-        )?,
-        ParsedModelPath::FilesystemPath(path) => path,
-        ParsedModelPath::HttpUrl(url) => {
-            cache.download_file(&GgufSource::Url(url), progress, headers, cancellation)?
-        }
+    let fs_model_path = match parsed_path.gguf_source() {
+        Some(source) => cache.download_file(&source, progress, headers, cancellation)?,
+        None => match parsed_path {
+            ParsedModelPath::FilesystemPath(path) => path,
+            _ => unreachable!("only filesystem paths have no remote source"),
+        },
     };
 
     if !fs_model_path.exists() {
         return Err(LoadModelError::from_missing_path(&fs_model_path));
     }
-
-    LoadModelError::validate_model_file(&fs_model_path)?;
 
     Ok(fs_model_path)
 }
@@ -756,6 +829,44 @@ impl OnnxSource {
         })
     }
 
+    /// Pure: turn the body of a repo-tree API response (see [`HfRepo::tree_url`])
+    /// into the list of files to download, applying dotfile filtering and
+    /// `required` selection. Does no I/O.
+    fn plan_repo_files(
+        repo: &HfRepo,
+        tree_body: &str,
+        required: &[String],
+    ) -> Result<Vec<String>, HuggingFaceError> {
+        let entries: Vec<HfTreeEntry> =
+            serde_json::from_str(tree_body).map_err(|source| HuggingFaceError::ParseRepoTree {
+                repo: repo.id(),
+                source,
+            })?;
+
+        // Skip dotfiles (e.g. `.gitattributes`)
+        let all_files: Vec<String> = entries
+            .into_iter()
+            .filter(|e| e.kind == "file")
+            .map(|e| e.path)
+            .filter(|p| !Self::is_dotfile(p))
+            .collect();
+
+        let files = Self::select_required_files(all_files, required).map_err(|missing| {
+            HuggingFaceError::MissingRequiredFiles {
+                repo: repo.id(),
+                files: missing,
+            }
+        })?;
+
+        if files.is_empty() {
+            return Err(HuggingFaceError::EmptyRepo {
+                repo: repo.id(),
+                revision: repo.revision.clone(),
+            });
+        }
+        Ok(files)
+    }
+
     fn read_completed_files(cache_dir: &Path) -> Option<Vec<String>> {
         let content = std::fs::read_to_string(cache_dir.join(COMPLETE_MARKER)).ok()?;
         let files: Vec<String> = content
@@ -838,34 +949,7 @@ impl ModelCache {
                 repo: repo.id(),
                 source,
             })?;
-        let entries: Vec<HfTreeEntry> =
-            serde_json::from_str(&body).map_err(|source| HuggingFaceError::ParseRepoTree {
-                repo: repo.id(),
-                source,
-            })?;
-
-        // Skip dotfiles (e.g. `.gitattributes`)
-        let all_files: Vec<String> = entries
-            .into_iter()
-            .filter(|e| e.kind == "file")
-            .map(|e| e.path)
-            .filter(|p| !OnnxSource::is_dotfile(p))
-            .collect();
-
-        let files =
-            OnnxSource::select_required_files(all_files, required_files).map_err(|missing| {
-                HuggingFaceError::MissingRequiredFiles {
-                    repo: repo.id(),
-                    files: missing,
-                }
-            })?;
-
-        if files.is_empty() {
-            return Err(HuggingFaceError::EmptyRepo {
-                repo: repo.id(),
-                revision: repo.revision.clone(),
-            });
-        }
+        let files = OnnxSource::plan_repo_files(repo, &body, required_files)?;
 
         for path in &files {
             let url = repo.resolve_url(path);
@@ -982,6 +1066,7 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     #[test]
+    #[cfg_attr(target_os = "emscripten", ignore = "TcpListener::bind is unavailable")]
     fn cancelled_download_removes_partial_file() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();

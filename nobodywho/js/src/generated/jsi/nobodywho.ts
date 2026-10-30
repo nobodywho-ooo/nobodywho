@@ -81,9 +81,9 @@ export function cosineSimilarity(a: Array<number>, b: Array<number>): number {
 
 /**
  * Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
+ * Local paths are returned as-is. This is the second of three steps, see `load_model`.
  *
  * Use this when you need custom headers, e.g. for gated models that require authentication.
- * For unauthenticated downloads, pass the URL directly to `load_model`.
  */
 export async function downloadModel(
   modelPath: string,
@@ -168,10 +168,10 @@ export function getCachedModels(): Array<CachedModel> /*throws*/ {
 }
 
 /**
- * Load a GGUF model from a local path or remote URL.
+ * Load a GGUF model into memory from files on the local filesystem.
  *
- * Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
- * or `auto` for memory-based selection. Downloaded models are cached automatically.
+ * This is the last of three steps: `parse_model_path`, then `download_model` (if the
+ * path is remote), then this, with the paths returned by `download_model`.
  *
  * # MTP speculative decoding
  *
@@ -188,7 +188,6 @@ export async function loadModel(
   useGpu: boolean,
   projectionModelPath: string | undefined,
   draftModelPath: string | undefined,
-  onDownloadProgress: RustDownloadProgressCallback | undefined,
   asyncOpts_?: { signal: AbortSignal },
 ): Promise<RustModelLike> /*throws*/ {
   const __stack = uniffiIsDebug ? new Error().stack : undefined;
@@ -205,10 +204,6 @@ export async function loadModel(
           ),
           FfiConverterOptionalString.lower(
             draftModelPath,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalTypeRustDownloadProgressCallback.lower(
-            onDownloadProgress,
             nativeModule().rustbuffer_alloc,
           ),
         );
@@ -484,6 +479,33 @@ export async function loadVoiceActivityDetection(
 }
 
 /**
+ * Parse a model path (`hf://...`, `https://...`, `owner/repo-GGUF:quant`, or a
+ * filesystem path) into where it lives, without doing any I/O.
+ *
+ * Lets platforms without a usable Rust HTTP client (e.g. JavaScript on the web) do the
+ * download themselves, reusing the path parsing and cache layout.
+ */
+export function parseModelPath(modelPath: string): ModelLocation /*throws*/ {
+  const __rb: Uint8Array = uniffiCaller.rustCallWithError(
+    /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+      FfiConverterTypeNobodyWhoError,
+    ),
+    /*caller:*/ (callStatus) => {
+      return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_parse_model_path(
+        FfiConverterString.lower(modelPath, nativeModule().rustbuffer_alloc),
+        callStatus,
+      );
+    },
+    /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+  );
+  try {
+    return FfiConverterTypeModelLocation.lift(__rb);
+  } finally {
+    nativeModule().rustbuffer_free(__rb);
+  }
+}
+
+/**
  * Create a sampler that constrains output using a Lark grammar via llguidance.
  */
 export function samplerPresetConstrainWithGrammar(
@@ -658,6 +680,34 @@ export function samplerPresetTopP(topP: number): SamplerConfigLike {
       /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
     ),
   );
+}
+
+/**
+ * Replace the special path `auto` with a concrete model path chosen for the available
+ * memory. Any other path is returned unchanged. Do this before `parse_model_path`.
+ */
+export function selectModelPath(
+  modelPath: string,
+  useGpu: boolean,
+): string /*throws*/ {
+  const __rb: Uint8Array = uniffiCaller.rustCallWithError(
+    /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+      FfiConverterTypeNobodyWhoError,
+    ),
+    /*caller:*/ (callStatus) => {
+      return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_select_model_path(
+        FfiConverterString.lower(modelPath, nativeModule().rustbuffer_alloc),
+        FfiConverterBool.lower(useGpu, nativeModule().rustbuffer_alloc),
+        callStatus,
+      );
+    },
+    /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+  );
+  try {
+    return FfiConverterString.lift(__rb);
+  } finally {
+    nativeModule().rustbuffer_free(__rb);
+  }
 }
 
 // Hermes (React Native ≥ 0.74) ships TextEncoder and encodeInto, but not
@@ -2373,6 +2423,152 @@ const FfiConverterTypeMessage = (() => {
           let size = 4;
           size += FfiConverterString.allocationSize(inner.name);
           size += FfiConverterTypeMessageContent.allocationSize(inner.content);
+          return size;
+        }
+        default:
+          throw new UniffiInternalError.UnexpectedEnumCase();
+      }
+    }
+  }
+  return new FFIConverter();
+})();
+
+// Enum: ModelLocation
+export enum ModelLocation_Tags {
+  Local = "Local",
+  Remote = "Remote",
+}
+/**
+ * Step 1 of loading a model: what a model path refers to.
+ */
+export const ModelLocation = (() => {
+  type Local__interface = {
+    tag: ModelLocation_Tags.Local;
+    inner: Readonly<{ path: string }>;
+  };
+  /**
+   * Already on the local filesystem.
+   */
+  class Local_ extends UniffiEnum implements Local__interface {
+    /**
+     * @private
+     * This field is private and should not be used, use `tag` instead.
+     */
+    readonly [uniffiTypeNameSymbol] = "ModelLocation";
+    readonly tag = ModelLocation_Tags.Local;
+    readonly inner: Readonly<{ path: string }>;
+    constructor(inner: { path: string }) {
+      super("ModelLocation", "Local");
+
+      this.inner = Object.freeze(inner);
+    }
+    static new(inner: { path: string }): Local_ {
+      return new Local_(inner);
+    }
+
+    static instanceOf(obj: any): obj is Local_ {
+      return obj.tag === ModelLocation_Tags.Local;
+    }
+  }
+
+  type Remote__interface = {
+    tag: ModelLocation_Tags.Remote;
+    inner: Readonly<{ url: string; localPath: string }>;
+  };
+  /**
+   * Has to be downloaded to `local_path` from `url` first.
+   */
+  class Remote_ extends UniffiEnum implements Remote__interface {
+    /**
+     * @private
+     * This field is private and should not be used, use `tag` instead.
+     */
+    readonly [uniffiTypeNameSymbol] = "ModelLocation";
+    readonly tag = ModelLocation_Tags.Remote;
+    readonly inner: Readonly<{ url: string; localPath: string }>;
+    constructor(inner: { url: string; localPath: string }) {
+      super("ModelLocation", "Remote");
+
+      this.inner = Object.freeze(inner);
+    }
+    static new(inner: { url: string; localPath: string }): Remote_ {
+      return new Remote_(inner);
+    }
+
+    static instanceOf(obj: any): obj is Remote_ {
+      return obj.tag === ModelLocation_Tags.Remote;
+    }
+  }
+
+  function instanceOf(obj: any): obj is ModelLocation {
+    return obj[uniffiTypeNameSymbol] === "ModelLocation";
+  }
+
+  return Object.freeze({
+    instanceOf,
+    Local: Local_,
+    Remote: Remote_,
+  });
+})();
+/**
+ * Step 1 of loading a model: what a model path refers to.
+ */
+export type ModelLocation = InstanceType<
+  (typeof ModelLocation)["Local" | "Remote"]
+>;
+
+// FfiConverter for enum ModelLocation
+const FfiConverterTypeModelLocation = (() => {
+  type TypeName = ModelLocation;
+  class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+    readFromCursor(c: Cursor): TypeName {
+      switch (c.readI32()) {
+        case 1:
+          return new ModelLocation.Local({
+            path: FfiConverterString.readFromCursor(c),
+          });
+        case 2:
+          return new ModelLocation.Remote({
+            url: FfiConverterString.readFromCursor(c),
+            localPath: FfiConverterString.readFromCursor(c),
+          });
+        default:
+          throw new UniffiInternalError.UnexpectedEnumCase();
+      }
+    }
+    writeIntoCursor(value: TypeName, c: Cursor): void {
+      switch (value.tag) {
+        case ModelLocation_Tags.Local: {
+          c.writeI32(1);
+          const inner = value.inner;
+          FfiConverterString.writeIntoCursor(inner.path, c);
+          return;
+        }
+        case ModelLocation_Tags.Remote: {
+          c.writeI32(2);
+          const inner = value.inner;
+          FfiConverterString.writeIntoCursor(inner.url, c);
+          FfiConverterString.writeIntoCursor(inner.localPath, c);
+          return;
+        }
+        default:
+          // Throwing from here means that ModelLocation_Tags hasn't matched an ordinal.
+          throw new UniffiInternalError.UnexpectedEnumCase();
+      }
+    }
+    allocationSize(value: TypeName): number {
+      switch (value.tag) {
+        case ModelLocation_Tags.Local: {
+          const inner = value.inner;
+          let size = 4;
+          size += FfiConverterString.allocationSize(inner.path);
+          return size;
+        }
+        case ModelLocation_Tags.Remote: {
+          const inner = value.inner;
+          let size = 4;
+          size += FfiConverterString.allocationSize(inner.url);
+          size += FfiConverterString.allocationSize(inner.localPath);
           return size;
         }
         default:
@@ -6782,7 +6978,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_download_model() !==
-    31331
+    11944
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_func_download_model",
@@ -6798,7 +6994,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !==
-    30733
+    47779
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_func_load_model",
@@ -6826,6 +7022,14 @@ function uniffiEnsureInitialized() {
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection",
+    );
+  }
+  if (
+    nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_parse_model_path() !==
+    52111
+  ) {
+    throw new UniffiInternalError.ApiChecksumMismatch(
+      "uniffi_nobodywho_uniffi_checksum_func_parse_model_path",
     );
   }
   if (
@@ -6906,6 +7110,14 @@ function uniffiEnsureInitialized() {
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p",
+    );
+  }
+  if (
+    nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_select_model_path() !==
+    44721
+  ) {
+    throw new UniffiInternalError.ApiChecksumMismatch(
+      "uniffi_nobodywho_uniffi_checksum_func_select_model_path",
     );
   }
   if (
@@ -7514,6 +7726,7 @@ export default Object.freeze({
     FfiConverterTypeContextShiftOptions,
     FfiConverterTypeMessage,
     FfiConverterTypeMessageContent,
+    FfiConverterTypeModelLocation,
     FfiConverterTypeMtpConfig,
     FfiConverterTypeNobodyWhoError,
     FfiConverterTypeOptions,

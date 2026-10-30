@@ -5,6 +5,9 @@ use std::sync::{Arc, Once};
 use nobodywho::worker::AsyncWorker;
 use tracing::{debug, error, info};
 
+#[cfg(target_family = "wasm")]
+extern crate uniffi_runtime_wasm as _;
+
 uniffi::setup_scaffolding!("nobodywho");
 
 pub fn init_logging() {
@@ -46,17 +49,18 @@ pub fn init_logging() {
                 .expect("log initialization must only happen once")
         }
 
-        // Web platforms log to the console.
-        #[cfg(target_family = "wasm")]
+        // wasm-bindgen log to the console.
+        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
         {
-            console_log::init_with_level(level).expect("log initialization must only happen once")
+            console_log::init_with_level(level.into())
+                .expect("log initialization must only happen once")
         }
 
         // All other platforms log to stderr.
         #[cfg(not(any(
             target_os = "android",
             all(target_vendor = "apple", not(target_os = "macos")),
-            target_family = "wasm"
+            all(target_family = "wasm", target_os = "unknown")
         )))]
         {
             env_logger::Builder::new()
@@ -314,10 +318,79 @@ pub struct RustModel {
     inner: Arc<nobodywho::llm::Model>,
 }
 
-/// Load a GGUF model from a local path or remote URL.
+/// Step 1 of loading a model: what a model path refers to.
+#[derive(uniffi::Enum, Clone)]
+pub enum ModelLocation {
+    /// Already on the local filesystem.
+    Local { path: String },
+    /// Has to be downloaded to `local_path` from `url` first.
+    Remote {
+        url: String,
+        /// Absolute path in the model cache, where `download_model` would put the file.
+        local_path: String,
+    },
+}
+
+/// Replace the special path `auto` with a concrete model path chosen for the available
+/// memory. Any other path is returned unchanged. Do this before `parse_model_path`.
+#[uniffi::export]
+pub fn select_model_path(model_path: String, use_gpu: bool) -> Result<String, NobodyWhoError> {
+    nobodywho::llm::select_model_path(&model_path, use_gpu && nobodywho::llm::has_gpu_backend())
+        .map_err(|e| NobodyWhoError::Error {
+            message: nobodywho::render_miette(&e),
+        })
+}
+
+/// Parse a model path (`hf://...`, `https://...`, `owner/repo-GGUF:quant`, or a
+/// filesystem path) into where it lives, without doing any I/O.
 ///
-/// Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
-/// or `auto` for memory-based selection. Downloaded models are cached automatically.
+/// Lets platforms without a usable Rust HTTP client (e.g. JavaScript on the web) do the
+/// download themselves, reusing the path parsing and cache layout.
+#[uniffi::export]
+pub fn parse_model_path(model_path: String) -> Result<ModelLocation, NobodyWhoError> {
+    use nobodywho::huggingface::ModelLocation as Core;
+    nobodywho::huggingface::locate_model(&model_path)
+        .map(|l| match l {
+            Core::Local(path) => ModelLocation::Local {
+                path: path.to_string_lossy().into_owned(),
+            },
+            Core::Remote(f) => ModelLocation::Remote {
+                url: f.url,
+                local_path: f.local_path.to_string_lossy().into_owned(),
+            },
+        })
+        .map_err(|e| NobodyWhoError::Error {
+            message: nobodywho::render_miette(&e),
+        })
+}
+
+/// Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
+/// Local paths are returned as-is. This is the second of three steps, see `load_model`.
+///
+/// Use this when you need custom headers, e.g. for gated models that require authentication.
+#[uniffi::export]
+pub async fn download_model(
+    model_path: String,
+    headers: Option<HashMap<String, String>>,
+    on_download_progress: Option<Box<dyn RustDownloadProgressCallback>>,
+) -> Result<String, NobodyWhoError> {
+    init_logging();
+    let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
+    let progress = on_download_progress.map(wrap_progress);
+
+    AsyncWorker::new()
+        .run(move || nobodywho::llm::download_model(&model_path, headers_vec, progress))
+        .await
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|e| NobodyWhoError::Error {
+            message: nobodywho::render_miette(&e),
+        })
+}
+
+/// Load a GGUF model into memory from files on the local filesystem.
+///
+/// This is the last of three steps: `parse_model_path`, then `download_model` (if the
+/// path is remote), then this, with the paths returned by `download_model`.
 ///
 /// # MTP speculative decoding
 ///
@@ -337,7 +410,6 @@ pub async fn load_model(
     use_gpu: bool,
     projection_model_path: Option<String>,
     draft_model_path: Option<String>,
-    on_download_progress: Option<Box<dyn RustDownloadProgressCallback>>,
 ) -> Result<Arc<RustModel>, NobodyWhoError> {
     init_logging();
     info!(
@@ -345,16 +417,15 @@ pub async fn load_model(
         model_path, use_gpu, projection_model_path, draft_model_path,
     );
 
-    let progress = on_download_progress.map(wrap_progress);
-    let model_path_clone = model_path.clone();
+    let source = model_path.clone();
     let model = AsyncWorker::new()
         .run(move || {
-            nobodywho::llm::get_model(
-                &model_path_clone,
-                use_gpu,
-                projection_model_path.as_deref(),
-                draft_model_path.as_deref(),
-                progress,
+            nobodywho::llm::load_model_from_files(
+                source,
+                model_path.into(),
+                projection_model_path.map(Into::into),
+                draft_model_path.map(Into::into),
+                use_gpu && nobodywho::llm::has_gpu_backend(),
             )
         })
         .await
@@ -364,33 +435,10 @@ pub async fn load_model(
             NobodyWhoError::Error { message: msg }
         })?;
 
-    info!("load_model SUCCESS for {}", model_path);
+    info!("load_model SUCCESS");
     Ok(Arc::new(RustModel {
         inner: Arc::new(model),
     }))
-}
-
-/// Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
-///
-/// Use this when you need custom headers, e.g. for gated models that require authentication.
-/// For unauthenticated downloads, pass the URL directly to `load_model`.
-#[uniffi::export]
-pub async fn download_model(
-    model_path: String,
-    headers: Option<HashMap<String, String>>,
-    on_download_progress: Option<Box<dyn RustDownloadProgressCallback>>,
-) -> Result<String, NobodyWhoError> {
-    init_logging();
-    let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
-    let progress = on_download_progress.map(wrap_progress);
-
-    AsyncWorker::new()
-        .run(move || nobodywho::llm::download_model(&model_path, headers_vec, progress))
-        .await
-        .map(|p| p.to_string_lossy().into_owned())
-        .map_err(|e| NobodyWhoError::Error {
-            message: nobodywho::render_miette(&e),
-        })
 }
 
 #[uniffi::export]

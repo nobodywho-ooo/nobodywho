@@ -98,7 +98,8 @@ regen-uniffi clean="false":
     # npm's hidden lockfile mirrors the installed tree; if it predates
     # package-lock.json the install is missing or stale.
     cd nobodywho/js && { [ node_modules/.package-lock.json -nt package-lock.json ] || npm ci; }
-    cd nobodywho/js && npm run generate-bindings -- $(pwd)/../target/debug/libnobodywho_uniffi.{{LIB_EXT}}
+    cd nobodywho/js && npm run generate-jsi-bindings -- $(pwd)/../target/debug/libnobodywho_uniffi.{{LIB_EXT}}
+    cd nobodywho/js && npm run generate-wasm-bindings -- $(pwd)/../target/debug/libnobodywho_uniffi.{{LIB_EXT}}
     [ "{{clean}}" != true ] || git diff --exit-code nobodywho/swift/generated/ nobodywho/kotlin/common/generated/ nobodywho/js/src/generated/ nobodywho/js/cpp/generated/ || (echo "Uniffi bindings are out of date — commit them before pushing" && exit 1)
 
 # Add a user-facing change for the next release notes.

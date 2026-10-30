@@ -1,4 +1,6 @@
+import { downloadModel } from "../download";
 import {
+  selectModelPath,
   loadModel,
   type RustModelInterface,
 } from "../generated";
@@ -56,12 +58,16 @@ export class Model {
     const progressCallback = cb
       ? { onDownloadProgress: (d: bigint, t: bigint) => cb(Number(d), Number(t)) }
       : undefined;
+    const useGpu = opts.useGpu ?? true;
     const inner = await loadModel(
-      opts.modelPath,
-      opts.useGpu ?? true,
-      opts.projectionModelPath,
-      opts.draftModelPath,
-      progressCallback,
+      await downloadModel(selectModelPath(opts.modelPath, useGpu), undefined, progressCallback),
+      useGpu,
+      opts.projectionModelPath === undefined
+        ? undefined
+        : await downloadModel(opts.projectionModelPath, undefined, progressCallback),
+      opts.draftModelPath === undefined
+        ? undefined
+        : await downloadModel(opts.draftModelPath, undefined, progressCallback),
     );
     return new Model(inner);
   }

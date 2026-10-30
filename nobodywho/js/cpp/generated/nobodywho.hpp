@@ -380,6 +380,9 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_parse_model_path(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
   jsi::Value
   cpp_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
@@ -411,6 +414,9 @@ protected:
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_sampler_preset_top_p(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_select_model_path(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_ffi_nobodywho_uniffi_rust_future_poll_u8(
@@ -579,6 +585,9 @@ protected:
   cpp_uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_func_parse_model_path(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
   jsi::Value
   cpp_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
@@ -611,6 +620,9 @@ protected:
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_func_select_model_path(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask(

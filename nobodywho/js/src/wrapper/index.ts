@@ -1,12 +1,16 @@
 /**
- * Entry point that re-exports the public API:
+ * NobodyWho — JavaScript bindings for local LLM inference.
+ *
+ * This is the platform-independent public API, re-exported by the entry
+ * points `index.react-native.ts` and `index.wasm.ts` once they've loaded
+ * the native library. It re-exports:
  * - Wrapper classes: Model, Chat, Encoder, CrossEncoder, TextToSpeech, Tool, TokenStream, Prompt
  * - Direct re-exports: SamplerBuilder, SamplerConfig
  * - Types: Message, Content, ContentPart, ToolCall
  * - Utilities: SamplerPresets, cosineSimilarity, downloadModel
  */
 
-import { downloadModel as _downloadModel } from "../generated";
+import { downloadModel as _downloadModel } from "../download";
 
 /**
  * Download a GGUF model from a remote URL or HuggingFace path and return the local file path.

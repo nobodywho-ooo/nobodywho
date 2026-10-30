@@ -2,11 +2,30 @@
   "name": "react-native-nobodywho",
   "version": "6.0.0",
   "author": "NobodyWho <info@nobodywho.ooo>",
-  "description": "Run LLMs locally and offline with React Native & Expo - Tool calling, RAG, Speech-to-Text, Text-to-Speech, and VAD",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "description": "Run LLMs locally and offline with React Native, Expo, the web and Node.js - Tool calling, RAG, Speech-to-Text, Text-to-Speech, and VAD",
+  "main": "./dist/index.mjs",
+  "browser": "./dist/index.mjs",
+  "react-native": "./src/index.react-native.ts",
+  "types": "./dist/index.d.mts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "browser": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "react-native": {
+        "types": "./src/index.react-native.ts",
+        "default": "./src/index.react-native.ts"
+      },
+      "node": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "default": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      }
+    }
   },
   "type": "module",
   "license": "EUPL-1.2",
@@ -28,11 +47,16 @@
     "tts",
     "vad",
     "gguf",
+    "llama.cpp",
     "on-device",
-    "offline"
+    "offline",
+    "web",
+    "wasm"
   ],
   "files": [
+    "dist/",
     "src/",
+    "!src/uniffi.wasm",
     "cpp/",
     "ios/",
     "android/",
@@ -43,11 +67,16 @@
     "!android/src/main/jniLibs"
   ],
   "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc && tsc --moduleSuffixes .native,",
+    "test": "npm run wasm && npm run build && node --test",
+    "prepack": "npm run typecheck && npm run wasm -- --release && npm run build",
     "ios": "uniffi-bindgen-react-native build ios",
     "android": "uniffi-bindgen-react-native build android",
+    "wasm": "cargo +nightly rustc -Zbuild-std -pnobodywho-uniffi --target wasm32-unknown-emscripten --lib --crate-type cdylib",
     "generate-turbo-module": "uniffi-bindgen-react-native generate jsi turbo-module nobodywho",
-    "test": "node --test",
-    "generate-bindings": "cd ../uniffi && uniffi-bindgen-react-native generate jsi bindings --library --ts-dir ../js/src/generated/jsi --cpp-dir ../js/cpp/generated"
+    "generate-jsi-bindings": "cd ../uniffi && uniffi-bindgen-react-native generate jsi bindings --library --ts-dir ../js/src/generated/jsi --cpp-dir ../js/cpp/generated",
+    "generate-wasm-bindings": "cd ../uniffi && uniffi-bindgen-react-native generate wasm2 bindings --library --ts-dir ../js/src/generated/wasm"
   },
   "codegenConfig": {
     "name": "NobodywhoSpec",
@@ -61,14 +90,26 @@
     "react": "*",
     "react-native": "*"
   },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-native": {
+      "optional": true
+    }
+  },
   "dependencies": {
     "@ubjs/core": "0.31.0-6",
+    "@ubjs/wasm": "0.31.0-6",
     "uniffi-bindgen-react-native": "0.31.0-6"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "playwright-core": "^1.64.1",
+    "prettier": "^3.9.10",
     "react": "^19.2.3",
     "react-native": "^0.84.1",
-    "prettier": "^3.9.10"
+    "tsdown": "^0.23.1",
+    "typescript": "^6.0.3"
   }
 }

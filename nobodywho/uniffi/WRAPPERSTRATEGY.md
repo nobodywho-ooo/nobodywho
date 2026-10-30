@@ -24,7 +24,7 @@ These types are intentionally thin FFI wrappers. Each target language must provi
 
 ### What each wrapper should provide
 
-- **`Model`**: `Model.load(opts)` async factory (wraps `load_model` free function). `destroy()` for eager resource cleanup. Private constructor — consumers must use the factory.
+- **`Model`**: `Model.load(opts)` async factory (wraps the `select_model_path`, `download_model` and `load_model` free functions, which do the three steps of loading a model separately). `destroy()` for eager resource cleanup. Private constructor — consumers must use the factory.
 - **`Chat`**: Constructor taking wrapper `Model` and `Tool` types. `Chat.fromPath(opts)` convenience that loads a model and creates a chat in one step. `ask()` returns a `TokenStream`. All other methods delegate to `RustChat`.
 - **`TokenStream`**: Async iteration support for the target language. `nextToken()` and `completed()` methods.
 - **`Tool`**: Accepts a user-friendly parameter definition (name, description, ordered parameter array with JSON Schema properties, callback). Arguments from the LLM are passed positionally to the callback in parameter array order, so any regular function can be used directly. Internally constructs `RustTool` and handles JSON parsing and type coercion.

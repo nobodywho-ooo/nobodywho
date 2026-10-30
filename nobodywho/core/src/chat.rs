@@ -3802,6 +3802,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(target_os = "emscripten", ignore = "std::thread::spawn is unavailable")]
     fn test_chat_worker_multiple_contexts() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
 

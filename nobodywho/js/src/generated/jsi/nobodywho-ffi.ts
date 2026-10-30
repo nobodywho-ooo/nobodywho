@@ -294,7 +294,6 @@ interface NativeModuleInterface {
     useGpu: number,
     projectionModelPath: Uint8Array,
     draftModelPath: Uint8Array,
-    onDownloadProgress: Uint8Array,
   ): bigint;
   ubrn_uniffi_nobodywho_uniffi_fn_func_load_speech_to_text(
     source: Uint8Array,
@@ -323,6 +322,10 @@ interface NativeModuleInterface {
     prerollDurationMs: Uint8Array,
     device: Uint8Array,
   ): bigint;
+  ubrn_uniffi_nobodywho_uniffi_fn_func_parse_model_path(
+    modelPath: Uint8Array,
+    uniffi_out_err: UniffiRustCallStatus,
+  ): Uint8Array;
   ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(
     grammar: Uint8Array,
     uniffi_out_err: UniffiRustCallStatus,
@@ -359,6 +362,11 @@ interface NativeModuleInterface {
     topP: number,
     uniffi_out_err: UniffiRustCallStatus,
   ): bigint;
+  ubrn_uniffi_nobodywho_uniffi_fn_func_select_model_path(
+    modelPath: Uint8Array,
+    useGpu: number,
+    uniffi_out_err: UniffiRustCallStatus,
+  ): Uint8Array;
   ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
     model: bigint,
     systemPrompt: Uint8Array,
@@ -732,6 +740,7 @@ interface NativeModuleInterface {
   ubrn_uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(): number;
+  ubrn_uniffi_nobodywho_uniffi_checksum_func_parse_model_path(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_regex(): number;
@@ -742,6 +751,7 @@ interface NativeModuleInterface {
   ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_k(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p(): number;
+  ubrn_uniffi_nobodywho_uniffi_checksum_func_select_model_path(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt(): number;

@@ -3500,6 +3500,8 @@ dependencies = [
  "tokio",
  "tracing",
  "uniffi",
+ "uniffi-runtime-wasm",
+ "uniffi_core",
 ]
 
 [[package]]
@@ -5818,6 +5820,12 @@ dependencies = [
  "uniffi_macros",
  "uniffi_pipeline",
 ]
+
+[[package]]
+name = "uniffi-runtime-wasm"
+version = "0.31.0-6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29b8946ac91124a03593b945812f1c30acd25bf6a05a24f2bbcf8740f85ce210"
 
 [[package]]
 name = "uniffi_bindgen"
