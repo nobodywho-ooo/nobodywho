@@ -85,7 +85,7 @@ impl Laya {
         }
         let laya = LayaState::new(&model.language_model)?;
         let engine = Yoke::try_attach_to_cart(model, |model| {
-            InferenceEngine::new_with_type(model, n_ctx, true, None, None, LlamaPoolingType::None)
+            InferenceEngine::new(model, n_ctx, true, None, None, LlamaPoolingType::None)
         })?;
         Ok(Self { engine, laya })
     }
