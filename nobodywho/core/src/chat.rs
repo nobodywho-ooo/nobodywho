@@ -917,11 +917,6 @@ impl ChatHandle {
     ///
     /// * `system_prompt` - New system message to guide the model's behavior
     ///
-    /// # Errors
-    ///
-    /// Returns `SetterError` if the system prompt cannot be changed or if context
-    /// synchronization fails.
-    ///
     /// # Examples
     ///
     /// ```no_run
