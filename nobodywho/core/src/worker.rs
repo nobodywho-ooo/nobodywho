@@ -53,6 +53,7 @@ impl AsyncWorker {
         let res = std::thread::Builder::new()
             .name("nobodywho worker thread".into())
             .spawn(move || {
+                // Loop until the sender is closed in `Drop` below.
                 while let Some(task) = rx.blocking_recv() {
                     task();
                 }
