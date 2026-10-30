@@ -2481,9 +2481,6 @@ impl CompletionStreamAsync {
     }
 
     /// Return the next token piece, or `None` when generation is finished.
-    ///
-    /// This is probably not cancel-safe, in the sense that the completion
-    /// chunk will be inserted into the context even if the task is cancelled.
     #[allow(clippy::should_implement_trait)]
     pub async fn next(&mut self) -> Result<Option<CompletionChunk>, GenerateResponseError> {
         let mut inner = Arc::clone(&self.stream.inner).lock_owned().await;
@@ -2492,7 +2489,28 @@ impl CompletionStreamAsync {
             return next.map(Some);
         }
 
-        self.worker.run(move || inner.generator.next()).await
+        // Hackily support cancellation by putting the generated chunk into
+        // `pending`, such that it's taken the next time around if we didn't
+        // take it after the await.
+        let inner = self
+            .worker
+            .run(move || match inner.generator.next() {
+                Ok(Some(chunk)) => {
+                    inner.pending.push_back(Ok(chunk));
+                    Some(inner)
+                }
+                Ok(None) => None,
+                Err(e) => {
+                    inner.pending.push_back(Err(e));
+                    Some(inner)
+                }
+            })
+            .await;
+        if let Some(mut inner) = inner {
+            inner.pending.pop_front().expect("set above").map(Some)
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -2526,9 +2544,6 @@ impl WeakCompletionStream {
     }
 
     /// The `async` version of [`Self::flush`].
-    ///
-    /// This is probably not cancel-safe, in the sense that the completion
-    /// chunk will be inserted into the context even if the task is cancelled.
     async fn flush_async(&self, worker: &AsyncWorker) {
         if let Some(inner) = self.inner.upgrade() {
             loop {
@@ -2538,11 +2553,21 @@ impl WeakCompletionStream {
                 let mut inner = Arc::clone(&inner).lock_owned().await;
                 // Similarly, we run a new closure every generation, to allow
                 // other tasks to run at the same time.
-                let (next, mut inner) = worker.run(move || (inner.generator.next(), inner)).await;
-                match next {
-                    Ok(None) => break,
-                    Ok(Some(chunk)) => inner.pending.push_back(Ok(chunk)),
-                    Err(e) => inner.pending.push_back(Err(e)),
+                let should_stop = worker
+                    .run(move || match inner.generator.next() {
+                        Ok(None) => true,
+                        Ok(Some(chunk)) => {
+                            inner.pending.push_back(Ok(chunk));
+                            false
+                        }
+                        Err(e) => {
+                            inner.pending.push_back(Err(e));
+                            false
+                        }
+                    })
+                    .await;
+                if should_stop {
+                    break;
                 }
             }
         }
