@@ -71,7 +71,8 @@ static PYTHON_LOGGING_AVAILABLE: AtomicBool = AtomicBool::new(false);
 /// between multiple `Chat`, `Encoder`, `CrossEncoder`, or `Decision` instances.
 /// Sharing is efficient because the underlying model data is reference-counted.
 /// There is no `ModelAsync` variant. A regular `Model` can be used with both `Chat` and `ChatAsync`.
-#[pyclass]
+#[pyclass(from_py_object)]
+#[derive(Clone)]
 pub struct Model {
     model: Arc<nobodywho::llm::Model>,
 }
@@ -343,15 +344,15 @@ impl Model {
 /// to make the simplest possible usage of nobodywho even simpler
 /// i.e. `Chat("./model.gguf")` instead of `Chat(Model("./model.gguf"))`
 #[derive(FromPyObject)]
-pub enum ModelOrPath<'py> {
-    ModelObj(Bound<'py, Model>),
+pub enum ModelOrPath {
+    ModelObj(Model),
     Path(std::path::PathBuf),
 }
 
-impl<'py> ModelOrPath<'py> {
+impl ModelOrPath {
     fn source(&self) -> PyResult<String> {
         match self {
-            Self::ModelObj(model) => Ok(model.borrow().model.source().to_string()),
+            Self::ModelObj(model) => Ok(model.model.source().to_string()),
             Self::Path(path) => path.to_str().map(str::to_owned).ok_or_else(|| {
                 pyo3::exceptions::PyValueError::new_err(format!(
                     "Path contains invalid UTF-8: {}",
@@ -364,9 +365,9 @@ impl<'py> ModelOrPath<'py> {
     /// returns nobodywho core's internal model struct from a python `str | Model`
     fn get_inner_model(&self) -> PyResult<Arc<nobodywho::llm::Model>> {
         match self {
-            ModelOrPath::ModelObj(model_obj) => Ok(Arc::clone(&model_obj.borrow().model)),
+            Self::ModelObj(model_obj) => Ok(Arc::clone(&model_obj.model)),
             // default to (trying to) use GPU if a string is passed
-            ModelOrPath::Path(path) => {
+            Self::Path(path) => {
                 let path_str = path.to_str().ok_or_else(|| {
                     pyo3::exceptions::PyValueError::new_err(format!(
                         "Path contains invalid UTF-8: {}",
@@ -397,12 +398,12 @@ struct NobodyWhoState {
 impl NobodyWhoState {
     fn model_for(
         &self,
-        requested: ModelOrPath<'_>,
+        requested: ModelOrPath,
         py: Python<'_>,
     ) -> PyResult<(Arc<nobodywho::llm::Model>, String)> {
         let requested_source = requested.source()?;
         let supplied_model = match requested {
-            ModelOrPath::ModelObj(model) => Some(Arc::clone(&model.borrow().model)),
+            ModelOrPath::ModelObj(model) => Some(Arc::clone(&model.model)),
             ModelOrPath::Path(_) => None,
         };
         let model = py
@@ -447,8 +448,8 @@ struct RequestOptions {
     mtp: Option<MtpConfig>,
 }
 
-struct CompletionRequest<'py> {
-    model: ModelOrPath<'py>,
+struct CompletionRequest {
+    model: ModelOrPath,
     messages: Vec<nobodywho::chat::Message>,
     options: RequestOptions,
     id_prefix: &'static str,
@@ -496,7 +497,7 @@ fn request_completion_stream(
 
 fn completion_stream_for(
     state: &NobodyWhoState,
-    request: CompletionRequest<'_>,
+    request: CompletionRequest,
     py: Python<'_>,
 ) -> PyResult<ChatCompletionStream> {
     let (model, model_source) = state.model_for(request.model, py)?;
@@ -1744,7 +1745,7 @@ impl ChatCompletionsResource {
     #[pyo3(signature = (*, model: "Model | os.PathLike | str", messages: "list[dict]", temperature: "float | None" = None, top_p: "float | None" = None, seed: "int | None" = None, template_variables: "dict[str, bool] | None" = None, tools: "list[Tool] | None" = None, thinking: "bool | None" = None, max_tokens: "int | None" = None, max_completion_tokens: "int | None" = None, stream = false, n_ctx = 4096, n_threads: "int | None" = None, mtp: "MtpConfig | None" = None) -> "ChatCompletion | ChatCompletionStream")]
     fn create(
         &self,
-        model: ModelOrPath<'_>,
+        model: ModelOrPath,
         messages: &Bound<'_, PyAny>,
         temperature: Option<f32>,
         top_p: Option<f32>,
@@ -1806,7 +1807,7 @@ impl ResponsesResource {
     #[pyo3(signature = (*, model: "Model | os.PathLike | str", input: "str | list[dict]", instructions: "str | None" = None, temperature: "float | None" = None, top_p: "float | None" = None, seed: "int | None" = None, template_variables: "dict[str, bool] | None" = None, tools: "list[Tool] | None" = None, thinking: "bool | None" = None, max_output_tokens: "int | None" = None, stream = false, n_ctx = 4096, n_threads: "int | None" = None, mtp: "MtpConfig | None" = None) -> "Response | ResponseStream")]
     fn create(
         &self,
-        model: ModelOrPath<'_>,
+        model: ModelOrPath,
         input: &Bound<'_, PyAny>,
         instructions: Option<String>,
         temperature: Option<f32>,
@@ -2981,13 +2982,9 @@ impl Chat {
     ///     RuntimeError: If tokenization fails
     #[pyo3(signature = (prompt: "str | Prompt") -> "list[int | None]")]
     pub fn tokenize(&self, prompt: PromptOrText, py: Python) -> PyResult<Vec<Option<i32>>> {
-        let nw_prompt = match prompt {
-            PromptOrText::Text(text) => nobodywho::tokenizer::Prompt::from(text),
-            PromptOrText::PromptObj(prompt_obj) => prompt_obj.borrow().prompt.clone(),
-        };
         py.detach(|| {
             self.handle()
-                .tokenize(nw_prompt)
+                .tokenize(prompt.into_prompt())
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
@@ -3121,16 +3118,10 @@ impl ChatAsync {
     /// Raises:
     ///     ValueError: If prefilling the context fails
     #[pyo3(signature = (prompt: "str | Prompt") -> "TokenStreamAsync")]
-    pub async fn ask(&self, prompt: Py<PyAny>) -> PyResult<TokenStreamAsync> {
-        let prompt = Python::attach(|py| {
-            prompt
-                .bind(py)
-                .extract::<PromptOrText>()
-                .map(PromptOrText::into_prompt)
-        })?;
+    pub async fn ask(&self, prompt: PromptOrText) -> PyResult<TokenStreamAsync> {
         let stream = self
             .handle()
-            .ask(prompt)
+            .ask(prompt.into_prompt())
             .await
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(render_miette(&e)))?;
 
@@ -4662,16 +4653,16 @@ impl Prompt {
 
 /// Internal helper: accept either plain text or a `Prompt`.
 #[derive(FromPyObject)]
-pub enum PromptOrText<'py> {
-    PromptObj(Bound<'py, Prompt>),
+pub enum PromptOrText {
+    PromptObj(Prompt),
     Text(String),
 }
 
-impl PromptOrText<'_> {
+impl PromptOrText {
     fn into_prompt(self) -> nobodywho::tokenizer::Prompt {
         match self {
-            PromptOrText::Text(text) => nobodywho::tokenizer::Prompt::text(text),
-            PromptOrText::PromptObj(prompt_obj) => prompt_obj.borrow().prompt.clone(),
+            Self::Text(text) => nobodywho::tokenizer::Prompt::text(text),
+            Self::PromptObj(prompt_obj) => prompt_obj.prompt,
         }
     }
 }
