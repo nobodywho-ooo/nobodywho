@@ -2895,8 +2895,7 @@ impl CompletionGenerator {
                         return Ok(Some(CompletionChunk::Token(text)));
                     }
 
-                    let res = generator.next(chat.get_mut(), *max_tokens, *execute_tools);
-                    match res {
+                    match generator.next(chat.get_mut(), *max_tokens, *execute_tools) {
                         Ok(ControlFlow::Continue(tokens)) => {
                             pending_text.extend(tokens.into_iter().filter(|t| !t.is_empty()));
                             // Jump to the top of the loop
