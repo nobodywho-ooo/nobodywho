@@ -964,6 +964,7 @@ pub struct ChatHandleAsync {
 }
 
 impl ChatHandleAsync {
+    /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
     pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Self, InitWorkerError> {
         Ok(Self {
             chat: ChatHandle::new(model, config)?,
