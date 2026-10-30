@@ -9,9 +9,15 @@ edition = "2021"
 crate-type = ["cdylib"]
 path = "src/lib.rs"
 
+[features]
+default = ["kokoro"]
+# Kokoro text-to-speech, which links espeak-ng (GPL-3.0-or-later).
+# Build with `--no-default-features` to leave it out.
+kokoro = ["nobodywho/kokoro"]
+
 [dependencies]
 rand = "0.10.2"
-nobodywho = { path = "../core" }
+nobodywho = { path = "../core", default-features = false }
 pyo3-async-runtimes = { version = "0.29", features = [
     "attributes",
     "tokio-runtime",

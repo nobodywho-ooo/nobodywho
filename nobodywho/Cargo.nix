@@ -10712,6 +10712,7 @@ rec {
           {
             name = "espeak-ng";
             packageId = "espeak-ng";
+            optional = true;
             usesDefaultFeatures = false;
             features = [ "bundled-data-en" "bundled-data-es" "bundled-data-fr" "bundled-data-it" "bundled-data-pt" ];
           }
@@ -10787,6 +10788,7 @@ rec {
           {
             name = "misaki-rs";
             packageId = "misaki-rs";
+            optional = true;
             usesDefaultFeatures = false;
           }
           {
@@ -10952,7 +10954,11 @@ rec {
             features = [ "std" ];
           }
         ];
-
+        features = {
+          "default" = [ "kokoro" ];
+          "kokoro" = [ "dep:espeak-ng" "dep:misaki-rs" ];
+        };
+        resolvedDefaultFeatures = [ "default" "kokoro" ];
       };
       "nobodywho-flutter" = rec {
         crateName = "nobodywho-flutter";
@@ -10977,6 +10983,7 @@ rec {
           {
             name = "nobodywho";
             packageId = "nobodywho";
+            usesDefaultFeatures = false;
           }
           {
             name = "nom";
@@ -11002,7 +11009,11 @@ rec {
             packageId = "flutter_rust_bridge_codegen";
           }
         ];
-
+        features = {
+          "default" = [ "kokoro" ];
+          "kokoro" = [ "nobodywho/kokoro" ];
+        };
+        resolvedDefaultFeatures = [ "default" "kokoro" ];
       };
       "nobodywho-godot" = rec {
         crateName = "nobodywho-godot";
@@ -11019,6 +11030,7 @@ rec {
           {
             name = "nobodywho";
             packageId = "nobodywho";
+            usesDefaultFeatures = false;
           }
           {
             name = "serde_json";
@@ -11038,7 +11050,11 @@ rec {
             packageId = "tracing-subscriber";
           }
         ];
-
+        features = {
+          "default" = [ "kokoro" ];
+          "kokoro" = [ "nobodywho/kokoro" ];
+        };
+        resolvedDefaultFeatures = [ "default" "kokoro" ];
       };
       "nobodywho-python" = rec {
         crateName = "nobodywho-python";
@@ -11058,6 +11074,7 @@ rec {
           {
             name = "nobodywho";
             packageId = "nobodywho";
+            usesDefaultFeatures = false;
           }
           {
             name = "nom";
@@ -11110,7 +11127,11 @@ rec {
             packageId = "tracing-subscriber";
           }
         ];
-
+        features = {
+          "default" = [ "kokoro" ];
+          "kokoro" = [ "nobodywho/kokoro" ];
+        };
+        resolvedDefaultFeatures = [ "default" "kokoro" ];
       };
       "nobodywho-server" = rec {
         crateName = "nobodywho-server";
@@ -11137,6 +11158,7 @@ rec {
           {
             name = "nobodywho";
             packageId = "nobodywho";
+            usesDefaultFeatures = false;
           }
           {
             name = "serde";
@@ -11166,7 +11188,11 @@ rec {
             features = [ "env-filter" ];
           }
         ];
-
+        features = {
+          "default" = [ "kokoro" ];
+          "kokoro" = [ "nobodywho/kokoro" ];
+        };
+        resolvedDefaultFeatures = [ "default" "kokoro" ];
       };
       "nobodywho-uniffi" = rec {
         crateName = "nobodywho-uniffi";
@@ -11204,6 +11230,7 @@ rec {
           {
             name = "nobodywho";
             packageId = "nobodywho";
+            usesDefaultFeatures = false;
           }
           {
             name = "oslog";
@@ -11234,7 +11261,11 @@ rec {
             features = [ "cli" ];
           }
         ];
-
+        features = {
+          "default" = [ "kokoro" ];
+          "kokoro" = [ "nobodywho/kokoro" ];
+        };
+        resolvedDefaultFeatures = [ "default" "kokoro" ];
       };
       "nom 7.1.3" = rec {
         crateName = "nom";

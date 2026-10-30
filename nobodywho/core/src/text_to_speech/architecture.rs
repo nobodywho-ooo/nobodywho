@@ -1,6 +1,8 @@
 use crate::errors::TextToSpeechError;
 use crate::huggingface;
-use crate::text_to_speech::{kokoro, pocket, supertonic, TextToSpeechConfig, TextToSpeechDevice};
+#[cfg(feature = "kokoro")]
+use crate::text_to_speech::kokoro;
+use crate::text_to_speech::{pocket, supertonic, TextToSpeechConfig, TextToSpeechDevice};
 use std::time::Instant;
 use tracing::info;
 
@@ -31,6 +33,9 @@ pub(super) fn load_architecture(
     device: TextToSpeechDevice,
 ) -> Result<Box<dyn TextToSpeechArchitectureImpl>, TextToSpeechError> {
     match config {
+        #[cfg(not(feature = "kokoro"))]
+        TextToSpeechConfig::Kokoro(_) => Err(TextToSpeechError::KokoroNotCompiled),
+        #[cfg(feature = "kokoro")]
         TextToSpeechConfig::Kokoro(config) => {
             let init_start = Instant::now();
             let model_dir = huggingface::download_onnx(&config.source, &[], None)?;
