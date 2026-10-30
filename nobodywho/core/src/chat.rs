@@ -2880,7 +2880,7 @@ enum CompletionGenerator {
 
 impl CompletionGenerator {
     fn next(&mut self) -> Result<Option<CompletionChunk>, GenerateResponseError> {
-        Ok(match self {
+        match self {
             Self::Generating {
                 chat,
                 generator,
@@ -2892,18 +2892,18 @@ impl CompletionGenerator {
                 loop {
                     if let Some(text) = pending_text.pop_front() {
                         // Continue generating.
-                        break Some(CompletionChunk::Token(text));
+                        return Ok(Some(CompletionChunk::Token(text)));
                     }
 
                     let res = generator.next(chat.get_mut(), *max_tokens, *execute_tools);
                     match res {
                         Ok(ControlFlow::Continue(tokens)) => {
                             pending_text.extend(tokens.into_iter().filter(|t| !t.is_empty()));
-                            continue;
+                            // Jump to the top of the loop
                         }
                         Ok(ControlFlow::Break(response)) => {
                             *self = Self::Done;
-                            break Some(CompletionChunk::Done(response));
+                            return Ok(Some(CompletionChunk::Done(response)));
                         }
                         Err(e) => {
                             // Transition to the done state if we got an error.
@@ -2913,8 +2913,8 @@ impl CompletionGenerator {
                     }
                 }
             }
-            Self::Done => None,
-        })
+            Self::Done => Ok(None),
+        }
     }
 }
 
