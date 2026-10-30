@@ -772,9 +772,6 @@ fn build_core_tools(
 ///     $Label.text += tok
 /// var full = await stream.completed()       # full text
 /// ```
-///
-/// One pull (`next_token()` or `completed()`) at a time. Unpulled tokens are
-/// buffered by core's channel, so generation never stalls on a slow consumer.
 #[derive(GodotClass)]
 #[class(no_init, base=RefCounted)]
 pub struct NobodyWhoTokenStream {
