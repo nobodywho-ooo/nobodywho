@@ -1,5 +1,5 @@
 use crate::errors::{InitWorkerError, LoadModelError};
-use crate::huggingface::{download_gguf, parse_model_path};
+use crate::huggingface::{default_progress_callback, download_gguf, parse_model_path};
 use crate::inference::{BatchCapacity, EngineContext, InferenceEngine, SpeculativeEngine};
 use crate::memory;
 use crate::model_selection;
@@ -17,8 +17,8 @@ use tracing::{error, info, info_span, warn};
 // Back-compat re-exports: bindings (Python, Godot, Flutter) import these via
 // `nobodywho::llm::*`. The implementations now live in `crate::huggingface`.
 pub use crate::huggingface::{
-    default_progress_callback, get_cached_models, throttled_progress_callback,
-    DownloadCancellationCallback, DownloadProgressCallback,
+    get_cached_models, throttled_progress_callback, DownloadCancellationCallback,
+    DownloadProgressCallback,
 };
 
 pub(crate) static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
@@ -151,6 +151,8 @@ pub fn get_model_cancellable(
     progress: Option<DownloadProgressCallback>,
     cancellation: Option<DownloadCancellationCallback>,
 ) -> Result<Model, LoadModelError> {
+    let progress = progress.unwrap_or_else(default_progress_callback);
+
     if model_path == "auto" && mmproj_path.is_some() {
         return Err(LoadModelError::InvalidModel(
             "Automatic model selection does not support projection models; pass an explicit multimodal model path"
@@ -161,41 +163,28 @@ pub fn get_model_cancellable(
     let source = model_path.to_owned();
     let use_gpu = use_gpu_if_available && has_gpu_backend();
     let model_path = model_selection::resolve_model_path(model_path, use_gpu)?;
-    let model_progress = progress
-        .clone()
-        .unwrap_or_else(|| default_progress_callback(model_path));
     let real_model_path = download_gguf(
         parse_model_path(model_path)?,
-        &model_progress,
+        &progress,
         &[],
         cancellation.as_ref(),
     )?;
     let real_mmproj_path = match mmproj_path {
-        Some(p) => {
-            let mmproj_progress = progress
-                .clone()
-                .unwrap_or_else(|| default_progress_callback(p));
-            Some(download_gguf(
-                parse_model_path(p)?,
-                &mmproj_progress,
-                &[],
-                cancellation.as_ref(),
-            )?)
-        }
+        Some(p) => Some(download_gguf(
+            parse_model_path(p)?,
+            &progress,
+            &[],
+            cancellation.as_ref(),
+        )?),
         None => None,
     };
     let real_draft_model_path = match draft_model_path {
-        Some(p) => {
-            let draft_progress = progress
-                .clone()
-                .unwrap_or_else(|| default_progress_callback(p));
-            Some(download_gguf(
-                parse_model_path(p)?,
-                &draft_progress,
-                &[],
-                cancellation.as_ref(),
-            )?)
-        }
+        Some(p) => Some(download_gguf(
+            parse_model_path(p)?,
+            &progress,
+            &[],
+            cancellation.as_ref(),
+        )?),
         None => None,
     };
 
@@ -323,7 +312,7 @@ pub fn download_model_cancellable(
     progress: Option<DownloadProgressCallback>,
     cancellation: Option<DownloadCancellationCallback>,
 ) -> Result<std::path::PathBuf, LoadModelError> {
-    let progress = progress.unwrap_or_else(|| default_progress_callback(model_path));
+    let progress = progress.unwrap_or_else(default_progress_callback);
     download_gguf(
         parse_model_path(model_path)?,
         &progress,
@@ -530,7 +519,7 @@ mod tests {
 
         // First call always emits; subsequent calls within 100ms are dropped.
         for i in 0..1000 {
-            cb(i, 10_000);
+            cb("https://example.com/example.gguf", i, 10_000);
         }
         let n = count.load(Ordering::Relaxed);
         assert!((1..=5).contains(&n), "expected 1–5 emits, got {}", n);
@@ -545,8 +534,8 @@ mod tests {
         });
 
         // First call: emits. Second call inside the window but is_done=true: emits.
-        cb(50, 100);
-        cb(100, 100);
+        cb("https://example.com/example.gguf", 50, 100);
+        cb("https://example.com/example.gguf", 100, 100);
         assert_eq!(count.load(Ordering::Relaxed), 2);
     }
 
