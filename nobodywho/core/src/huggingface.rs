@@ -412,8 +412,8 @@ impl HfRepo {
         format!("{}/{}", self.owner, self.repo)
     }
 
-    fn cache_dir(&self, cache: &ModelCache) -> PathBuf {
-        cache.root.join(&self.owner).join(&self.repo)
+    fn cache_dir(&self) -> PathBuf {
+        PathBuf::from(&self.owner).join(&self.repo)
     }
 
     fn resolve_url(&self, path: &str) -> String {
@@ -435,38 +435,18 @@ impl HfRepo {
 // GgufSource — a single GGUF file (LLM / embedding / reranker models)
 // =========================================================================
 
-/// Where a single GGUF model file comes from: a HuggingFace Hub repo, or an
-/// arbitrary HTTP(S) URL. (A local filesystem path needs no resolving at all,
-/// so it's handled entirely by the caller — see [`download_gguf`].)
-enum GgufSource {
-    HuggingFace { repo: HfRepo, filename: String },
-    Url(String),
-}
-
 impl ModelCache {
-    /// Resolve a [`GgufSource`] to a local file, downloading it first unless
+    /// Resolve a [`RemoteFile`] to a local file, downloading it first unless
     /// it's already cached.
     fn download_file(
         &self,
-        source: &GgufSource,
+        remote: &RemoteFile,
         progress: &DownloadProgressCallback,
         headers: &[(String, String)],
         cancellation: Option<&DownloadCancellationCallback>,
     ) -> Result<PathBuf, LoadModelError> {
-        let (url, target) = match source {
-            GgufSource::HuggingFace { repo, filename } => (
-                repo.resolve_url(filename),
-                repo.cache_dir(self).join(filename),
-            ),
-            GgufSource::Url(url) => {
-                let path_part = url
-                    .trim_start_matches("https://")
-                    .trim_start_matches("http://");
-                (url.clone(), self.root.join("http").join(path_part))
-            }
-        };
-
-        self.fetch_to_path(&url, &target, progress, headers, cancellation)?;
+        let target = self.root.join(&remote.cache_path);
+        self.fetch_to_path(&remote.url, &target, progress, headers, cancellation)?;
         Ok(target)
     }
 
@@ -502,42 +482,22 @@ pub fn get_cached_models() -> Result<Vec<(PathBuf, usize)>, GetCachedModelsError
     ModelCache::open()?.list_cached()
 }
 
-#[derive(Clone, Debug)]
-pub(crate) struct LlamaCppUrl {
-    owner: String,
-    /// The repo name without the `-GGUF` suffix, which is added back in `resolve_source`.
-    repo: String,
-    /// The GGUF suffix of the repo. We store it to remember capitalization.
-    gguf: String,
-    quantization: String,
+/// Where a single GGUF model file comes from.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum GgufSource {
+    /// A file already on the local filesystem.
+    Local(PathBuf),
+    /// A file that has to be downloaded first.
+    Remote(RemoteFile),
 }
 
-impl LlamaCppUrl {
-    fn resolve_source(&self) -> GgufSource {
-        let Self {
-            owner,
-            repo,
-            gguf,
-            quantization,
-        } = self;
-        // In the models Llama CPP supports with this format, the repo name always ends with `-GGUF`,
-        // but that was removed during parsing.
-        let filename = format!("{repo}-{quantization}.gguf");
-        let repo = format!("{repo}{gguf}");
-        GgufSource::HuggingFace {
-            repo: HfRepo::main(owner, repo),
-            filename,
-        }
-    }
-}
-
-/// A parsed `model_path` string, before it's resolved to somewhere on disk.
-#[derive(Clone, Debug)]
-pub(crate) enum ParsedModelPath {
-    HuggingFaceUrl(String, String, String), // e.g. hf://owner/repo/model.gguf -> (owner, repo, filename)
-    LlamaCppUrl(LlamaCppUrl), // e.g. owner/repo:quantization -> (owner, repo, quantization)
-    HttpUrl(String),          // e.g. https://example.com/lol/qwen3.gguf
-    FilesystemPath(PathBuf),  // e.g. ./qwen3.gguf
+/// A GGUF file to fetch over HTTP(s).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RemoteFile {
+    /// The URL where the file can be downloaded from.
+    pub url: String,
+    /// Path of the file relative to the model cache root.
+    pub cache_path: PathBuf,
 }
 
 /// Why [`parse_model_path`] rejected a path.
@@ -559,7 +519,7 @@ impl<I> ParseError<I> for ModelPathError {
 }
 
 /// Parses the `owner/repo/filename` that follows a Hugging Face prefix.
-fn parse_hugging_face_url(input: &str) -> IResult<&str, ParsedModelPath, ModelPathError> {
+fn parse_hugging_face_url(input: &str) -> IResult<&str, GgufSource, ModelPathError> {
     map(
         (
             terminated(take_until("/"), tag("/")),
@@ -567,7 +527,10 @@ fn parse_hugging_face_url(input: &str) -> IResult<&str, ParsedModelPath, ModelPa
             verify(rest, |s: &str| !s.is_empty()),
         ),
         |(owner, repo, filename): (&str, &str, &str)| {
-            ParsedModelPath::HuggingFaceUrl(owner.into(), repo.into(), filename.into())
+            let repo = HfRepo::main(owner, repo);
+            let url = repo.resolve_url(filename);
+            let cache_path = repo.cache_dir().join(filename);
+            GgufSource::Remote(RemoteFile { url, cache_path })
         },
     )
     .parse(input)
@@ -576,7 +539,14 @@ fn parse_hugging_face_url(input: &str) -> IResult<&str, ParsedModelPath, ModelPa
     })
 }
 
-pub(crate) fn parse_model_path(model_path: &str) -> Result<ParsedModelPath, LoadModelError> {
+/// Parse a `model_path` string.
+///
+/// This supports various formats:
+/// - `hf://owner/repo/model.gguf` (huggingface URLs)
+/// - `owner/repo:quantization` (llama.cpp style URLs)
+/// - `https://example.com/lol/qwen3.gguf` (URLs)
+/// - `./qwen3.gguf` (local paths)
+pub fn parse_model_path(model_path: &str) -> Result<GgufSource, LoadModelError> {
     const GGUF_SUFFIX_LOWER_CASE: &str = "-gguf";
     let mut parser = alt((
         // hf://owner/repo/filename.gguf (also hf:, huggingface:, huggingface://)
@@ -592,7 +562,11 @@ pub(crate) fn parse_model_path(model_path: &str) -> Result<ParsedModelPath, Load
         // https://... or http://...
         map(
             (alt((tag_no_case("https://"), tag_no_case("http://"))), rest),
-            |(scheme, path): (&str, &str)| ParsedModelPath::HttpUrl(format!("{}{}", scheme, path)),
+            |(scheme, path): (&str, &str)| {
+                let url = format!("{}{}", scheme, path);
+                let cache_path = PathBuf::from("http").join(path);
+                GgufSource::Remote(RemoteFile { url, cache_path })
+            },
         ),
         map(
             (
@@ -608,19 +582,22 @@ pub(crate) fn parse_model_path(model_path: &str) -> Result<ParsedModelPath, Load
                 ),
                 verify(rest, |s: &str| !s.is_empty() && !s.contains('/')),
             ),
-            |(owner, repo, quantization): (&str, &str, &str)| {
-                ParsedModelPath::LlamaCppUrl(LlamaCppUrl {
-                    owner: owner.into(),
-                    repo: repo[..repo.len() - GGUF_SUFFIX_LOWER_CASE.len()].into(),
-                    gguf: repo[repo.len() - GGUF_SUFFIX_LOWER_CASE.len()..].into(),
-                    quantization: quantization.into(),
-                })
+            |(owner, repo_gguf, quantization): (&str, &str, &str)| {
+                // The repo name without the `-GGUF` suffix.
+                let repo = &repo_gguf[..repo_gguf.len() - GGUF_SUFFIX_LOWER_CASE.len()];
+                // The GGUF suffix of the repo.
+                let gguf = &repo_gguf[repo_gguf.len() - GGUF_SUFFIX_LOWER_CASE.len()..];
+                // In the models Llama CPP supports with this format, the repo name
+                // always ends with `-GGUF`, but that was removed during parsing.
+                let filename = format!("{repo}-{quantization}.gguf");
+                let repo = HfRepo::main(owner, format!("{repo}{gguf}"));
+                let url = repo.resolve_url(&filename);
+                let cache_path = repo.cache_dir().join(filename);
+                GgufSource::Remote(RemoteFile { url, cache_path })
             },
         ),
         // Anything else is a filesystem path (expand leading ~ on non-Android)
-        map(rest, |p: &str| {
-            ParsedModelPath::FilesystemPath(PathBuf::from(p))
-        }),
+        map(rest, |p: &str| GgufSource::Local(PathBuf::from(p))),
     ));
     parser
         .parse(model_path)
@@ -641,36 +618,19 @@ pub(crate) fn parse_model_path(model_path: &str) -> Result<ParsedModelPath, Load
 /// Takes a fancy path (possibly with `hf:` or `https://` in front) and resolves
 /// it to a realized path on the filesystem, downloading it first if needed.
 pub(crate) fn download_gguf(
-    parsed_path: ParsedModelPath,
+    model_location: GgufSource,
     progress: &DownloadProgressCallback,
     headers: &[(String, String)],
     cancellation: Option<&DownloadCancellationCallback>,
 ) -> Result<PathBuf, LoadModelError> {
     check_download_cancellation(cancellation)?;
-    let cache = ModelCache::open()?;
-    let fs_model_path = match parsed_path {
-        ParsedModelPath::HuggingFaceUrl(owner, repo, filename) => {
-            let source = GgufSource::HuggingFace {
-                repo: HfRepo::main(owner, repo),
-                filename,
-            };
-            cache.download_file(&source, progress, headers, cancellation)?
+    let fs_model_path = match model_location {
+        GgufSource::Remote(remote) => {
+            let cache = ModelCache::open()?;
+            cache.download_file(&remote, progress, headers, cancellation)?
         }
-        ParsedModelPath::LlamaCppUrl(llama_cpp_url) => cache.download_file(
-            &llama_cpp_url.resolve_source(),
-            progress,
-            headers,
-            cancellation,
-        )?,
-        ParsedModelPath::FilesystemPath(path) => path,
-        ParsedModelPath::HttpUrl(url) => {
-            cache.download_file(&GgufSource::Url(url), progress, headers, cancellation)?
-        }
+        GgufSource::Local(path) => path,
     };
-
-    if !fs_model_path.exists() {
-        return Err(LoadModelError::from_missing_path(&fs_model_path));
-    }
 
     LoadModelError::validate_model_file(&fs_model_path)?;
 
@@ -806,7 +766,7 @@ impl ModelCache {
             } => (repo, required_files),
         };
 
-        let cache_dir = repo.cache_dir(self);
+        let cache_dir = self.root.join(repo.cache_dir());
 
         // Skip the network round-trip if a previous call already downloaded
         // everything this call needs. We can't infer that from `required_files`
@@ -1032,14 +992,16 @@ mod tests {
 
     #[test]
     fn parses_gguf_hf_scheme() {
-        let ParsedModelPath::HuggingFaceUrl(owner, repo, filename) =
+        let GgufSource::Remote(RemoteFile { url, cache_path }) =
             parse_model_path("hf://owner/repo/filename.gguf").unwrap()
         else {
             panic!("expected HuggingFaceUrl");
         };
-        assert_eq!(owner, "owner");
-        assert_eq!(repo, "repo");
-        assert_eq!(filename, "filename.gguf");
+        assert_eq!(
+            url,
+            "https://huggingface.co/owner/repo/resolve/main/filename.gguf"
+        );
+        assert_eq!(cache_path, Path::new("repo"));
     }
 
     #[test]
@@ -1057,25 +1019,25 @@ mod tests {
 
     #[test]
     fn parses_gguf_llama_scheme_with_quant() {
-        let ParsedModelPath::LlamaCppUrl(LlamaCppUrl {
-            owner,
-            repo,
-            gguf,
-            quantization,
-        }) = parse_model_path("owner/repo-GGuF:quantization").unwrap()
+        let GgufSource::Remote(RemoteFile { url, cache_path }) =
+            parse_model_path("owner/repo-GGuF:quantization").unwrap()
         else {
             panic!("expected LlamaCppUrl");
         };
-        assert_eq!(owner, "owner");
-        assert_eq!(repo, "repo");
-        assert_eq!(gguf, "-GGuF");
-        assert_eq!(quantization, "quantization");
+        assert_eq!(
+            url,
+            "https://huggingface.co/owner/repo-GGuF/resolve/main/repo-quantization.gguf"
+        );
+        assert_eq!(
+            cache_path,
+            Path::new("owner/repo-GGuF/repo-quantization.gguf")
+        );
     }
 
     #[test]
     fn parses_gguf_llama_scheme_without_quant_as_file_path() {
         // Bare `owner/repo` is not auto-interpreted as a LlamaCppUrl.
-        let ParsedModelPath::FilesystemPath(path) = parse_model_path("owner/repo").unwrap() else {
+        let GgufSource::Local(path) = parse_model_path("owner/repo").unwrap() else {
             panic!("expected FilesystemPath");
         };
         assert_eq!(path, PathBuf::from("owner/repo"));
@@ -1113,17 +1075,11 @@ mod tests {
         )];
 
         for (input, expected_url) in cases {
-            let parsed = parse_model_path(input).unwrap();
-            let source = if let ParsedModelPath::LlamaCppUrl(llama_cpp_url) = parsed {
-                llama_cpp_url.resolve_source()
-            } else {
-                panic!("Expected LlamaCppUrl")
-            };
-            if let GgufSource::HuggingFace { repo, filename } = source {
-                let url = repo.resolve_url(&filename);
+            let location = parse_model_path(input).unwrap();
+            if let GgufSource::Remote(RemoteFile { url, .. }) = location {
                 assert_eq!(url, expected_url, "Failed for input: {input}");
             } else {
-                unreachable!("Expected GgufSource::HuggingFace");
+                unreachable!("Expected GgufSource::Remote");
             }
         }
     }
