@@ -368,6 +368,7 @@ pub fn download_model(
         &model_path,
         headers_vec,
         Some(wrap_progress(on_download_progress)),
+        None,
     )
     .map(|p| p.to_string_lossy().into_owned())
     .map_err(|e| nobodywho::render_miette(&e))

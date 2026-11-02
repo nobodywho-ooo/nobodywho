@@ -394,7 +394,7 @@ pub async fn download_model(
     let progress = on_download_progress.map(wrap_progress);
 
     AsyncWorker::new()
-        .run(move || nobodywho::llm::download_model(&model_path, headers_vec, progress))
+        .run(move || nobodywho::llm::download_model(&model_path, headers_vec, progress, None))
         .await
         .map(|p| p.to_string_lossy().into_owned())
         .map_err(|e| NobodyWhoError::Error {
