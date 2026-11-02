@@ -23,20 +23,21 @@ use tracing::{info, warn};
 // Progress callbacks
 // =========================================================================
 
-/// Callback invoked during model downloads with `(downloaded_bytes, total_bytes)`.
+/// Callback invoked during model downloads with `(url, downloaded_bytes, total_bytes)`.
 ///
 /// Invoked on each read chunk from the single download thread. If the same callback
 /// is shared across concurrent downloads, the closure is responsible for its own
 /// synchronization (hence the `Sync` bound).
-pub type DownloadProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
+pub type DownloadProgressCallback = Arc<dyn Fn(&str, u64, u64) + Send + Sync>;
 
 /// Callback checked between download chunks. Returning `true` stops the download.
-pub type DownloadCancellationCallback = Arc<dyn Fn() -> bool + Send + Sync>;
+pub type DownloadCancellationCallback = Arc<dyn Fn(&str) -> bool + Send + Sync>;
 
 fn check_download_cancellation(
+    url: &str,
     cancellation: Option<&DownloadCancellationCallback>,
 ) -> Result<(), LoadModelError> {
-    if cancellation.is_some_and(|is_cancelled| is_cancelled()) {
+    if cancellation.is_some_and(|is_cancelled| is_cancelled(url)) {
         return Err(LoadModelError::DownloadCancelled);
     }
     Ok(())
@@ -52,8 +53,7 @@ fn check_download_cancellation(
 /// mmproj) should create one of these per file rather than sharing a single
 /// instance, so each file gets its own visibly-labeled bar instead of an
 /// unlabeled one that appears to just restart.
-pub fn default_progress_callback(path: &str) -> DownloadProgressCallback {
-    let name = path.rsplit('/').next().unwrap_or(path).to_string();
+pub fn default_progress_callback() -> DownloadProgressCallback {
     let style = ProgressStyle::with_template(
         "{spinner:.green} [{elapsed_precise}] {msg} {wide_bar:.cyan/blue} \
          {binary_bytes}/{binary_total_bytes} ({binary_bytes_per_sec}, {eta})",
@@ -63,7 +63,8 @@ pub fn default_progress_callback(path: &str) -> DownloadProgressCallback {
 
     let state: Arc<Mutex<(Option<ProgressBar>, u64)>> = Arc::new(Mutex::new((None, 0)));
 
-    Arc::new(move |downloaded: u64, total: u64| {
+    Arc::new(move |url, downloaded: u64, total: u64| {
+        let name = url.rsplit('/').next().unwrap_or(url).to_string();
         let mut s = state.lock().expect("progress bar mutex poisoned");
         if s.0.is_none() || s.1 != total {
             if let Some(old) = s.0.take() {
@@ -106,7 +107,7 @@ where
     const THROTTLE_NS: u64 = 100_000_000;
 
     let last_emit_ns = AtomicU64::new(0);
-    Arc::new(move |downloaded: u64, total: u64| {
+    Arc::new(move |_url, downloaded: u64, total: u64| {
         let is_done = total > 0 && downloaded >= total;
         let now_ns = EPOCH.elapsed().as_nanos() as u64;
         let prev = last_emit_ns.load(Ordering::Relaxed);
@@ -211,7 +212,7 @@ impl ModelCache {
         cancellation: Option<&DownloadCancellationCallback>,
     ) -> Result<(), LoadModelError> {
         Self::validate_no_traversal(target_path)?;
-        check_download_cancellation(cancellation)?;
+        check_download_cancellation(url, cancellation)?;
 
         if target_path.exists() {
             info!("Using cached file: {}", target_path.display());
@@ -341,7 +342,7 @@ impl ModelCache {
         let mut buf = vec![0u8; 256 * 1024];
 
         loop {
-            check_download_cancellation(cancellation)?;
+            check_download_cancellation(url, cancellation)?;
             let n = reader
                 .read(&mut buf)
                 .map_err(|source| LoadModelError::ReadDownload {
@@ -358,8 +359,8 @@ impl ModelCache {
                 })?;
             downloaded += n as u64;
 
-            progress(downloaded, content_length);
-            check_download_cancellation(cancellation)?;
+            progress(url, downloaded, content_length);
+            check_download_cancellation(url, cancellation)?;
 
             if let Some(pct) = (downloaded * 100).checked_div(content_length) {
                 if pct >= last_logged_pct + 5 {
@@ -381,7 +382,7 @@ impl ModelCache {
         // the bar can close out against a real total instead of never
         // learning how big the file actually was.
         if content_length == 0 {
-            progress(downloaded, downloaded);
+            progress(url, downloaded, downloaded);
         }
         Ok(())
     }
@@ -623,7 +624,6 @@ pub(crate) fn download_gguf(
     headers: &[(String, String)],
     cancellation: Option<&DownloadCancellationCallback>,
 ) -> Result<PathBuf, LoadModelError> {
-    check_download_cancellation(cancellation)?;
     let fs_model_path = match model_location {
         GgufSource::Remote(remote) => {
             let cache = ModelCache::open()?;
@@ -836,12 +836,13 @@ impl ModelCache {
             // its own it can't label the bar per file. Drive a freshly-labeled bar
             // here (named after the concrete file) alongside it, forwarding the same
             // byte counts to both.
-            let named = default_progress_callback(path);
+            let named = default_progress_callback();
             let progress = progress.clone();
-            let file_progress: DownloadProgressCallback = Arc::new(move |downloaded, total| {
-                named(downloaded, total);
-                progress(downloaded, total);
-            });
+            let file_progress: DownloadProgressCallback =
+                Arc::new(move |url, downloaded, total| {
+                    named(url, downloaded, total);
+                    progress(url, downloaded, total);
+                });
             self.fetch_to_path(&url, &target, &file_progress, headers, None)
                 .map_err(|source| HuggingFaceError::DownloadEntry {
                     path: path.clone(),
@@ -918,7 +919,7 @@ pub(crate) fn download_onnx(
     let cache = ModelCache::open()?;
     // No caller threads a custom callback through yet, so there's nothing
     // meaningful to forward here — `download_repo` labels its own per-file bars.
-    let progress: DownloadProgressCallback = Arc::new(|_downloaded, _total| {});
+    let progress: DownloadProgressCallback = Arc::new(|_url, _downloaded, _total| {});
     let source = match parse_onnx_path(source)? {
         ParsedOnnxPath::HuggingFace(owner, repo) => OnnxSource::HuggingFace {
             repo: HfRepo::main(owner, repo),
@@ -968,11 +969,11 @@ mod tests {
         };
         let cancelled = Arc::new(AtomicBool::new(false));
         let progress_cancelled = Arc::clone(&cancelled);
-        let progress: DownloadProgressCallback = Arc::new(move |_, _| {
+        let progress: DownloadProgressCallback = Arc::new(move |_, _, _| {
             progress_cancelled.store(true, Ordering::Relaxed);
         });
         let cancellation: DownloadCancellationCallback =
-            Arc::new(move || cancelled.load(Ordering::Relaxed));
+            Arc::new(move |_| cancelled.load(Ordering::Relaxed));
 
         let result = cache.fetch_to_path(
             &format!("http://{address}/model.gguf"),

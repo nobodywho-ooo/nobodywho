@@ -93,7 +93,7 @@ impl PythonDownloadContext {
     fn cancellation_callback(&self) -> nobodywho::llm::DownloadCancellationCallback {
         let cancelled = Arc::clone(&self.cancelled);
         let signal_error = Arc::clone(&self.signal_error);
-        Arc::new(move || {
+        Arc::new(move |_url| {
             if cancelled.load(Ordering::Relaxed) {
                 return true;
             }
@@ -139,18 +139,21 @@ impl PythonDownloadContext {
 
         let cancelled = Arc::clone(&self.cancelled);
         let signal_error = Arc::clone(&self.signal_error);
-        Ok(Some(Arc::new(move |downloaded: u64, total: u64| {
-            Python::attach(|py| {
-                if let Err(error) = callback.call1(py, (downloaded, total)) {
-                    if error.is_instance_of::<PyKeyboardInterrupt>(py) {
-                        *signal_error.lock().expect("signal error mutex poisoned") = Some(error);
-                        cancelled.store(true, Ordering::Relaxed);
-                    } else {
-                        error.print(py);
+        Ok(Some(
+            Arc::new(move |_url: &str, downloaded: u64, total: u64| {
+                Python::attach(|py| {
+                    if let Err(error) = callback.call1(py, (downloaded, total)) {
+                        if error.is_instance_of::<PyKeyboardInterrupt>(py) {
+                            *signal_error.lock().expect("signal error mutex poisoned") =
+                                Some(error);
+                            cancelled.store(true, Ordering::Relaxed);
+                        } else {
+                            error.print(py);
+                        }
                     }
-                }
-            });
-        }) as nobodywho::llm::DownloadProgressCallback))
+                });
+            }) as nobodywho::llm::DownloadProgressCallback,
+        ))
     }
 }
 
@@ -168,13 +171,15 @@ fn resolve_on_download_progress(
         }
         Ok(())
     })?;
-    Ok(Some(Arc::new(move |downloaded: u64, total: u64| {
-        Python::attach(|py| {
-            if let Err(error) = callback.call1(py, (downloaded, total)) {
-                error.print(py);
-            }
-        });
-    }) as nobodywho::llm::DownloadProgressCallback))
+    Ok(Some(
+        Arc::new(move |_url: &str, downloaded: u64, total: u64| {
+            Python::attach(|py| {
+                if let Err(error) = callback.call1(py, (downloaded, total)) {
+                    error.print(py);
+                }
+            });
+        }) as nobodywho::llm::DownloadProgressCallback,
+    ))
 }
 
 #[pymethods]
