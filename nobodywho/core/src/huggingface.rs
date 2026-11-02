@@ -141,12 +141,12 @@ pub(crate) fn resolve_token(token: Option<&str>) -> Result<Option<String>, std::
 /// Root directory all downloaded models are cached under, shared by both
 /// [`GgufSource`] and [`OnnxSource`]. Cheap to construct — open a fresh one
 /// wherever a source needs resolving, no need to cache the instance across calls.
-struct ModelCache {
+pub(crate) struct ModelCache {
     root: PathBuf,
 }
 
 impl ModelCache {
-    fn open() -> Result<Self, GetCacheDirError> {
+    pub(crate) fn open() -> Result<Self, GetCacheDirError> {
         let base = Self::platform_cache_dir()?;
         Ok(Self {
             root: base.join("nobodywho").join("models"),
@@ -439,7 +439,7 @@ impl HfRepo {
 impl ModelCache {
     /// Resolve a [`RemoteFile`] to a local file, downloading it first unless
     /// it's already cached.
-    fn download_file(
+    pub(crate) fn download_file(
         &self,
         remote: &RemoteFile,
         progress: &DownloadProgressCallback,
@@ -614,27 +614,6 @@ pub fn parse_model_path(model_path: &str) -> Result<GgufSource, LoadModelError> 
                 path: model_path.into(),
             },
         })
-}
-
-/// Takes a fancy path (possibly with `hf:` or `https://` in front) and resolves
-/// it to a realized path on the filesystem, downloading it first if needed.
-pub(crate) fn download_gguf(
-    model_location: GgufSource,
-    progress: &DownloadProgressCallback,
-    headers: &[(String, String)],
-    cancellation: Option<&DownloadCancellationCallback>,
-) -> Result<PathBuf, LoadModelError> {
-    let fs_model_path = match model_location {
-        GgufSource::Remote(remote) => {
-            let cache = ModelCache::open()?;
-            cache.download_file(&remote, progress, headers, cancellation)?
-        }
-        GgufSource::Local(path) => path,
-    };
-
-    LoadModelError::validate_model_file(&fs_model_path)?;
-
-    Ok(fs_model_path)
 }
 
 // =========================================================================
