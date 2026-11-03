@@ -1,5 +1,5 @@
+import { downloadModels } from "./download";
 import {
-  downloadModels,
   loadModel,
   parseModelPaths,
   type RustModelInterface,
