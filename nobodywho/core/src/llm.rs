@@ -1,5 +1,5 @@
 use crate::errors::{InitWorkerError, LoadModelError};
-use crate::huggingface::{download_gguf, parse_model_path};
+use crate::huggingface::{download_gguf_async, parse_model_path};
 use crate::inference::{BatchCapacity, EngineContext, InferenceEngine, SpeculativeEngine};
 use crate::memory;
 use crate::model_selection;
@@ -132,7 +132,27 @@ pub fn get_model(
     draft_model_path: Option<&str>,
     progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
-    get_model_cancellable(
+    futures::executor::block_on(get_model_async(
+        model_path,
+        use_gpu_if_available,
+        mmproj_path,
+        draft_model_path,
+        progress,
+    ))
+}
+
+/// Async version of [`get_model`].
+///
+/// On Emscripten, this is the only version that can download models, since
+/// the download is driven by the browser's event loop.
+pub async fn get_model_async(
+    model_path: &str,
+    use_gpu_if_available: bool,
+    mmproj_path: Option<&str>,
+    draft_model_path: Option<&str>,
+    progress: Option<DownloadProgressCallback>,
+) -> Result<Model, LoadModelError> {
+    get_model_cancellable_async(
         model_path,
         use_gpu_if_available,
         mmproj_path,
@@ -140,10 +160,30 @@ pub fn get_model(
         progress,
         None,
     )
+    .await
 }
 
-#[tracing::instrument(level = "info", skip(progress, cancellation))]
 pub fn get_model_cancellable(
+    model_path: &str,
+    use_gpu_if_available: bool,
+    mmproj_path: Option<&str>,
+    draft_model_path: Option<&str>,
+    progress: Option<DownloadProgressCallback>,
+    cancellation: Option<DownloadCancellationCallback>,
+) -> Result<Model, LoadModelError> {
+    futures::executor::block_on(get_model_cancellable_async(
+        model_path,
+        use_gpu_if_available,
+        mmproj_path,
+        draft_model_path,
+        progress,
+        cancellation,
+    ))
+}
+
+/// Async version of [`get_model_cancellable`].
+#[tracing::instrument(level = "info", skip(progress, cancellation))]
+pub async fn get_model_cancellable_async(
     model_path: &str,
     use_gpu_if_available: bool,
     mmproj_path: Option<&str>,
@@ -164,23 +204,27 @@ pub fn get_model_cancellable(
     let model_progress = progress
         .clone()
         .unwrap_or_else(|| default_progress_callback(model_path));
-    let real_model_path = download_gguf(
+    let real_model_path = download_gguf_async(
         parse_model_path(model_path)?,
         &model_progress,
         &[],
         cancellation.as_ref(),
-    )?;
+    )
+    .await?;
     let real_mmproj_path = match mmproj_path {
         Some(p) => {
             let mmproj_progress = progress
                 .clone()
                 .unwrap_or_else(|| default_progress_callback(p));
-            Some(download_gguf(
-                parse_model_path(p)?,
-                &mmproj_progress,
-                &[],
-                cancellation.as_ref(),
-            )?)
+            Some(
+                download_gguf_async(
+                    parse_model_path(p)?,
+                    &mmproj_progress,
+                    &[],
+                    cancellation.as_ref(),
+                )
+                .await?,
+            )
         }
         None => None,
     };
@@ -189,12 +233,15 @@ pub fn get_model_cancellable(
             let draft_progress = progress
                 .clone()
                 .unwrap_or_else(|| default_progress_callback(p));
-            Some(download_gguf(
-                parse_model_path(p)?,
-                &draft_progress,
-                &[],
-                cancellation.as_ref(),
-            )?)
+            Some(
+                download_gguf_async(
+                    parse_model_path(p)?,
+                    &draft_progress,
+                    &[],
+                    cancellation.as_ref(),
+                )
+                .await?,
+            )
         }
         None => None,
     };
@@ -314,7 +361,16 @@ pub fn download_model(
     headers: Vec<(String, String)>,
     progress: Option<DownloadProgressCallback>,
 ) -> Result<std::path::PathBuf, LoadModelError> {
-    download_model_cancellable(model_path, headers, progress, None)
+    futures::executor::block_on(download_model_async(model_path, headers, progress))
+}
+
+/// Async version of [`download_model`].
+pub async fn download_model_async(
+    model_path: &str,
+    headers: Vec<(String, String)>,
+    progress: Option<DownloadProgressCallback>,
+) -> Result<std::path::PathBuf, LoadModelError> {
+    download_model_cancellable_async(model_path, headers, progress, None).await
 }
 
 pub fn download_model_cancellable(
@@ -323,13 +379,29 @@ pub fn download_model_cancellable(
     progress: Option<DownloadProgressCallback>,
     cancellation: Option<DownloadCancellationCallback>,
 ) -> Result<std::path::PathBuf, LoadModelError> {
+    futures::executor::block_on(download_model_cancellable_async(
+        model_path,
+        headers,
+        progress,
+        cancellation,
+    ))
+}
+
+/// Async version of [`download_model_cancellable`].
+pub async fn download_model_cancellable_async(
+    model_path: &str,
+    headers: Vec<(String, String)>,
+    progress: Option<DownloadProgressCallback>,
+    cancellation: Option<DownloadCancellationCallback>,
+) -> Result<std::path::PathBuf, LoadModelError> {
     let progress = progress.unwrap_or_else(|| default_progress_callback(model_path));
-    download_gguf(
+    download_gguf_async(
         parse_model_path(model_path)?,
         &progress,
         &headers,
         cancellation.as_ref(),
     )
+    .await
 }
 
 pub type WriteOutput =

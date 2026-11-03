@@ -1,16 +1,83 @@
-//! Rusty API for emscripten/fetch.h
+//! Rusty, `async` API for emscripten/fetch.h
 //!
 //! <https://github.com/emscripten-core/emscripten/blob/6.0.13/system/include/emscripten/fetch.h>
+//!
+//! Everything here must be used from a single thread, which is also the thread
+//! whose event loop drives the fetch callbacks.
 #![allow(dead_code, non_snake_case)]
 
 use core::slice;
 use std::{
-    ffi::{CStr, c_char, c_int, c_ushort, c_void},
-    ptr::null_mut,
+    cell::{Cell, RefCell},
+    ffi::{CStr, CString, c_char, c_int, c_ushort, c_void},
+    fmt,
+    future::Future,
+    pin::Pin,
+    ptr::{null, null_mut},
+    rc::Rc,
+    task::{Context, Poll, Waker},
 };
+
+/// A completed (2xx) response.
+#[derive(Debug, Clone)]
+pub struct Response {
+    pub status: u16,
+    /// Value of the `Content-Length`, or 0 if unknown.
+    pub total_bytes: u64,
+    /// The body. Empty if the request was made with [`FetchBuilder::stream`].
+    pub data: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FetchError {
+    /// The server answered with a non-success status code.
+    Http { status: u16, status_text: String },
+    /// The request failed before getting a response (network, CORS, timeout, ...).
+    Network { status_text: String },
+    /// The request was aborted, because the chunk callback asked for it, or the
+    /// future was dropped.
+    Aborted,
+}
+
+impl fmt::Display for FetchError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Http { status, status_text } => write!(f, "HTTP status {status} {status_text}"),
+            Self::Network { status_text } => write!(f, "network error: {status_text}"),
+            Self::Aborted => write!(f, "fetch aborted"),
+        }
+    }
+}
+
+impl std::error::Error for FetchError {}
+
+/// Called for each received chunk with `(chunk, offset_of_chunk, total_bytes)`.
+/// Return `false` to abort the request.
+type ChunkCallback = Box<dyn FnMut(&[u8], u64, u64) -> bool>;
+
+struct Shared {
+    result: RefCell<Option<Result<Response, FetchError>>>,
+    waker: RefCell<Option<Waker>>,
+    on_chunk: RefCell<Option<ChunkCallback>>,
+    /// Set once `emscripten_fetch_close` has been (or is being) called.
+    closed: Cell<bool>,
+    aborted: Cell<bool>,
+    total_bytes: Cell<u64>,
+}
+
+impl Shared {
+    fn finish(&self, result: Result<Response, FetchError>) {
+        *self.result.borrow_mut() = Some(result);
+        if let Some(waker) = self.waker.borrow_mut().take() {
+            waker.wake();
+        }
+    }
+}
 
 pub struct FetchBuilder {
     attr: emscripten_fetch_attr_t,
+    headers: Vec<CString>,
+    on_chunk: Option<ChunkCallback>,
 }
 
 impl FetchBuilder {
@@ -21,33 +88,191 @@ impl FetchBuilder {
         for (i, x) in method.as_bytes().iter().enumerate() {
             attr.requestMethod[i] = *x as c_char;
         }
-        Self { attr }
+        // Don't use IndexedDB.
+        attr.attributes = (FetchAttributes::LOAD_TO_MEMORY | FetchAttributes::REPLACE).bits();
+        Self {
+            attr,
+            headers: Vec::new(),
+            on_chunk: None,
+        }
     }
 
-    pub fn build(&self, url: &CStr) -> Fetch {
-        let attr: *const emscripten_fetch_attr_t = &self.attr;
-        let mut fetch = Fetch { ptr: null_mut() };
-        fetch.ptr = unsafe { emscripten_fetch(attr.cast_mut(), url.as_ptr()) };
-        fetch
+    /// Add a request header. Names/values containing NUL bytes are ignored.
+    pub fn header(mut self, name: &str, value: &str) -> Self {
+        if let (Ok(name), Ok(value)) = (CString::new(name), CString::new(value)) {
+            self.headers.push(name);
+            self.headers.push(value);
+        }
+        self
+    }
+
+    /// Deliver the body in chunks to `on_chunk` instead of buffering all of it
+    /// in memory. `on_chunk` is called with `(chunk, offset, total_bytes)` and
+    /// returns `false` to abort the request (the future then yields
+    /// [`FetchError::Aborted`]).
+    ///
+    /// Requires linking with `-sFETCH_STREAMING=1`.
+    pub fn stream(mut self, on_chunk: impl FnMut(&[u8], u64, u64) -> bool + 'static) -> Self {
+        self.// Chunks are only delivered when both flags are set. Each chunk replaces
+        // the previous one in the fetch's data buffer.
+        // Requires linking with `-sFETCH_STREAMING=1`.
+        attr.attributes = (FetchAttributes::LOAD_TO_MEMORY
+            | FetchAttributes::STREAM_DATA
+            | FetchAttributes::REPLACE)
+            .bits();
+        self.on_chunk = Some(Box::new(on_chunk));
+        self
+    }
+
+    /// Start the request. The returned future resolves when it is done.
+    pub fn send(self, url: &str) -> Fetch {
+        let shared = Rc::new(Shared {
+            result: RefCell::new(None),
+            waker: RefCell::new(None),
+            on_chunk: RefCell::new(self.on_chunk),
+            closed: Cell::new(false),
+            aborted: Cell::new(false),
+            total_bytes: Cell::new(0),
+        });
+
+        let Ok(url) = CString::new(url) else {
+            shared.finish(Err(FetchError::Network {
+                status_text: "URL contains a NUL byte".into(),
+            }));
+            return Fetch { shared, ptr: null_mut() };
+        };
+
+        let mut attr = self.attr;
+        let mut header_ptrs: Vec<*const c_char> = self.headers.iter().map(|h| h.as_ptr()).collect();
+        header_ptrs.push(null());
+        attr.requestHeaders = header_ptrs.as_ptr();
+        attr.userData = Rc::into_raw(shared.clone()).cast_mut().cast();
+        attr.onsuccess = Some(on_success);
+        attr.onerror = Some(on_error);
+        attr.onprogress = Some(on_progress);
+
+        // Emscripten makes an internal copy of the attributes, headers and URL.
+        let ptr = unsafe { emscripten_fetch(&mut attr, url.as_ptr()) };
+        Fetch { shared, ptr }
     }
 }
 
+/// A running fetch. Dropping it cancels the request.
 pub struct Fetch {
+    shared: Rc<Shared>,
     ptr: *mut emscripten_fetch_t,
+}
+
+impl Future for Fetch {
+    type Output = Result<Response, FetchError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(result) = self.shared.result.borrow_mut().take() {
+            return Poll::Ready(result);
+        }
+        *self.shared.waker.borrow_mut() = Some(cx.waker().clone());
+        Poll::Pending
+    }
 }
 
 impl Drop for Fetch {
     fn drop(&mut self) {
-        eprintln!("drop");
-        // let res = unsafe { emscripten_fetch_close(self.ptr) };
-        // assert_eq!(res, 0);
+        if self.ptr.is_null() || self.shared.closed.replace(true) {
+            return;
+        }
+        // The fetch is still executing; this calls `on_error`, which releases
+        // the reference held by `userData`.
+        self.shared.aborted.set(true);
+        unsafe { emscripten_fetch_close(self.ptr) };
+    }
+}
+
+/// Borrow the shared state without consuming the reference held by `userData`.
+unsafe fn borrow_shared<'a>(fetch: *mut emscripten_fetch_t) -> &'a Shared {
+    unsafe { &*((*fetch).userData as *const Shared) }
+}
+
+/// Take over the reference held by `userData`. Only for terminal callbacks.
+unsafe fn take_shared(fetch: *mut emscripten_fetch_t) -> Rc<Shared> {
+    unsafe { Rc::from_raw((*fetch).userData as *const Shared) }
+}
+
+fn status_text(fetch: &emscripten_fetch_t) -> String {
+    unsafe { CStr::from_ptr(fetch.statusText.as_ptr()) }
+        .to_string_lossy()
+        .into_owned()
+}
+
+unsafe extern "C-unwind" fn on_progress(fetch: *mut emscripten_fetch_t) {
+    let shared = unsafe { borrow_shared(fetch) };
+    let f = unsafe { &*fetch };
+    if f.totalBytes != 0 {
+        shared.total_bytes.set(f.totalBytes);
+    }
+    if shared.closed.get() || f.data.is_null() || f.numBytes == 0 {
+        return;
+    }
+    let Some(mut on_chunk) = shared.on_chunk.borrow_mut().take() else {
+        return;
+    };
+    let chunk = unsafe { slice::from_raw_parts(f.data.cast::<u8>(), f.numBytes as usize) };
+    let keep_going = on_chunk(chunk, f.dataOffset, shared.total_bytes.get());
+    *shared.on_chunk.borrow_mut() = Some(on_chunk);
+    if !keep_going && !shared.closed.replace(true) {
+        shared.aborted.set(true);
+        // Calls `on_error` before returning, which releases `userData`.
+        unsafe { emscripten_fetch_close(fetch) };
+    }
+}
+
+unsafe extern "C-unwind" fn on_success(fetch: *mut emscripten_fetch_t) {
+    let shared = unsafe { take_shared(fetch) };
+    let f = unsafe { &*fetch };
+    let data = if f.data.is_null() {
+        Vec::new()
+    } else {
+        unsafe { slice::from_raw_parts(f.data.cast::<u8>(), f.numBytes as usize) }.to_vec()
+    };
+    let total_bytes = match shared.total_bytes.get() {
+        0 => f.totalBytes,
+        n => n,
+    };
+    shared.finish(Ok(Response {
+        status: f.status,
+        total_bytes,
+        data,
+    }));
+    if !shared.closed.replace(true) {
+        unsafe { emscripten_fetch_close(fetch) };
+    }
+}
+
+unsafe extern "C-unwind" fn on_error(fetch: *mut emscripten_fetch_t) {
+    let shared = unsafe { take_shared(fetch) };
+    let f = unsafe { &*fetch };
+    let error = if shared.aborted.get() {
+        FetchError::Aborted
+    } else if f.status != 0 {
+        FetchError::Http {
+            status: f.status,
+            status_text: status_text(f),
+        }
+    } else {
+        FetchError::Network {
+            status_text: status_text(f),
+        }
+    };
+    shared.finish(Err(error));
+    // If we're being called from within `emscripten_fetch_close`, it frees the fetch.
+    if !shared.closed.replace(true) {
+        unsafe { emscripten_fetch_close(fetch) };
     }
 }
 
 bitflags::bitflags! {
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
     #[repr(transparent)]
-    struct FetchAttributes: u32 {
+    pub struct FetchAttributes: u32 {
         /// Emscripten fetch attributes:
         /// If passed, the body of the request will be present in full in the onsuccess()
         /// handler.
@@ -287,39 +512,4 @@ unsafe extern "C-unwind" {
     // This frees the memory used by the array of headers. Call this when finished
     // with the data returned by emscripten_fetch_unpack_response_headers.
     fn emscripten_fetch_free_unpacked_response_headers(unpackedHeaders: *mut *mut c_char);
-}
-
-pub fn test() {
-    eprintln!("downloading");
-    let mut builder = FetchBuilder::new("GET");
-    builder.attr.attributes = FetchAttributes::empty().bits();
-    builder.attr.onsuccess = Some(downloadSucceeded);
-    builder.attr.onerror = Some(downloadFailed);
-    // builder.attr.onprogress = Some(progress);
-    let fetch = builder.build(c"http://example.com");
-    eprintln!("sent");
-}
-
-extern "C-unwind" fn downloadSucceeded(fetch: *mut emscripten_fetch_t) {
-    eprintln!("downloadSucceeded");
-    let fetch2 = unsafe { &*fetch };
-    println!(
-        "Finished downloading {} bytes from URL {:?}",
-        fetch2.numBytes,
-        unsafe { CStr::from_ptr(fetch2.url) }
-    );
-    let bytes = unsafe { slice::from_raw_parts(fetch2.data.cast::<u8>(), fetch2.numBytes as _) };
-    println!("{}", str::from_utf8(bytes).unwrap());
-    unsafe { emscripten_fetch_close(fetch) };
-}
-
-extern "C-unwind" fn downloadFailed(fetch: *mut emscripten_fetch_t) {
-    eprintln!("downloadFailed");
-    let fetch2 = unsafe { &*fetch };
-    println!(
-        "Downloading {:?} failed, HTTP failure status code: {}",
-        unsafe { CStr::from_ptr(fetch2.url) },
-        fetch2.status
-    );
-    unsafe { emscripten_fetch_close(fetch) };
 }
