@@ -105,6 +105,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "playwright-core": "^1.64.1",
     "prettier": "^3.9.10",
     "react": "^19.2.3",
     "react-native": "^0.84.1",
