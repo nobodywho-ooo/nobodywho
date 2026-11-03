@@ -352,26 +352,20 @@ pub async fn load_model(
 ) -> Result<Arc<RustModel>, NobodyWhoError> {
     init_logging();
 
-    nobodywho_emscripten::test();
-
     info!(
         "load_model called: path={}, gpu={}, mmproj={:?}, draft={:?}",
         model_path, use_gpu, projection_model_path, draft_model_path,
     );
 
     let progress = on_download_progress.map(wrap_progress);
-    let model_path_clone = model_path.clone();
-    let model = AsyncWorker::new()
-        .run(move || {
-            nobodywho::llm::get_model(
-                &model_path_clone,
-                use_gpu,
-                projection_model_path.as_deref(),
-                draft_model_path.as_deref(),
-                progress,
-            )
-        })
-        .await
+    let model = load_model_inner(
+        model_path.clone(),
+        use_gpu,
+        projection_model_path,
+        draft_model_path,
+        progress,
+    )
+    .await
         .map_err(|e| {
             let msg = nobodywho::render_miette(&e);
             error!("{}", msg);
@@ -382,6 +376,69 @@ pub async fn load_model(
     Ok(Arc::new(RustModel {
         inner: Arc::new(model),
     }))
+}
+
+/// Platforms with worker threads download and load on the worker, so the caller's
+/// executor is never blocked.
+#[cfg(not(target_os = "emscripten"))]
+async fn load_model_inner(
+    model_path: String,
+    use_gpu: bool,
+    projection_model_path: Option<String>,
+    draft_model_path: Option<String>,
+    progress: Option<nobodywho::huggingface::DownloadProgressCallback>,
+) -> Result<nobodywho::llm::Model, nobodywho::errors::LoadModelError> {
+    AsyncWorker::new()
+        .run(move || {
+            nobodywho::llm::get_model(
+                &model_path,
+                use_gpu,
+                projection_model_path.as_deref(),
+                draft_model_path.as_deref(),
+                progress,
+            )
+        })
+        .await
+}
+
+/// Emscripten downloads are driven by the browser's event loop, so they must
+/// be awaited rather than blocked on.
+#[cfg(target_os = "emscripten")]
+async fn load_model_inner(
+    model_path: String,
+    use_gpu: bool,
+    projection_model_path: Option<String>,
+    draft_model_path: Option<String>,
+    progress: Option<nobodywho::huggingface::DownloadProgressCallback>,
+) -> Result<nobodywho::llm::Model, nobodywho::errors::LoadModelError> {
+    nobodywho::llm::get_model_async(
+        &model_path,
+        use_gpu,
+        projection_model_path.as_deref(),
+        draft_model_path.as_deref(),
+        progress,
+    )
+    .await
+}
+
+#[cfg(not(target_os = "emscripten"))]
+async fn download_model_inner(
+    model_path: String,
+    headers: Vec<(String, String)>,
+    progress: Option<nobodywho::huggingface::DownloadProgressCallback>,
+) -> Result<std::path::PathBuf, nobodywho::errors::LoadModelError> {
+    AsyncWorker::new()
+        .run(move || nobodywho::llm::download_model(&model_path, headers, progress))
+        .await
+}
+
+#[cfg(target_os = "emscripten")]
+async fn download_model_inner(
+    model_path: String,
+    headers: Vec<(String, String)>,
+    progress: Option<nobodywho::huggingface::DownloadProgressCallback>,
+) -> Result<std::path::PathBuf, nobodywho::errors::LoadModelError> {
+    nobodywho::llm::download_model_async(&model_path, headers, progress).await
 }
 
 /// Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
@@ -398,8 +455,7 @@ pub async fn download_model(
     let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
     let progress = on_download_progress.map(wrap_progress);
 
-    AsyncWorker::new()
-        .run(move || nobodywho::llm::download_model(&model_path, headers_vec, progress))
+    download_model_inner(model_path, headers_vec, progress)
         .await
         .map(|p| p.to_string_lossy().into_owned())
         .map_err(|e| NobodyWhoError::Error {

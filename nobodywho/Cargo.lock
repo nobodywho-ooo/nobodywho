@@ -3395,6 +3395,7 @@ dependencies = [
  "monty",
  "monty-types",
  "ndarray 0.17.2",
+ "nobodywho-emscripten",
  "nom 8.0.0",
  "ort",
  "rand 0.10.3",
