@@ -61,6 +61,12 @@ Optional settings include:
 - `speed`: speech speed multiplier. `1.0` is normal speed, lower values are slower, higher values
   are faster. Defaults to `1.0`.
 
+Kokoro converts text to phonemes with espeak-ng (GPL-3.0-or-later), which the prebuilt plugin
+includes. If you build the plugin from source and don't need Kokoro, you can leave it out by running
+`cargo build -p nobodywho-godot --release --no-default-features` in the `nobodywho/` directory.
+`create()` then resolves to `null` for Kokoro models, with "Kokoro support was not compiled in" in
+the Errors tab of the editor's Debugger panel.
+
 ## Supertonic
 
 For Supertonic, you can start with the default `voice` and `language`, or set them explicitly.

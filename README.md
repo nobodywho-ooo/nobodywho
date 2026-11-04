@@ -317,3 +317,10 @@ projects, free of charge.** There has been some confusion about this, so to be p
 If you distribute modified versions of the code *in this repo*, you must open source those changes.
 
 Feel free to make proprietary projects using NobodyWho, but don't make a proprietary fork of NobodyWho.
+
+The Kokoro text-to-speech backend converts text to phonemes with
+[espeak-ng](https://crates.io/crates/espeak-ng), which is licensed under GPL-3.0-or-later. It is
+compiled in through the `kokoro` Cargo feature, which is on by default, so the prebuilt packages
+include it. If you don't need Kokoro, you can build without it, for example with
+`cargo build -p nobodywho-godot --release --no-default-features` in the `nobodywho/` directory.
+Supertonic and Pocket TTS work either way.

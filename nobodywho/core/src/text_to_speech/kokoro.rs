@@ -607,22 +607,3 @@ mod tests {
         );
     }
 }
-
-#[derive(Clone, Debug)]
-pub struct KokoroConfig {
-    pub source: String,
-    pub voice: String,
-    pub language: String,
-    pub speed: f32,
-}
-
-impl KokoroConfig {
-    pub fn new(source: impl AsRef<str>) -> Self {
-        Self {
-            source: source.as_ref().to_string(),
-            voice: "bf_emma".into(),
-            language: "en-gb".into(),
-            speed: 1.0,
-        }
-    }
-}

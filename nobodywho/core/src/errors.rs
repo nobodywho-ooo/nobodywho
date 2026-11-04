@@ -748,6 +748,7 @@ pub enum TextToSpeechError {
     VocabEmpty { path: String },
 
     // ── espeak setup ─────────────────────────────────────────────────
+    #[cfg(feature = "kokoro")]
     #[error("Could not create espeak data dir")]
     #[diagnostic(code(nobodywho::tts_espeak_data_dir))]
     EspeakDataDir {
@@ -755,6 +756,7 @@ pub enum TextToSpeechError {
         source: std::io::Error,
     },
 
+    #[cfg(feature = "kokoro")]
     #[error("Could not install bundled espeak language {lang:?} to {dir}")]
     #[diagnostic(code(nobodywho::tts_espeak_install_lang))]
     EspeakInstallLanguage {
@@ -764,6 +766,7 @@ pub enum TextToSpeechError {
         source: std::io::Error,
     },
 
+    #[cfg(feature = "kokoro")]
     #[error("Could not initialize espeak translator")]
     #[diagnostic(code(nobodywho::tts_espeak_init))]
     EspeakInit {
@@ -772,6 +775,7 @@ pub enum TextToSpeechError {
     },
 
     // ── phonemization ────────────────────────────────────────────────
+    #[cfg(feature = "kokoro")]
     #[error("Espeak phonemization failed")]
     #[diagnostic(code(nobodywho::tts_espeak_phonemize))]
     EspeakPhonemize {
@@ -779,6 +783,7 @@ pub enum TextToSpeechError {
         source: espeak_ng::Error,
     },
 
+    #[cfg(feature = "kokoro")]
     #[error("Espeak phonemization failed for OOV word {word:?}")]
     #[diagnostic(code(nobodywho::tts_espeak_oov))]
     EspeakOov {
@@ -787,6 +792,7 @@ pub enum TextToSpeechError {
         source: espeak_ng::Error,
     },
 
+    #[cfg(feature = "kokoro")]
     #[error("Misaki g2p failed")]
     #[diagnostic(code(nobodywho::tts_misaki_g2p))]
     MisakiG2p {
@@ -839,6 +845,10 @@ pub enum TextToSpeechError {
     #[error("TextToSpeech is not supported on WebAssembly")]
     #[diagnostic(code(nobodywho::tts_wasm_unsupported))]
     WasmUnsupported,
+
+    #[error("Kokoro support was not compiled in; build NobodyWho with the `kokoro` Cargo feature")]
+    #[diagnostic(code(nobodywho::tts_kokoro_not_compiled))]
+    KokoroNotCompiled,
 
     // ── External error pass-through ──────────────────────────────────
     #[error("ONNX Runtime error")]
