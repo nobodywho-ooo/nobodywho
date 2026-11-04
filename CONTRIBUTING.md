@@ -47,7 +47,7 @@ This installs `just` (if not already present) and wires up the pre-push hook. Af
 
 1. Make sure all tests pass
 2. Link any relevant issues in your PR description
-3. If the change affects users, add a change file with `just change` (see [Changelog entries](#changelog-entries)). Otherwise ask a maintainer to add the `no-changelog` label; CI fails without one or the other. Don't edit `CHANGELOG.md` directly: CI fails that too, unless a maintainer adds the `edit-changelog` label for a deliberate edit such as fixing a past entry.
+3. If the change affects users, add a change file with `just change` (see [Changelog entries](#changelog-entries)). Otherwise ask a maintainer to add the `no-changelog` label; CI fails a PR that changes `nobodywho/` without one or the other. Don't edit `CHANGELOG.md` directly: CI fails that too, unless a maintainer adds the `edit-changelog` label for a deliberate edit such as fixing a past entry.
 4. The PR will be merged once you have the sign-off of at least one maintainer
 
 ## Changelog entries

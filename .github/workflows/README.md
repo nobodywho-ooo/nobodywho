@@ -2,7 +2,7 @@
 
 `build-and-test.yml` runs a **`plan`** job that reads the event, changed paths, and labels and emits a `run_*` flag per bucket; every other job just gates on those flags. Nothing else inspects paths/labels/events.
 
-The one exception is `changesets.yml`, a standalone PR check that validates `.changeset/` and fails unless the PR adds a change file (waived by the `no-changelog` label) and leaves `CHANGELOG.md` and Flutter's changelog alone (waived by `edit-changelog`). It lives outside `plan` because it must rerun when a label is removed, which `build-and-test.yml` does not trigger on.
+The one exception is `changesets.yml`, a standalone PR check that validates `.changeset/` and fails unless the PR adds a change file when it changes `nobodywho/` (waived by the `no-changelog` label) and leaves `CHANGELOG.md` and Flutter's changelog alone (waived by `edit-changelog`). It lives outside `plan` because it must rerun when a label is removed, which `build-and-test.yml` does not trigger on.
 
 ## Workflow
 

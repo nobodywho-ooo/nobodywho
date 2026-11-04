@@ -18,8 +18,9 @@ jobs:
           fetch-depth: 0
 
       - name: "Check change files"
-        # Validates every change file, then fails unless this PR adds one (waived by `no-changelog`)
-        # and leaves the changelogs alone (waived by `edit-changelog`).
+        # Validates every change file, then fails unless this PR adds one when it changes
+        # `nobodywho/` (waived by `no-changelog`) and leaves the changelogs alone (waived by
+        # `edit-changelog`).
         env:
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: python3 .github/scripts/changesets.py check --pr-base "origin/${{ github.base_ref }}" --pr-labels "$LABELS"

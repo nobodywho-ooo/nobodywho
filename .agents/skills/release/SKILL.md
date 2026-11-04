@@ -271,7 +271,7 @@ gh pr create --base main --head release-all-bindings-YYYY-MM-DD \
 
 Explain the three labels:
 
-- **`no-changelog`:** the changesets check fails any PR that adds no change file, unless the PR has this label. A release PR deletes change files and adds none.
+- **`no-changelog`:** the changesets check fails any PR that changes `nobodywho/` but adds no change file, unless the PR has this label. A release PR deletes change files and adds none.
 - **`edit-changelog`:** the same check fails any PR that edits `CHANGELOG.md` or Flutter's changelog, unless the PR has this label. A release PR writes both.
 - **`full-ci`:** PR CI only runs the jobs for the paths a PR touches. This label runs the full matrix on the release commit before any tag is pushed, so a failure is caught before anything is published.
 
