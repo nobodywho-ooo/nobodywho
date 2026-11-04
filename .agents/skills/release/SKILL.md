@@ -20,14 +20,14 @@ Pending user-facing changes live as one file each in `.changeset/` (format in [C
 
 - `just next-versions` previews the `CHANGELOG.md` entry, including the version each binding would get. It reads only.
 - `just prepare-release` publishes nothing. It only edits files in the working copy, preparing the release commit. Every binding named in any change file gets a new version, bumped by the highest level any file gives it. Bindings that no change file names are left alone. It:
-  - writes the new version to every location listed in `VERSION_FILES` in the script: the binding `Cargo.toml`s, `pyproject.toml`, `pubspec.yaml`, `build.gradle.kts`, `package.json`, both `package-lock.json` fields, the binding entries in `Cargo.lock` and `uv.lock`, and the Kotlin/Swift install snippets in the docs and README;
+  - writes the new version to every location listed in `VERSION_FILES` in the script: the binding `Cargo.toml`s, `pyproject.toml`, `pubspec.yaml`, `build.gradle.kts`, `package.json`, both `package-lock.json` fields, the binding entries in `Cargo.lock` and `uv.lock`, the binding entry in the Flutter testing app's `pubspec.lock`, and the Kotlin/Swift install snippets in the docs and README;
   - adds the release's entry to the top of the root `CHANGELOG.md`, covering all released bindings;
   - if Flutter is released, also adds a Flutter-only `## X.Y.Z` section to `nobodywho/flutter/nobodywho/CHANGELOG.md`. That is a separate file: it ships inside the Flutter package, and pub.dev shows it;
   - writes per-binding GitHub release notes to the gitignored `nobodywho/changelogs/<binding>-<version>.md`, for review only: each tag's release job renders the same notes itself with `changesets.py notes`;
   - deletes the consumed change files.
 - `just release-tags` lists the `nobodywho-<binding>-vX.Y.Z` tags for the newest `CHANGELOG.md` heading that don't exist yet. `just push-release-tags` creates and pushes them in Step 8.
 
-Still done by hand: the optional `uniffi`/`core` bumps, `Cargo.nix`, `pubspec.lock` and the docs snapshot, which you do. The branch, commit, PR and tags are the user's.
+Still done by hand: the optional `uniffi`/`core` bumps, `Cargo.nix`, the Flutter package's `pubspec.lock`, the React Native testing app's `package-lock.json` and the docs snapshot, which you do. The branch, commit, PR and tags are the user's.
 
 Releases go out on a **release branch**, named `release-all-bindings-YYYY-MM-DD` by convention. The user creates it when they commit in Step 7, so it's fine to start the release on `main`.
 
@@ -153,6 +153,7 @@ git ls-files --others --exclude-standard
 - **Expected changes:**
   - every released binding's version files;
   - `nobodywho/Cargo.lock` (python, godot and flutter only) and `nobodywho/python/uv.lock` (python only);
+  - `nobodywho/testing-apps/flutter/pubspec.lock` (flutter only), one version line;
   - `CHANGELOG.md` with one new dated entry at the top;
   - `nobodywho/flutter/nobodywho/CHANGELOG.md` if Flutter is released;
   - every `.changeset/*.md` deleted.
@@ -196,7 +197,17 @@ flutter pub get
 
 Use `flutter pub get`, not `dart pub get`, which fails with "Because nobodywho requires the Flutter SDK". An empty diff is normal.
 
-### 4c. Verify the Nix workspace
+### 4c. `nobodywho/testing-apps/react-native/package-lock.json`
+
+The React Native testing app links the binding by path, and its lockfile keeps a copy of the binding's `package.json`: its version and dependency lists. `npm ci` doesn't check that copy, so regenerate it to pick up the new version and any dependency changes since the last release. From `nobodywho/testing-apps/react-native/`:
+
+```bash
+npm install --package-lock-only
+```
+
+Only the `"../../js"` entry should change, and only if React Native is released or the binding's dependencies changed. If anything else changes, stop and tell the user: the npm on PATH probably differs from the one that wrote the lockfile, which is why this must run in the devShell.
+
+### 4d. Verify the Nix workspace
 
 **Have the user run this in a separate terminal.** It takes a long time and its output would flood this session:
 
@@ -334,7 +345,8 @@ The PR shouldn't conflict with `main`, since nothing else edits `CHANGELOG.md` a
 - [ ] uniffi/core bumped and `cargo update -p ... --precise` run, if approved
 - [ ] `Cargo.nix` + `crate-hashes.json` regenerated after `Cargo.lock` (4a)
 - [ ] `pubspec.lock` synced with `flutter pub get` (4b)
-- [ ] `nix flake check -L` passes; the user runs it (4c)
+- [ ] React Native testing app's `package-lock.json` regenerated with `npm install --package-lock-only` (4c)
+- [ ] `nix flake check -L` passes; the user runs it (4d)
 - [ ] Docs snapshotted per released binding, `latestReleases` updated (Step 5)
 - [ ] Step 6 checks pass
 - [ ] User created the release branch, committed, pushed and opened the PR with `no-changelog`, `edit-changelog` and `full-ci`; every check green (Step 7)

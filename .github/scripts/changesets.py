@@ -129,6 +129,12 @@ VERSION_FILES = {
         # The top-level `version:` key; nested keys are indented, so they don't match.
         ("nobodywho/flutter/nobodywho/pubspec.yaml", r"(?m)^version: (?P<version>\S+)"),
         cargo_lock("nobodywho-flutter"),
+        # The testing app's lock entry for the binding, which it depends on by path; the
+        # entry's own keys are indented four spaces, so the match stays inside it.
+        (
+            "nobodywho/testing-apps/flutter/pubspec.lock",
+            r'(?m)^  nobodywho:\n(?:    .*\n)*?    version: "(?P<version>[^"]+)"',
+        ),
     ],
     "kotlin": [
         # `version = "X.Y.Z"` in `allprojects {}`, the only such assignment in the file.
