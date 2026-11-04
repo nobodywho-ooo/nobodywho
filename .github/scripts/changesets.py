@@ -9,7 +9,8 @@ Usage:
   changesets.py new                        interactively write a change file
   changesets.py check [--pr-base REV [--pr-labels L,...]]
                                            validate change files; with --pr-base, also check that the PR
-                                           adds one and leaves the changelogs alone, unless its labels say otherwise
+                                           adds one when it changes nobodywho/ and leaves the changelogs
+                                           alone, unless its labels say otherwise
   changesets.py preview                    print the CHANGELOG.md entry the next release would get
   changesets.py release                    bump versions, write the changelogs and delete the change files
   changesets.py notes BINDING [--rev REV]  print a binding's GitHub release notes from the change files
@@ -38,7 +39,8 @@ CHANGESET_PATH = ".changeset"
 CHANGESET_DIR = ROOT / CHANGESET_PATH
 CHANGELOG = ROOT / "CHANGELOG.md"
 FLUTTER_CHANGELOG = ROOT / "nobodywho/flutter/nobodywho/CHANGELOG.md"
-# PR labels that waive the check's requirement of a new change file and ban on changelog edits.
+# PR labels that waive the check's requirement of a new change file (for PRs that change
+# `nobodywho/`) and ban on changelog edits.
 NO_CHANGELOG_LABEL = "no-changelog"
 EDIT_CHANGELOG_LABEL = "edit-changelog"
 # Gitignored drafts for the GitHub release pages.
@@ -492,6 +494,10 @@ def cmd_check(args: argparse.Namespace) -> int:
     labels = set(args.pr_labels.split(","))
     failed = False
 
+    # Only changes under `nobodywho/` reach users, so other PRs need no change file.
+    touches_nobodywho = git(
+        "diff", "--name-only", f"{args.pr_base}...HEAD", "--", "nobodywho/"
+    ).strip()
     added = git(
         "diff",
         "--name-only",
@@ -500,11 +506,14 @@ def cmd_check(args: argparse.Namespace) -> int:
         "--",
         f"{CHANGESET_PATH}/",
     )
-    if NO_CHANGELOG_LABEL not in labels and not any(
-        p.endswith(".md") for p in added.splitlines()
+    if (
+        touches_nobodywho
+        and NO_CHANGELOG_LABEL not in labels
+        and not any(p.endswith(".md") for p in added.splitlines())
     ):
         print(
-            "::error::No change file added. Run `just change` to describe this change for users, "
+            "::error::No change file added, though this PR changes `nobodywho/`. "
+            "Run `just change` to describe this change for users, "
             f"or add the `{NO_CHANGELOG_LABEL}` label if it has no user-facing effect."
         )
         failed = True
