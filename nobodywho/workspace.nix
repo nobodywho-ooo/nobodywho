@@ -35,8 +35,8 @@ let
     lockFile = ./Cargo.lock;
     # Replace temporarily with lib.fakeHash when updating this.
     outputHashes = {
-      "llama-cpp-2-0.1.161" = lib.fakeHash;
-      "llama-cpp-sys-2-0.1.161" = lib.fakeHash;
+      "llama-cpp-2-0.1.161" = "sha256-7HLuhEYdg2kUzgyrYYFDgiA8mTeYZ9HCjypoRB1a70k=";
+      "llama-cpp-sys-2-0.1.161" = "sha256-7HLuhEYdg2kUzgyrYYFDgiA8mTeYZ9HCjypoRB1a70k=";
     };
   };
 
