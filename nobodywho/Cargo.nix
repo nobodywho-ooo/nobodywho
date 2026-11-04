@@ -9257,7 +9257,7 @@ rec {
           "vulkan" = [ "llama-cpp-sys-2/vulkan" ];
           "webgpu" = [ "llama-cpp-sys-2/webgpu" ];
         };
-        resolvedDefaultFeatures = [ "android-static-stdcxx" "common" "llguidance" "mtmd" "opencl" "openmp" "vulkan" ];
+        resolvedDefaultFeatures = [ "android-static-stdcxx" "common" "llguidance" "mtmd" "opencl" "openmp" "vulkan" "webgpu" ];
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
@@ -9305,7 +9305,7 @@ rec {
           "static-openmp" = [ "openmp" ];
           "system-ggml-static" = [ "system-ggml" ];
         };
-        resolvedDefaultFeatures = [ "common" "default" "metal" "mtmd" "opencl" "openmp" "static-stdcxx" "vulkan" ];
+        resolvedDefaultFeatures = [ "common" "default" "metal" "mtmd" "opencl" "openmp" "static-stdcxx" "vulkan" "webgpu" ];
       };
       "llguidance" = rec {
         crateName = "llguidance";
@@ -10761,6 +10761,13 @@ rec {
             usesDefaultFeatures = false;
             target = { target, features }: ("android" == target."os" or null);
             features = [ "android-static-stdcxx" "vulkan" "opencl" ];
+          }
+          {
+            name = "llama-cpp-2";
+            packageId = "llama-cpp-2";
+            usesDefaultFeatures = false;
+            target = { target, features }: ("emscripten" == target."os" or null);
+            features = [ "webgpu" ];
           }
           {
             name = "llguidance";
