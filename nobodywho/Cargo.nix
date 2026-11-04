@@ -11117,6 +11117,26 @@ rec {
         ];
 
       };
+      "nobodywho-js" = rec {
+        crateName = "nobodywho-js";
+        version = "0.1.0";
+        edition = "2024";
+        crateBin = [
+          {
+            name = "nobodywho_minimal";
+            path = "src/minimal.rs";
+            requiredFeatures = [ ];
+          }
+        ];
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./js/rust; };
+        dependencies = [
+          {
+            name = "nobodywho-uniffi";
+            packageId = "nobodywho-uniffi";
+          }
+        ];
+
+      };
       "nobodywho-python" = rec {
         crateName = "nobodywho-python";
         version = "5.0.0";
