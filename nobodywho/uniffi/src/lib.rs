@@ -678,15 +678,9 @@ impl RustChat {
     }
 
     /// Get the current chat history as a list of messages.
-    pub async fn get_chat_history(&self) -> Result<Vec<Message>, NobodyWhoError> {
-        let messages = self
-            .inner
-            .get_chat_history()
-            .await
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })?;
-        Ok(messages.iter().map(core_message_to_uniffi).collect())
+    pub async fn get_chat_history(&self) -> Vec<Message> {
+        let messages = self.inner.get_chat_history().await;
+        messages.iter().map(core_message_to_uniffi).collect()
     }
 
     /// Set the chat history from a list of messages.
@@ -700,13 +694,8 @@ impl RustChat {
     }
 
     /// Get the current system prompt.
-    pub async fn get_system_prompt(&self) -> Result<Option<String>, NobodyWhoError> {
-        self.inner
-            .get_system_prompt()
-            .await
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })
+    pub async fn get_system_prompt(&self) -> Option<String> {
+        self.inner.get_system_prompt().await
     }
 
     /// Tokenize a plain text string and return the token IDs.
@@ -737,14 +726,8 @@ impl RustChat {
     }
 
     /// Set the system prompt.
-    pub async fn set_system_prompt(
-        &self,
-        system_prompt: Option<String>,
-    ) -> Result<(), NobodyWhoError> {
-        self.inner
-            .set_system_prompt(system_prompt)
-            .await
-            .map_err(setter_err)
+    pub async fn set_system_prompt(&self, system_prompt: Option<String>) {
+        self.inner.set_system_prompt(system_prompt).await
     }
 
     /// Set how old turns are forgotten when the context is full.
@@ -766,25 +749,13 @@ impl RustChat {
     }
 
     /// Set a template variable.
-    pub async fn set_template_variable(
-        &self,
-        name: String,
-        value: bool,
-    ) -> Result<(), NobodyWhoError> {
-        self.inner
-            .set_template_variable(name, value)
-            .await
-            .map_err(setter_err)
+    pub async fn set_template_variable(&self, name: String, value: bool) {
+        self.inner.set_template_variable(name, value).await
     }
 
     /// Get all template variables.
-    pub async fn get_template_variables(&self) -> Result<HashMap<String, bool>, NobodyWhoError> {
-        self.inner
-            .get_template_variables()
-            .await
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })
+    pub async fn get_template_variables(&self) -> HashMap<String, bool> {
+        self.inner.get_template_variables().await
     }
 
     /// Set the sampler configuration.
@@ -796,40 +767,24 @@ impl RustChat {
     }
 
     /// Get context usage statistics.
-    pub async fn get_stats(&self) -> Result<ChatStats, NobodyWhoError> {
-        self.inner
-            .get_stats()
-            .await
-            .map(|s| ChatStats {
-                context_size: s.context_size,
-                context_used: s.context_used,
-            })
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })
+    pub async fn get_stats(&self) -> ChatStats {
+        let s = self.inner.get_stats().await;
+        ChatStats {
+            context_size: s.context_size,
+            context_used: s.context_used,
+        }
     }
 
     /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
     ///
     /// Resets each generation. `null` when MTP is disabled or no drafts were proposed.
-    pub async fn mtp_acceptance_rate(&self) -> Result<Option<f32>, NobodyWhoError> {
-        self.inner
-            .mtp_acceptance_rate()
-            .await
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })
+    pub async fn mtp_acceptance_rate(&self) -> Option<f32> {
+        self.inner.mtp_acceptance_rate().await
     }
 
     /// Get the current sampler configuration as a JSON string.
     pub async fn get_sampler_config_json(&self) -> Result<String, NobodyWhoError> {
-        let config = self
-            .inner
-            .get_sampler_config()
-            .await
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })?;
+        let config = self.inner.get_sampler_config().await;
         serde_json::to_string(&config).map_err(|e| NobodyWhoError::Error {
             message: e.to_string(),
         })
