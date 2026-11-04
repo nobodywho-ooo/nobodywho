@@ -5,7 +5,7 @@ NobodyWho is a React Native / Expo library for running large language models loc
 Free to use in commercial projects under the EUPL-1.2 license — no API key required. Supports text, vision, hearing, speech-to-text, text-to-speech, voice activity detection, embeddings, RAG & function calling.
 
 - [Documentation](https://docs.nobodywho.ooo) — React Native & other frameworks documentation
-- [RN starter example app](https://github.com/nobodywho-ooo/react-native-starter-example) / [Expo starter example app](https://github.com/nobodywho-ooo/expo-starter-example) — Test this library in 5 minutes
+- [RN starter example app](https://github.com/nobodywho-ooo/react-native-starter-example) / [Expo starter example app](https://github.com/nobodywho-ooo/expo-starter-example) / [React example app](https://github.com/nobodywho-ooo/javascript-starter-example) — Test this library in 5 minutes
 - [Discord](https://discord.gg/qhaMc2qCYB) — Get help, share ideas, and connect with other developers
 - [GitHub Issues](https://github.com/nobodywho-ooo/nobodywho/issues) — Report bugs
 - [GitHub Discussions](https://github.com/nobodywho-ooo/nobodywho/discussions) — Ask questions and request features
@@ -26,7 +26,19 @@ No additional initialization step is required — the native module is loaded au
 
 ### Expo
 
-NobodyWho ships native code, so it does **not** run in [Expo Go](https://docs.expo.dev/get-started/set-up-your-environment/). You need a [development build](https://docs.expo.dev/develop/development-builds/introduction/).
+NobodyWho's native code works fine with a [development build](https://docs.expo.dev/develop/development-builds/introduction/).
+
+See below for [Expo Go](https://docs.expo.dev/get-started/set-up-your-environment/).
+
+### Web / Node.js / Expo Go
+
+NobodyWho has experimental support for being compiled to WebAssembly and running in the browser.
+
+This functionality automatically enabled, and should be usable, but it has a few limitations at the moment:
+- No WebGPU acceleration.
+- `async` tool calls doesn't work.
+- STT, TTS and VAD doesn't work.
+- Inference processes each token on the UI thread, so you might want to use it in a web worker to avoid frame hitches.
 
 #### • Continuous Native Generation (CNG) projects
 

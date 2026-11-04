@@ -113,6 +113,16 @@ rec {
       # File a bug if you depend on any for non-debug work!
       debug = internal.debugCrate { inherit packageId; };
     };
+    "nobodywho-js" = rec {
+      packageId = "nobodywho-js";
+      build = internal.buildRustCrateWithFeatures {
+        packageId = "nobodywho-js";
+      };
+
+      # Debug support which might change between releases.
+      # File a bug if you depend on any for non-debug work!
+      debug = internal.debugCrate { inherit packageId; };
+    };
     "nobodywho-python" = rec {
       packageId = "nobodywho-python";
       build = internal.buildRustCrateWithFeatures {
@@ -11086,6 +11096,26 @@ rec {
           "kokoro" = [ "nobodywho/kokoro" ];
         };
         resolvedDefaultFeatures = [ "default" "kokoro" ];
+      };
+      "nobodywho-js" = rec {
+        crateName = "nobodywho-js";
+        version = "0.1.0";
+        edition = "2024";
+        crateBin = [
+          {
+            name = "nobodywho_minimal";
+            path = "src/minimal.rs";
+            requiredFeatures = [ ];
+          }
+        ];
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./js/rust; };
+        dependencies = [
+          {
+            name = "nobodywho-uniffi";
+            packageId = "nobodywho-uniffi";
+          }
+        ];
+
       };
       "nobodywho-python" = rec {
         crateName = "nobodywho-python";

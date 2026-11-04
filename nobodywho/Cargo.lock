@@ -3458,6 +3458,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nobodywho-js"
+version = "0.1.0"
+dependencies = [
+ "nobodywho-uniffi",
+]
+
+[[package]]
 name = "nobodywho-python"
 version = "5.0.0"
 dependencies = [

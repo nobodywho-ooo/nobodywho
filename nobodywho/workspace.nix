@@ -18,15 +18,152 @@
   # extra args — unused while using pre-generated Cargo.nix, but kept for easy switch-back
   crate2nix,
   stdenv,
+
+  # If set, build for wasm32-unknown-emscripten instead of for the host, with
+  # this Rust toolchain (which must have the std for that target).
+  emscriptenRustToolchain ? null,
+  emscripten,
+  python3,
+  unzip,
+  fetchurl,
 }:
 
 let
+  forEmscripten = emscriptenRustToolchain != null;
+
+  # nixpkgs can't cross-compile to Emscripten, so give Cargo.nix and
+  # buildRustCrate a made-up platform for it. They only use it for `--target`,
+  # the `CARGO_CFG_*` variables and `cfg(...)` dependencies; C/C++ code is
+  # compiled by Emscripten (see `emscriptenCrateOverrides`).
+  emscriptenPkgs = pkgs // {
+    stdenv = pkgs.stdenv // {
+      hostPlatform = lib.systems.elaborate {
+        config = "wasm32-unknown-none";
+        isUnix = true;
+        rust = {
+          rustcTarget = "wasm32-unknown-emscripten";
+          rustcTargetSpec = "wasm32-unknown-emscripten";
+          platform = {
+            arch = "wasm32";
+            os = "emscripten";
+            env = "";
+            vendor = "unknown";
+            target-family = [
+              "unix"
+              "wasm"
+            ];
+          };
+        };
+      };
+    };
+    # For build scripts and proc-macros.
+    buildPackages = pkgs;
+  };
+
+  # `--use-port=emdawnwebgpu` (in js/rust/build.rs and llama.cpp's CMake) makes
+  # Emscripten download Dawn's WebGPU port, which the sandbox doesn't allow.
+  # Must match `tools/ports/emdawnwebgpu.py` in nixpkgs' Emscripten.
+  emdawnwebgpuVersion = "v20260423.175430";
+  emdawnwebgpuUrl = "https://github.com/google/dawn/releases/download/${emdawnwebgpuVersion}/emdawnwebgpu_pkg-${emdawnwebgpuVersion}.zip";
+  emdawnwebgpu = fetchurl {
+    url = emdawnwebgpuUrl;
+    sha512 = "42784f70b67197c614322f9fabb0f1dc64228a0de10e88f99941fa9d29bee9ad6683f4651d4eefd5a7a9fbd1f976eb522b190b683219ed1793e9b531c602ffa6";
+  };
+
+  # For crates that run Emscripten.
+  emscriptenSetup = {
+    nativeBuildInputs = [ emscripten ];
+    env = {
+      # stdenv sets `CC` etc. to the host compiler, which cc-rs would use.
+      CC_wasm32_unknown_emscripten = "emcc";
+      CXX_wasm32_unknown_emscripten = "em++";
+      AR_wasm32_unknown_emscripten = "emar";
+      # Same as js/rust/build.sh.
+      CFLAGS_wasm32_unknown_emscripten = "-fPIC";
+      CXXFLAGS_wasm32_unknown_emscripten = "-fPIC";
+    };
+    preConfigure = ''
+      # Emscripten builds system libraries and ports into its cache on
+      # demand, so it must be writable.
+      export EM_CACHE=$TMPDIR/emscripten-cache
+      cp -r ${emscripten}/share/emscripten/cache $EM_CACHE
+      chmod -R u+w $EM_CACHE
+
+      if ! grep -qF "'${emdawnwebgpuVersion}'" ${emscripten}/share/emscripten/tools/ports/emdawnwebgpu.py; then
+        echo "ERROR: Update emdawnwebgpu in workspace.nix to what Emscripten wants:"
+        grep -E '^(_VERSION|SHA512) =' ${emscripten}/share/emscripten/tools/ports/emdawnwebgpu.py
+        exit 1
+      fi
+      # Where Emscripten's `Ports.fetch_port_artifact` would unpack it.
+      mkdir -p $EM_CACHE/ports/emdawnwebgpu
+      ${unzip}/bin/unzip -q ${emdawnwebgpu} -d $EM_CACHE/ports/emdawnwebgpu
+      echo '${emdawnwebgpuUrl}' > $EM_CACHE/ports/emdawnwebgpu/.emscripten_url
+    '';
+    # The host's strip doesn't know WASM.
+    dontStrip = true;
+  };
+
+  emscriptenCrateOverrides = {
+    llama-cpp-sys-2 =
+      attrs:
+      emscriptenSetup
+      // {
+        nativeBuildInputs = emscriptenSetup.nativeBuildInputs ++ [
+          cmake
+          # llama.cpp's WebGPU backend embeds its shaders with a Python script.
+          python3
+        ];
+        # Not `rustPlatform.bindgenHook`, it passes the host's headers.
+        env = emscriptenSetup.env // {
+          LIBCLANG_PATH = "${emscripten.llvmEnv}/lib";
+        };
+      };
+
+    onig_sys = attrs: emscriptenSetup;
+
+    # No ONNX Runtime or Vulkan on Emscripten.
+    ort-sys = attrs: { };
+    nobodywho = attrs: { };
+
+    # Only needed as a library of `nobodywho-js`, don't link its cdylib,
+    # staticlib and `uniffi-bindgen` binary.
+    nobodywho-uniffi = attrs: {
+      type = [ "lib" ];
+      crateBin = [ ];
+    };
+
+    # Builds `uniffi.{js,wasm}`, like `js/rust/build.sh`.
+    nobodywho-js =
+      attrs:
+      emscriptenSetup
+      // {
+        env = emscriptenSetup.env // {
+          RUSTC_BOOTSTRAP = "1";
+        };
+        preBuild = ''
+          # Link with em++ (llama.cpp is C++). Passed after buildRustCrate's
+          # `-C linker=cc`, so it wins.
+          EXTRA_RUSTC_FLAGS="-C linker=em++ -Zexport-executable-symbols"
+        '';
+      };
+  };
+
+  # The build scripts and proc-macros must be built by the same rustc too.
+  toolchainOverrides = lib.optionalAttrs forEmscripten {
+    rustc = emscriptenRustToolchain;
+    cargo = emscriptenRustToolchain;
+  };
+
   buildRustCrateForPkgs =
     pkgs:
     let
       onnxruntime = pkgs.callPackage ./onnxruntime.nix { };
+      isEmscripten = pkgs.stdenv.hostPlatform.rust.rustcTarget == "wasm32-unknown-emscripten";
     in
-    pkgs.buildRustCrate.override {
+    (pkgs.buildRustCrate.override (
+      toolchainOverrides // lib.optionalAttrs isEmscripten { inherit (pkgs) stdenv; }
+    )).override
+    {
       defaultCrateOverrides = pkgs.defaultCrateOverrides // {
         llama-cpp-sys-2 = attrs: {
           env.LIBCLANG_PATH = "${pkgs.libclang.lib}/lib/libclang.so";
@@ -163,7 +300,8 @@ let
             pkgs.python3
           ];
         };
-      };
+      }
+      // lib.optionalAttrs isEmscripten emscriptenCrateOverrides;
     };
 
   # IFD-based generation — broken with git workspace deps using inheritance (crate2nix#207).
@@ -188,7 +326,8 @@ let
   # the Cargo.toml/Cargo.lock changes.
   # ─────────────────────────────────────────────────────────────────────────
   cargoNix = import ./Cargo.nix {
-    inherit pkgs buildRustCrateForPkgs;
+    inherit buildRustCrateForPkgs;
+    pkgs = if forEmscripten then emscriptenPkgs else pkgs;
   };
 in
 cargoNix
