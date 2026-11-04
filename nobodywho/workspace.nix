@@ -29,6 +29,14 @@
 let
   onnxruntime = pkgs.callPackage ./onnxruntime.nix { };
 
+  # Set for every member that links `nobodywho` (and thereby `ort`): ort-sys
+  # would otherwise download prebuilt ONNX Runtime binaries from the network,
+  # which the nix sandbox forbids. This points it at the nix-fetched prebuilt
+  # from onnxruntime.nix instead; it static-links, as in release builds.
+  ortEnv = {
+    ORT_LIB_PATH = "${onnxruntime}/lib";
+  };
+
   # Registry crates are fetched from crates.io; git deps are fixed-output
   # fetches and need an `outputHashes` entry keyed "<crate-name>-<version>".
   cargoDeps = rustPlatform.importCargoLock {
@@ -130,6 +138,7 @@ let
   members = {
     "nobodywho" = {
       dir = "core";
+      env = ortEnv;
       buildInputs = [
         vulkan-loader
         onnxruntime
@@ -139,6 +148,7 @@ let
     "nobodywho-godot" = {
       dir = "godot";
       cdylib = true;
+      env = ortEnv;
       buildInputs = [
         vulkan-loader
         onnxruntime
@@ -148,7 +158,7 @@ let
     "nobodywho-flutter" = {
       dir = "flutter/rust";
       cdylib = true;
-      env = {
+      env = ortEnv // {
         NOBODYWHO_SKIP_CODEGEN = "1";
       };
       nativeBuildInputs = [
@@ -166,7 +176,7 @@ let
       cdylib = true;
       # Stands in for the removed `pyo3/extension-module` cargo feature:
       # without it pyo3 links libpython, which isn't in the nix sandbox.
-      env = {
+      env = ortEnv // {
         PYO3_BUILD_EXTENSION_MODULE = "1";
       };
       nativeBuildInputs = [
@@ -178,7 +188,11 @@ let
       ];
     };
 
-    "nobodywho-server".dir = "server";
+    "nobodywho-server" = {
+      dir = "server";
+      env = ortEnv;
+      buildInputs = [ onnxruntime ];
+    };
     "make_stubs".dir = "python/make_stubs";
     "gbnf".dir = "grammar/gbnf";
     "gbnf-macro".dir = "grammar/gbnf-macro";
@@ -186,6 +200,7 @@ let
     "nobodywho-uniffi" = {
       dir = "uniffi";
       cdylib = true;
+      env = ortEnv;
       buildInputs = [
         vulkan-loader
         onnxruntime
