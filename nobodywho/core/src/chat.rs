@@ -2515,6 +2515,86 @@ impl CompletionStreamAsync {
     }
 }
 
+/// An async variant of [`CompletionStream`] that runs on a thread without
+/// backpressure.
+///
+/// This is generally not desirable, but is required on Godot, where `async`
+/// tasks are only awoken once per frame, which means that with
+/// [`CompletionStreamAsync`], we'd only generate one token per frame.
+//
+// FIXME: Maybe move this to the Godot bindings? Might make sense to wait for
+// the stream refactor (CC albertsgarde).
+#[derive(Debug)]
+pub struct CompletionStreamThread {
+    output_rx: Option<tokio::sync::mpsc::Receiver<Result<CompletionChunk, GenerateResponseError>>>,
+    join_handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl CompletionStreamThread {
+    pub fn new(stream: CompletionStreamAsync) -> Self {
+        let mut stream = stream.stream;
+        // Bound to 10 tokens in the queue. That should be sufficient for
+        // never running out of work to do, while also ensuring that the
+        // worker thread doesn't go completely crazy if there's nothing
+        // pulling from it once in a while.
+        //
+        // (rough calculation: 60fps would allow up to 600 tok/s, which should
+        // be impossible to hit unless you're not actually awaiting the stream).
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel(10);
+
+        // Generate tokens in a continous loop.
+        let join_handle = std::thread::spawn(move || {
+            loop {
+                // Checks `should_stop` internally.
+                match stream.next() {
+                    Ok(None) => break,
+                    Ok(Some(chunk)) => {
+                        if output_tx.blocking_send(Ok(chunk)).is_err() {
+                            // Nobody is receiving any more, so stop generating.
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        if let Err(e) = output_tx.blocking_send(Err(e)) {
+                            error!("failed sending error: {}", e.0.unwrap_err())
+                        }
+                        break;
+                    }
+                }
+            }
+        });
+
+        Self {
+            output_rx: Some(output_rx),
+            join_handle: Some(join_handle),
+        }
+    }
+
+    /// Return the next token piece, or `None` when generation is finished.
+    #[allow(clippy::should_implement_trait)]
+    pub async fn next(&mut self) -> Result<Option<CompletionChunk>, GenerateResponseError> {
+        let output_rx = self.output_rx.as_mut().expect("dropped");
+        match output_rx.recv().await {
+            Some(next) => next.map(Some),
+            None => Ok(None),
+        }
+    }
+}
+
+impl Drop for CompletionStreamThread {
+    fn drop(&mut self) {
+        // Tell the worker thread to stop.
+        drop(self.output_rx.take().expect("double-dropped"));
+
+        // Wait for it to actually stop.
+        // See worker.rs for details.
+        let join_handle = self.join_handle.take().expect("double-dropped");
+        if let Err(e) = join_handle.join() {
+            std::panic::resume_unwind(e);
+        }
+    }
+}
+
 /// A weak reference to the completion stream state.
 struct WeakCompletionStream {
     inner: Weak<tokio::sync::Mutex<CompletionStreamInner>>,
@@ -2619,6 +2699,41 @@ pub struct TokenStreamAsync {
 
 impl TokenStreamAsync {
     fn new(stream: CompletionStreamAsync) -> Self {
+        Self { stream, done: None }
+    }
+
+    /// Return the next token piece, or `None` when generation is finished.
+    pub async fn next_token(&mut self) -> Result<Option<String>, GenerateResponseError> {
+        match self.stream.next().await? {
+            Some(CompletionChunk::Token(text)) => Ok(Some(text)),
+            Some(CompletionChunk::Done(response)) => {
+                self.done = Some(response.content);
+                Ok(None)
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Drain all tokens and return the full output text.
+    pub async fn completed(&mut self) -> Result<String, GenerateResponseError> {
+        loop {
+            match self.next_token().await? {
+                Some(_) => continue,
+                None => return Ok(self.done.clone().unwrap_or_default()),
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct TokenStreamThread {
+    stream: CompletionStreamThread,
+    done: Option<String>,
+}
+
+impl TokenStreamThread {
+    pub fn new(stream: TokenStreamAsync) -> Self {
+        let stream = CompletionStreamThread::new(stream.stream);
         Self { stream, done: None }
     }
 

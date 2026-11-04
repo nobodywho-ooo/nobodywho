@@ -762,8 +762,9 @@ fn build_core_tools(
 /// `NobodyWhoSpeechToText.transcribe_*_stream`. One object per call,
 /// isolating concurrent generations and their errors.
 ///
-/// A thin lazy wrapper around core's `TokenStreamAsync` (mirrors the Python
-/// binding): the stream only advances when you pull.
+/// A thin lazy wrapper around core's token streams, which are running
+/// continously in a background thread.
+///
 /// ```gdscript
 /// var stream = await chat.ask("Tell me about Denmark.")
 /// while true:
@@ -779,18 +780,15 @@ pub struct NobodyWhoTokenStream {
     /// `&mut` across an await, and neither a `bind()` nor a `RefCell` guard
     /// may be held across a suspension — so pulls clone the `Rc` and
     /// `lock().await` instead. The enum dispatches chat vs STT streams (both
-    /// are `TokenStreamAsync` over different error types; both resolve errors
+    /// are `TokenStreamThread` over different error types; both resolve errors
     /// to `null` + `godot_error!`, so the Godot-visible behavior is identical).
     stream: Rc<tokio::sync::Mutex<StreamInner>>,
     base: Base<RefCounted>,
 }
 
-/// Type-erased core stream. Chat and SpeechToText both produce a
-/// `TokenStreamAsync<E>` with the same `next_token`/`completed` shape; the
-/// only difference is the error type, which is rendered to a string either
-/// way. Mirrors the Python binding's `AsyncStreamInner` enum.
+/// Type-erased core stream.
 pub(crate) enum StreamInner {
-    Chat(nobodywho::chat::TokenStreamAsync),
+    Chat(nobodywho::chat::TokenStreamThread),
     Stt(nobodywho::stream::TokenStreamAsync<nobodywho::errors::SpeechToTextError>),
 }
 
@@ -869,6 +867,7 @@ impl NobodyWhoTokenStream {
 impl NobodyWhoTokenStream {
     /// Wrap a chat token stream.
     pub(crate) fn wrap_chat(stream: nobodywho::chat::TokenStreamAsync) -> Gd<Self> {
+        let stream = nobodywho::chat::TokenStreamThread::new(stream);
         Gd::from_init_fn(|base| Self {
             stream: Rc::new(tokio::sync::Mutex::new(StreamInner::Chat(stream))),
             base,
