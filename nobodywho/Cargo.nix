@@ -11223,12 +11223,12 @@ rec {
           {
             name = "console_log";
             packageId = "console_log";
-            target = { target, features }: (builtins.elem "wasm" target."family");
+            target = { target, features }: ((builtins.elem "wasm" target."family") && ("unknown" == target."os" or null));
           }
           {
             name = "env_logger";
             packageId = "env_logger";
-            target = { target, features }: (!(("android" == target."os" or null) || (("apple" == target."vendor" or null) && (!("macos" == target."os" or null))) || (builtins.elem "wasm" target."family")));
+            target = { target, features }: (!(("android" == target."os" or null) || (("apple" == target."vendor" or null) && (!("macos" == target."os" or null))) || ((builtins.elem "wasm" target."family") && ("unknown" == target."os" or null))));
           }
           {
             name = "log";
@@ -11266,6 +11266,17 @@ rec {
             name = "uniffi";
             packageId = "uniffi";
             features = [ "cli" ];
+          }
+          {
+            name = "uniffi-runtime-wasm";
+            packageId = "uniffi-runtime-wasm";
+            target = { target, features }: (builtins.elem "wasm" target."family");
+          }
+          {
+            name = "uniffi_core";
+            packageId = "uniffi_core";
+            target = { target, features }: (builtins.elem "wasm" target."family");
+            features = [ "wasm-unstable-single-threaded" ];
           }
         ];
         features = {
@@ -18234,6 +18245,16 @@ rec {
         };
         resolvedDefaultFeatures = [ "bindgen" "cargo-metadata" "cli" "default" ];
       };
+      "uniffi-runtime-wasm" = rec {
+        crateName = "uniffi-runtime-wasm";
+        version = "0.31.0-6";
+        edition = "2021";
+        sha256 = "0472bkw411ygpgr28nm0yrdx5b1h3hpq2idrjcss090ir5m99f19";
+        libName = "uniffi_runtime_wasm";type = [ "rlib" ];
+        features = {
+        };
+        resolvedDefaultFeatures = [ "default" ];
+      };
       "uniffi_bindgen" = rec {
         crateName = "uniffi_bindgen";
         version = "0.31.2";
@@ -18354,7 +18375,7 @@ rec {
         features = {
           "tokio" = [ "dep:async-compat" ];
         };
-        resolvedDefaultFeatures = [ "default" ];
+        resolvedDefaultFeatures = [ "default" "wasm-unstable-single-threaded" ];
       };
       "uniffi_internal_macros" = rec {
         crateName = "uniffi_internal_macros";
