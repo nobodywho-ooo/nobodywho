@@ -1,7 +1,7 @@
 ---
 name: release
-description: Release the nobodywho language bindings — audit the pending `.changeset/` files against the merged PRs, get the computed versions and changelog approved, run `just prepare-release` on a release branch, regenerate Nix and lock files, snapshot Docusaurus docs, then give the user the exact commands to commit, open the release PR and push the tags. Use when the user asks to release, publish, cut a release, or bump versions for any binding (Python, Godot, Flutter, Kotlin, Swift, React Native).
-compatibility: Designed for Claude Code. Requires python3, git, gh, cargo, nix and a Node.js toolchain on PATH; the Flutter toolchain is needed for the pubspec.lock sync. On a pure Nix setup these are all provided by the flake's devShell (`nix develop`), so enter the devShell before running the Step 4 commands rather than invoking the tools ad hoc.
+description: Release the nobodywho language bindings — audit the pending `.changeset/` files against the merged PRs, get the computed versions and changelog approved, run `just prepare-release` on a release branch, verify the Nix build, snapshot Docusaurus docs, then give the user the exact commands to commit, open the release PR and push the tags. Use when the user asks to release, publish, cut a release, or bump versions for any binding (Python, Godot, Flutter, Kotlin, Swift, React Native).
+compatibility: Designed for Claude Code. Requires python3, git, gh, cargo, nix and a Node.js toolchain on PATH. On a pure Nix setup these are all provided by the flake's devShell (`nix develop`), so enter the devShell before running the Step 4 commands rather than invoking the tools ad hoc.
 ---
 
 Release the nobodywho bindings. Each binding is versioned **independently** and tagged separately (`nobodywho-<binding>-vX.Y.Z`). Publishing is done by GitHub Actions (`.github/workflows/release.yml`), triggered by pushing those tags.
@@ -10,7 +10,7 @@ Release the nobodywho bindings. Each binding is versioned **independently** and 
 
 **Fail loudly.** Every check in this skill is a stop condition. When one fails, stop and tell the user exactly what failed. Don't work around it, don't repair it quietly, and don't carry on.
 
-The six bindings are **python, godot, flutter, kotlin, react-native, swift**. The `uniffi` and `core` Rust crates are not released on their own, but their `Cargo.toml` versions still feed into `Cargo.lock` / `Cargo.nix`.
+The six bindings are **python, godot, flutter, kotlin, react-native, swift**. The `uniffi` and `core` Rust crates are not released on their own, but their `Cargo.toml` versions still feed into `Cargo.lock`.
 
 ## How a release flows
 
@@ -27,7 +27,7 @@ Pending user-facing changes live as one file each in `.changeset/` (format in [C
   - deletes the consumed change files.
 - `just release-tags` lists the `nobodywho-<binding>-vX.Y.Z` tags for the newest `CHANGELOG.md` heading that don't exist yet. `just push-release-tags` creates and pushes them in Step 8.
 
-Still done by hand: the optional `uniffi`/`core` bumps, `Cargo.nix`, `pubspec.lock` and the docs snapshot, which you do. The branch, commit, PR and tags are the user's.
+Still done by hand: the optional `uniffi`/`core` bumps and the docs snapshot, which you do. The branch, commit, PR and tags are the user's.
 
 Releases go out on a **release branch**, named `release-all-bindings-YYYY-MM-DD` by convention. The user creates it when they commit in Step 7, so it's fine to start the release on `main`.
 
@@ -169,34 +169,7 @@ git diff HEAD -- Cargo.lock    # only those crates' version lines should change
 
 ---
 
-## Step 4 — Regenerate generated files
-
-### 4a. `nobodywho/Cargo.nix` and `nobodywho/crate-hashes.json`
-
-Required whenever any `Cargo.toml` or `Cargo.lock` changed. Without it the Nix CI build fails with "unresolved crate". `crate2nix` reads `Cargo.lock`, so all of Step 3 must be done first. From `nobodywho/`:
-
-```bash
-nix run github:nix-community/crate2nix -- generate -h crate-hashes.json
-```
-
-If `nix` is not on PATH:
-```bash
-/nix/var/nix/profiles/default/bin/nix --extra-experimental-features 'nix-command flakes' run github:nix-community/crate2nix -- generate -h crate-hashes.json
-```
-
-Commit both files together. The `Cargo.nix` diff can be larger than the version bumps, for example when a prior PR changed `Cargo.lock` without regenerating `Cargo.nix`. That is legitimate; `git log --oneline -- nobodywho/Cargo.lock` shows where it came from.
-
-### 4b. `nobodywho/flutter/nobodywho/pubspec.lock`
-
-`pubspec.lock` does not record the package's own version. Still, sync it with any dependency changes that landed since the last release. From `nobodywho/flutter/nobodywho/`:
-
-```bash
-flutter pub get
-```
-
-Use `flutter pub get`, not `dart pub get`, which fails with "Because nobodywho requires the Flutter SDK". An empty diff is normal.
-
-### 4c. Verify the Nix workspace
+## Step 4 — Verify the Nix workspace
 
 **Have the user run this in a separate terminal.** It takes a long time and its output would flood this session:
 
@@ -204,7 +177,7 @@ Use `flutter pub get`, not `dart pub get`, which fails with "Because nobodywho r
 nix flake check -L
 ```
 
-On macOS this only evaluates `aarch64-darwin` derivations; Linux-only checks surface in CI (see the build-integrations skill's "Local Nix blind spot" note). Wait for the user to confirm it passes. The usual failures are a stale `Cargo.nix` (re-run 4a).
+On macOS this only evaluates `aarch64-darwin` derivations; Linux-only checks surface in CI (see the build-integrations skill's "Local Nix blind spot" note). Wait for the user to confirm it passes.
 
 ---
 
@@ -252,7 +225,7 @@ cargo check   # confirms Cargo.lock resolves; cheaper than cargo build
 Summarize for the user:
 
 - the version per binding and what drove each bump;
-- the files changed: version files, lockfiles, `Cargo.nix`/`crate-hashes.json`, `flake.nix`, both changelogs, the deleted change files, the docs snapshots and `docusaurus.config.ts`;
+- the files changed: version files, lockfiles, `flake.nix`, both changelogs, the deleted change files, the docs snapshots and `docusaurus.config.ts`;
 - the release-note drafts in `nobodywho/changelogs/` (untracked).
 
 Then give them the commands to run, filled in with today's date in the branch name and with the bracketed list from the new `CHANGELOG.md` heading as the title:
@@ -321,7 +294,7 @@ If Godot is released, remind the user once its GitHub Release appears to upload 
 
 When every binding is published, tell the user the PR is ready to squash-merge on GitHub. The release branch never gets `main` merged into it.
 
-The PR shouldn't conflict with `main`, since nothing else edits `CHANGELOG.md` and new change files don't overlap the deleted ones. If GitHub still reports a conflict, stop and ask the user. It can happen when `main` edited a consumed change file, or a lockfile or `Cargo.nix`, since the branch was cut.
+The PR shouldn't conflict with `main`, since nothing else edits `CHANGELOG.md` and new change files don't overlap the deleted ones. If GitHub still reports a conflict, stop and ask the user. It can happen when `main` edited a consumed change file, or a lockfile or the Nix `outputHashes` in `workspace.nix`, since the branch was cut.
 
 ---
 
@@ -332,9 +305,7 @@ The PR shouldn't conflict with `main`, since nothing else edits `CHANGELOG.md` a
 - [ ] Version table, uniffi/core decision and changelog preview → **user approval** (Step 2)
 - [ ] `just prepare-release` run; diff matches expectations; `nobodywho/changelogs/` untracked (Step 3)
 - [ ] uniffi/core bumped and `cargo update -p ... --precise` run, if approved
-- [ ] `Cargo.nix` + `crate-hashes.json` regenerated after `Cargo.lock` (4a)
-- [ ] `pubspec.lock` synced with `flutter pub get` (4b)
-- [ ] `nix flake check -L` passes; the user runs it (4c)
+- [ ] `nix flake check -L` passes; the user runs it (Step 4)
 - [ ] Docs snapshotted per released binding, `latestReleases` updated (Step 5)
 - [ ] Step 6 checks pass
 - [ ] User created the release branch, committed, pushed and opened the PR with `no-changelog`, `edit-changelog` and `full-ci`; every check green (Step 7)

@@ -1,3 +1,13 @@
+# Builds the Rust workspace members with nixpkgs' rustPlatform.
+#
+# Dependencies are resolved from Cargo.lock via `rustPlatform.importCargoLock`.
+# Each member is built with `cargo build -p <crate>`, so dependencies compile
+# inside the same derivation as the member that needs them.
+#
+# Exposes:
+#
+#   workspace.workspaceMembers."${crateName}".build
+#
 {
   pkgs,
   lib,
@@ -14,181 +24,179 @@
 
   # flutter stuff
   flutter335,
-
-  # extra args — unused while using pre-generated Cargo.nix, but kept for easy switch-back
-  crate2nix,
-  stdenv,
 }:
 
 let
-  buildRustCrateForPkgs =
-    pkgs:
+  onnxruntime = pkgs.callPackage ./onnxruntime.nix { };
+
+  # Registry crates are fetched from crates.io; git deps are fixed-output
+  # fetches and need an `outputHashes` entry keyed "<crate-name>-<version>".
+  cargoDeps = rustPlatform.importCargoLock {
+    lockFile = ./Cargo.lock;
+    # Replace temporarily with lib.fakeHash when updating this.
+    outputHashes = {
+      "llama-cpp-2-0.1.161" = lib.fakeHash;
+      "llama-cpp-sys-2-0.1.161" = lib.fakeHash;
+    };
+  };
+
+  # Shared by every member build. Dependencies compile in the same cargo
+  # invocation as the member, so these apply to the whole build.
+  commonEnv = {
+    LIBCLANG_PATH = "${llvmPackages.libclang.lib}/lib/libclang.so";
+
+    # Architecture-specific CPU feature flags
+    # For ARM64: use defaults for compatibility with weaker devices (Raspberry Pi, etc.)
+    CARGO_CFG_TARGET_FEATURE =
+      if pkgs.stdenv.hostPlatform.isx86_64 then "sse4.2,fma,avx,avx512" else "";
+  };
+
+  commonNativeBuildInputs = [
+    llvmPackages.bintools
+    cmake
+    rustPlatform.bindgenHook
+    rustPlatform.cargoBuildHook
+    vulkan-headers
+    vulkan-loader
+    vulkan-tools
+    shaderc
+    mesa
+    git
+    rustfmt
+  ];
+
+  commonBuildInputs = [
+    vulkan-loader
+    vulkan-headers
+    shaderc
+    mesa
+  ];
+
+  buildMember =
+    name:
+    {
+      dir,
+      cdylib ? false,
+      env ? { },
+      nativeBuildInputs ? [ ],
+      buildInputs ? [ ],
+    }:
     let
-      onnxruntime = pkgs.callPackage ./onnxruntime.nix { };
+      manifest = builtins.fromTOML (builtins.readFile (./. + "/${dir}/Cargo.toml"));
+      crateName = manifest.package.name;
     in
-    pkgs.buildRustCrate.override {
-      defaultCrateOverrides = pkgs.defaultCrateOverrides // {
-        llama-cpp-sys-2 = attrs: {
-          env.LIBCLANG_PATH = "${pkgs.libclang.lib}/lib/libclang.so";
-
-          # Architecture-specific CPU feature flags
-          # For ARM64: use defaults for compatibility with weaker devices (Raspberry Pi, etc.)
-          env.CARGO_CFG_TARGET_FEATURE =
-            if pkgs.stdenv.hostPlatform.isx86_64 then "sse4.2,fma,avx,avx512" else "";
-
-          nativeBuildInputs = [
-            llvmPackages.bintools
-            cmake
-            rustPlatform.bindgenHook
-            rustPlatform.cargoBuildHook
-            vulkan-headers
-            vulkan-loader
-            shaderc
-            vulkan-tools
-            mesa
-            git
-            rustfmt
-          ];
-          # TODO: clean up in all these buildinputs
-          propagatedBuildInputs = [
-            vulkan-loader
-            vulkan-headers
-            shaderc
-            vulkan-tools
-            mesa
-          ];
-
+    rustPlatform.buildRustPackage (
+      {
+        pname = crateName;
+        inherit (manifest.package) version;
+        src = lib.cleanSourceWith {
+          src = ./.;
+          # keep local build artifacts (target/) out of the store source
+          filter =
+            path: type: !(type == "directory" && baseNameOf path == "target");
         };
+        inherit cargoDeps;
 
-        ort-sys = attrs: {
-          # Static link, as in release builds.
-          env.ORT_LIB_PATH = "${onnxruntime}/lib";
-          buildInputs = [ onnxruntime ];
-          # ort-sys's `copy-dylibs` feature symlinks onnxruntime libs into
-          # OUT_DIR.ancestors(3)/{examples,deps}. buildRustCrate sets
-          # OUT_DIR=$(pwd)/target/build/ort-sys.out, so ancestors(3) is the
-          # source root — but `examples` and `deps` don't exist there.
-          preConfigure = ''
-            mkdir -p examples deps
-          '';
-        };
+        # Build (and, when enabled via doCheck, test) only this member.
+        cargoBuildFlags = [ "-p" crateName ];
+        checkFlags = [ "-p" crateName ];
+        doCheck = false;
 
-        # XXX: this is a mildly crazy hack that the clanker came up with in order to
-        #      fix nix builds that depend on pyo3. It seems like some environment
-        #      variables aren't being passed into the build properly, so we re-set it here
-        #
-        # The machine-written comment says:
-        # pyo3 0.29 moved Python interpreter-config resolution into pyo3-ffi's
-        # build script, which exports the config to dependent build scripts over
-        # cargo's `links` metadata channel. pyo3's build script then reads it from
-        # the `DEP_<links>_PYO3_CONFIG` env var (`DEP_PYTHON_PYO3_CONFIG` for
-        # pyo3-ffi, `DEP_PYO3_PYTHON_PYO3_CONFIG` for pyo3 itself).
-        #
-        # nixpkgs' buildRustCrate derives that env-var prefix from the *crate name*
-        # instead of the crate's `links` value (see configure-crate.nix: CRATENAME).
-        # pyo3-ffi (links = "python") and pyo3 (links = "pyo3-python") are the rare
-        # crates where the two differ, so buildRustCrate emits the config under
-        # DEP_PYO3_FFI_* / DEP_PYO3_* and pyo3 never finds it, panicking with
-        # "`pyo3_build_config::get()` requires a direct dependency on `pyo3` or
-        # `pyo3-ffi`". We bridge the names by appending an alias to the `env` file
-        # that each crate installs and its dependents source.
-        pyo3-ffi = attrs: {
-          # Stands in for the removed `pyo3/extension-module` cargo feature, which
-          # maturin now sets through this variable instead: without it pyo3 links
-          # libpython and demands an interpreter that isn't in the nix sandbox.
-          env.PYO3_BUILD_EXTENSION_MODULE = "1";
+        env = commonEnv // env;
+        nativeBuildInputs = commonNativeBuildInputs ++ nativeBuildInputs;
+        buildInputs = commonBuildInputs ++ buildInputs;
 
-          postConfigure = ''
-            if [ -f target/env ]; then
-              echo '[ -n "$DEP_PYO3_FFI_PYO3_CONFIG" ] && export DEP_PYTHON_PYO3_CONFIG="$DEP_PYO3_FFI_PYO3_CONFIG"' >> target/env
-            fi
-          '';
-        };
+        preConfigure = ''
+          # ort-sys's `copy-dylibs` symlinks onnxruntime libs into
+          # OUT_DIR.ancestors(3)/{examples,deps}. OUT_DIR is
+          # $(pwd)/target/build/ort-sys.out, so ancestors(3) is the source
+          # root — but `examples` and `deps` don't exist there.
+          mkdir -p examples deps
+        '';
+      }
+      // lib.optionalAttrs cdylib {
+        # shared library in a `lib` output (${member.lib}/lib/lib<name>.so)
+        outputs = [ "out" "lib" ];
+        postInstall = ''
+          if [ -d "$out/lib" ]; then
+            mkdir -p "$lib/lib"
+            mv "$out/lib/"* "$lib/lib/"
+          fi
+        '';
+      }
+    );
 
-        pyo3 = attrs: {
-          env.PYO3_BUILD_EXTENSION_MODULE = "1";
-
-          postConfigure = ''
-            if [ -f target/env ]; then
-              echo '[ -n "$DEP_PYO3_PYO3_CONFIG" ] && export DEP_PYO3_PYTHON_PYO3_CONFIG="$DEP_PYO3_PYO3_CONFIG"' >> target/env
-            fi
-          '';
-        };
-
-        espeak-rs-sys = attrs: {
-          nativeBuildInputs = [
-            cmake
-            rustPlatform.bindgenHook
-          ];
-          buildInputs = [ pkgs.sonic ];
-          env.LIBCLANG_PATH = "${llvmPackages.libclang.lib}/lib/libclang.so";
-          prePatch = ''
-            substituteInPlace build.rs \
-              --replace-fail 'get_cargo_target_dir().unwrap()' \
-                             'get_cargo_target_dir().unwrap_or_else(|_| out_dir.clone())'
-          '';
-        };
-
-        nobodywho = attrs: {
-          nativeBuildInputs = [
-            # this needs to be available at link-time
-            vulkan-loader
-            onnxruntime
-          ];
-        };
-
-        nobodywho-flutter = attrs: {
-          env.NOBODYWHO_SKIP_CODEGEN = "1";
-          nativeBuildInputs = [
-            # this needs to be available at link-time
-            vulkan-loader
-            onnxruntime
-            flutter335
-          ];
-        };
-
-        nobodywho-godot = attrs: {
-          nativeBuildInputs = [
-            # XXX: can we do this with propagatedNativeBuildInputs??
-            # this needs to be available at link-time
-            vulkan-loader
-            onnxruntime
-          ];
-        };
-
-        nobodywho-python = attrs: {
-          nativeBuildInputs = [
-            vulkan-loader
-            onnxruntime
-            pkgs.python3
-          ];
-        };
-      };
+  # `buildInputs` entries here are link-time deps (vulkan, onnxruntime).
+  members = {
+    "nobodywho" = {
+      dir = "core";
+      buildInputs = [
+        vulkan-loader
+        onnxruntime
+      ];
     };
 
-  # IFD-based generation — broken with git workspace deps using inheritance (crate2nix#207).
-  # To switch back, uncomment crate2nix/stdenv args above and use this instead of Cargo.nix import.
-  # generatedCargoNix = crate2nix.tools.${stdenv.hostPlatform.system}.generatedCargoNix {
-  #   name = "nobodywho";
-  #   src = ./.;
-  # };
+    "nobodywho-godot" = {
+      dir = "godot";
+      cdylib = true;
+      buildInputs = [
+        vulkan-loader
+        onnxruntime
+      ];
+    };
 
-  # ── Regenerating Cargo.nix ──────────────────────────────────────────────
-  # Cargo.nix is checked in and consumed directly (instead of generated via
-  # import-from-derivation) because crate2nix's IFD path is broken for git
-  # workspace deps that use inheritance (crate2nix#207).
-  #
-  # Regenerate whenever Cargo.toml or Cargo.lock changes:
-  #
-  #   cd nobodywho
-  #   nix run github:nix-community/crate2nix -- generate -h crate-hashes.json
-  #
-  # The -h crate-hashes.json pins hashes for git/path deps so the generated
-  # Cargo.nix is reproducible. Review the diff and commit Cargo.nix alongside
-  # the Cargo.toml/Cargo.lock changes.
-  # ─────────────────────────────────────────────────────────────────────────
-  cargoNix = import ./Cargo.nix {
-    inherit pkgs buildRustCrateForPkgs;
+    "nobodywho-flutter" = {
+      dir = "flutter/rust";
+      cdylib = true;
+      env = {
+        NOBODYWHO_SKIP_CODEGEN = "1";
+      };
+      nativeBuildInputs = [
+        # flutter on PATH for the flutter_rust_bridge build environment
+        flutter335
+      ];
+      buildInputs = [
+        vulkan-loader
+        onnxruntime
+      ];
+    };
+
+    "nobodywho-python" = {
+      dir = "python";
+      cdylib = true;
+      # Stands in for the removed `pyo3/extension-module` cargo feature:
+      # without it pyo3 links libpython, which isn't in the nix sandbox.
+      env = {
+        PYO3_BUILD_EXTENSION_MODULE = "1";
+      };
+      nativeBuildInputs = [
+        pkgs.python3
+      ];
+      buildInputs = [
+        vulkan-loader
+        onnxruntime
+      ];
+    };
+
+    "nobodywho-server".dir = "server";
+    "make_stubs".dir = "python/make_stubs";
+    "gbnf".dir = "grammar/gbnf";
+    "gbnf-macro".dir = "grammar/gbnf-macro";
+
+    "nobodywho-uniffi" = {
+      dir = "uniffi";
+      cdylib = true;
+      buildInputs = [
+        vulkan-loader
+        onnxruntime
+      ];
+    };
   };
+
+  # wrapped as { build = <derivation>; } for the
+  # workspaceMembers."<crate>".build interface
+  workspaceMembers = lib.mapAttrs (name: cfg: { build = buildMember name cfg; }) members;
 in
-cargoNix
+{
+  inherit workspaceMembers cargoDeps;
+}

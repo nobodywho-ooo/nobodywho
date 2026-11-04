@@ -9,15 +9,12 @@
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     android-nixpkgs.url = "github:tadfisher/android-nixpkgs";
-    crate2nix.url = "github:nix-community/crate2nix";
-    crate2nix.inputs.nixpkgs.follows = "nixpkgs";
   };
   outputs =
     {
       nixpkgs,
       flake-utils,
       android-nixpkgs,
-      crate2nix,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -32,7 +29,7 @@
           }
         );
 
-        workspace = pkgs.callPackage ./nobodywho/workspace.nix { inherit crate2nix; };
+        workspace = pkgs.callPackage ./nobodywho/workspace.nix { };
 
         # python stuff
         nobodywho-python = pkgs.callPackage ./nobodywho/python { inherit workspace; };
@@ -45,22 +42,22 @@
 
         # cargo tests
         test-models = pkgs.callPackage ./nobodywho/models.nix { };
-        nobodywho-tested = workspace.workspaceMembers.nobodywho.build.override {
-          runTests = true;
-          testPreRun = ''
-            export TEST_MODEL=${test-models.TEST_MODEL}
-            export TEST_EMBEDDINGS_MODEL=${test-models.TEST_EMBEDDINGS_MODEL}
-            export TEST_CROSSENCODER_MODEL=${test-models.TEST_CROSSENCODER_MODEL}
-            export TEST_DECISION_MODEL=${test-models.TEST_DECISION_MODEL}
-            export TEST_RECURRENT_MODEL=${test-models.TEST_RECURRENT_MODEL}
-            export TEST_RECURRENT_MMPROJ_MODEL=${test-models.TEST_RECURRENT_MMPROJ_MODEL}
-            export TEST_IMAGE=${./nobodywho/python/tests/img/dog.png}
-            export TEST_WHISPER_MODEL=${test-models.TEST_WHISPER_MODEL}
-            export TEST_AUDIO_FILE=${./assets/sound.mp3}
-
-
-          '';
-        };
+        nobodywho-tested = workspace.workspaceMembers.nobodywho.build.overrideAttrs (
+          old: {
+            doCheck = true;
+            preCheck = (old.preCheck or "") + ''
+              export TEST_MODEL=${test-models.TEST_MODEL}
+              export TEST_EMBEDDINGS_MODEL=${test-models.TEST_EMBEDDINGS_MODEL}
+              export TEST_CROSSENCODER_MODEL=${test-models.TEST_CROSSENCODER_MODEL}
+              export TEST_DECISION_MODEL=${test-models.TEST_DECISION_MODEL}
+              export TEST_RECURRENT_MODEL=${test-models.TEST_RECURRENT_MODEL}
+              export TEST_RECURRENT_MMPROJ_MODEL=${test-models.TEST_RECURRENT_MMPROJ_MODEL}
+              export TEST_IMAGE=${./nobodywho/python/tests/img/dog.png}
+              export TEST_WHISPER_MODEL=${test-models.TEST_WHISPER_MODEL}
+              export TEST_AUDIO_FILE=${./assets/sound.mp3}
+            '';
+          }
+        );
 
         # godot stuff
         nobodywho-godot = workspace.workspaceMembers.nobodywho-godot.build;

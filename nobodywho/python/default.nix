@@ -3,13 +3,13 @@
   callPackage,
   python3,
   python3Packages,
-  workspace, # crate2nix workspace from workspace.nix
+  workspace,
 }:
 
 let
   models = callPackage ../models.nix { };
   pyprojectToml = builtins.fromTOML (builtins.readFile ./pyproject.toml);
-  # Phase 1: the .so is already built by crate2nix via workspace
+  # Phase 1: the .so is already built by workspace.nix
   nobodywho-python-rs = workspace.workspaceMembers.nobodywho-python.build;
 in
 python3Packages.buildPythonPackage {

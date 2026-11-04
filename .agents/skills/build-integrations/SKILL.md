@@ -108,17 +108,11 @@ NOBODYWHO_SKIP_CODEGEN=1 cargo build
 # Skip codegen if flutter toolchain is not installed locally; CI handles the regen check.
 ```
 
-### 3f. Regenerate Cargo.nix
+### 3f. Nix `outputHashes` for git dependencies
 
-**Always run this step** if any `Cargo.toml` or `Cargo.lock` changed (new deps added, features changed). Forgetting this is what breaks the Nix CI build with "unresolved crate" errors. Run from `nobodywho/`:
+Only needed if a **git dependency** was added to or changed in `Cargo.toml`/`Cargo.lock`. Nix resolves the workspace from `Cargo.lock` via `rustPlatform.importCargoLock` in `nobodywho/workspace.nix`; git deps must be pinned there in `outputHashes`, keyed `"<crate-name>-<version>"`. Registry crates need no action.
 
-```bash
-nix run github:nix-community/crate2nix -- generate -h crate-hashes.json
-```
-
-If `nix` is not on PATH, try `/nix/var/nix/profiles/default/bin/nix --extra-experimental-features 'nix-command flakes' run github:nix-community/crate2nix -- generate -h crate-hashes.json`.
-
-This regenerates both `Cargo.nix` and updates `crate-hashes.json`. Both files must be committed.
+Add a placeholder value for the new/changed git dep, then run a Nix build once on a machine with Nix (`nix build .#nobodywho-godot`); it fails with a hash mismatch and prints the real hash as `got: sha256-...` — copy that into `outputHashes`.
 
 ### 3g. Nix test asset paths
 
