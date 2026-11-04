@@ -106,8 +106,11 @@ let
         inherit cargoDeps;
 
         # Build (and, when enabled via doCheck, test) only this member.
+        # Note: `cargoTestFlags` go to `cargo test`; `checkFlags` would go to
+        # the test binaries, so `-p` there doesn't scope the test build and
+        # cargo would build every default member (e.g. pyo3, needing python).
         cargoBuildFlags = [ "-p" crateName ];
-        checkFlags = [ "-p" crateName ];
+        cargoTestFlags = [ "-p" crateName ];
         doCheck = false;
 
         env = commonEnv // env;
