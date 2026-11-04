@@ -72,11 +72,16 @@ pub(crate) mod test_utils {
         });
     }
 
+    /// The path of the test model, from `TEST_MODEL`
+    pub(crate) fn test_model_path() -> String {
+        std::env::var("TEST_MODEL").unwrap_or_else(|_| "model.gguf".to_string())
+    }
+
     /// Load the test model with GPU acceleration if available
     pub(crate) fn load_test_model() -> Arc<Model> {
         init_test_tracing();
 
-        let path = std::env::var("TEST_MODEL").unwrap_or_else(|_| "model.gguf".to_string());
+        let path = test_model_path();
         Arc::new(
             get_model(&path, true, None, None, None)
                 .unwrap_or_else(|e| panic!("failed to load test model from {path}: {e}")),
@@ -173,8 +178,7 @@ pub(crate) mod test_utils {
     pub(crate) fn load_test_vocab() -> LlamaModel {
         init_test_tracing();
 
-        let path = std::env::var("TEST_MODEL").unwrap_or_else(|_| "model.gguf".to_string());
-        load_vocab(&path)
+        load_vocab(&test_model_path())
     }
 
     /// Load only the vocabulary of `GEMMA4_MODEL`, which may be a vocabulary-only GGUF

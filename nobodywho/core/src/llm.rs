@@ -512,8 +512,7 @@ mod tests {
     #[test]
     fn model_keeps_its_source() {
         let model = crate::test_utils::load_test_model();
-        let source = std::env::var("TEST_MODEL").unwrap_or_else(|_| "model.gguf".to_string());
-        assert_eq!(model.source(), source);
+        assert_eq!(model.source(), crate::test_utils::test_model_path());
     }
 
     #[test]
