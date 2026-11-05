@@ -1,6 +1,5 @@
 import {
   RustTextToSpeech,
-  loadTextToSpeech,
   type RustTextToSpeechInterface,
 } from "../generated";
 
@@ -28,19 +27,10 @@ export class TextToSpeech {
 
   /** Create a TextToSpeech synthesizer synchronously. */
   constructor(opts: TextToSpeechOptions) {
-    this._inner = new RustTextToSpeech(
-      opts.source,
-      opts.architecture,
-      opts.voice,
-      opts.language,
-      opts.speed,
-      opts.steps,
-      opts.silenceDuration,
-      opts.precision,
-      opts.temperature,
-      opts.huggingfaceToken,
-      opts.device ?? "auto",
-    );
+    this._inner = new RustTextToSpeech({
+      ...opts,
+      device: opts.device ?? "auto",
+    });
   }
 
   private static fromInner(inner: RustTextToSpeechInterface): TextToSpeech {
@@ -51,19 +41,10 @@ export class TextToSpeech {
 
   /** Create a TextToSpeech synthesizer asynchronously. */
   static async load(opts: TextToSpeechOptions): Promise<TextToSpeech> {
-    const inner = await loadTextToSpeech(
-      opts.source,
-      opts.architecture,
-      opts.voice,
-      opts.language,
-      opts.speed,
-      opts.steps,
-      opts.silenceDuration,
-      opts.precision,
-      opts.temperature,
-      opts.huggingfaceToken,
-      opts.device ?? "auto",
-    );
+    const inner = await RustTextToSpeech.load({
+      ...opts,
+      device: opts.device ?? "auto",
+    });
     return TextToSpeech.fromInner(inner);
   }
 

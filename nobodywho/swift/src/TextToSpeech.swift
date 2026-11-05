@@ -31,7 +31,7 @@ public class TextToSpeech {
         huggingfaceToken: String? = nil,
         device: TextToSpeechDevice = .auto
     ) throws {
-        self.inner = try NobodyWhoGenerated.RustTextToSpeech(
+        let options = NobodyWhoGenerated.TextToSpeechOptions(
             source: source,
             architecture: architecture?.rawValue,
             voice: voice,
@@ -44,6 +44,7 @@ public class TextToSpeech {
             huggingfaceToken: huggingfaceToken,
             device: device.rawValue
         )
+        self.inner = try NobodyWhoGenerated.RustTextToSpeech(options: options)
     }
 
     private init(inner: NobodyWhoGenerated.RustTextToSpeech) {
@@ -64,7 +65,7 @@ public class TextToSpeech {
         huggingfaceToken: String? = nil,
         device: TextToSpeechDevice = .auto
     ) async throws -> TextToSpeech {
-        let inner = try await NobodyWhoGenerated.loadTextToSpeech(
+        let options = NobodyWhoGenerated.TextToSpeechOptions(
             source: source,
             architecture: architecture?.rawValue,
             voice: voice,
@@ -77,6 +78,7 @@ public class TextToSpeech {
             huggingfaceToken: huggingfaceToken,
             device: device.rawValue
         )
+        let inner = try await NobodyWhoGenerated.RustTextToSpeech.load(options: options)
         return TextToSpeech(inner: inner)
     }
 

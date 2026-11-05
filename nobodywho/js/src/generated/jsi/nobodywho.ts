@@ -305,102 +305,6 @@ export async function loadSpeechToText(
 }
 
 /**
- * Create a TextToSpeech synthesizer.
- */
-export async function loadTextToSpeech(
-  source: string,
-  architecture: string | undefined,
-  voice: string | undefined,
-  language: string | undefined,
-  speed: number | undefined,
-  steps: number | undefined,
-  silenceDuration: number | undefined,
-  precision: string | undefined,
-  temperature: number | undefined,
-  huggingfaceToken: string | undefined,
-  device: string | undefined,
-  asyncOpts_?: { signal: AbortSignal },
-): Promise<RustTextToSpeechLike> /*throws*/ {
-  const __stack = uniffiIsDebug ? new Error().stack : undefined;
-  try {
-    return await uniffiRustCallAsync(
-      /*rustCaller:*/ uniffiCaller,
-      /*rustFutureFunc:*/ () => {
-        return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(
-          FfiConverterString.lower(source, nativeModule().rustbuffer_alloc),
-          FfiConverterOptionalString.lower(
-            architecture,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalString.lower(
-            voice,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalString.lower(
-            language,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalFloat32.lower(
-            speed,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalUInt32.lower(
-            steps,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalFloat32.lower(
-            silenceDuration,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalString.lower(
-            precision,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalFloat32.lower(
-            temperature,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalString.lower(
-            huggingfaceToken,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalString.lower(
-            device,
-            nativeModule().rustbuffer_alloc,
-          ),
-        );
-      },
-      /*pollFunc:*/ nativeModule()
-        .ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
-      /*cancelFunc:*/ nativeModule()
-        .ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
-      /*completeFunc:*/ nativeModule()
-        .ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
-      /*freeFunc:*/ nativeModule()
-        .ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
-      // Async returns always go through the JS-side converter: the
-      // FFI symbol returns the future handle (u64), and the user-level
-      // RustBuffer comes back via the shared `rust_future_complete_*`
-      // export. The bytes the runtime hands back must be deserialized
-      // here using the per-callable return-type converter.
-      /*liftFunc:*/ FfiConverterTypeRustTextToSpeech.lift.bind(
-        FfiConverterTypeRustTextToSpeech,
-      ),
-      /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
-      /*asyncOpts:*/ asyncOpts_,
-      /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
-        FfiConverterTypeNobodyWhoError,
-      ),
-    );
-  } catch (__error: any) {
-    if (uniffiIsDebug && __error instanceof Error) {
-      __error.stack = __stack;
-    }
-    throw __error;
-  }
-}
-
-/**
  * Create a voice activity detector. `source` is a HuggingFace repo
  * (`hf://owner/repo`) or local directory for the Silero VAD ONNX model;
  * `None` uses the default (`hf://onnx-community/silero-vad`). `sample_rate`
@@ -1680,6 +1584,90 @@ const FfiConverterTypeOptions = (() => {
           value.templateVariables,
         ) +
         FfiConverterOptionalSequenceTypeRustTool.allocationSize(value.tools)
+      );
+    }
+  }
+  return new FFIConverter();
+})();
+
+/**
+ * Creation options for `TextToSpeech`.
+ */
+export type TextToSpeechOptions = {
+  source: string;
+  architecture?: string;
+  voice?: string;
+  language?: string;
+  speed?: number;
+  steps?: number;
+  silenceDuration?: number;
+  precision?: string;
+  temperature?: number;
+  huggingfaceToken?: string;
+  device?: string;
+};
+
+/**
+ * Generated factory for {@link TextToSpeechOptions} record objects.
+ */
+export const TextToSpeechOptions = (() => {
+  const defaults = () => ({});
+  const create = (() => {
+    return uniffiCreateRecord<TextToSpeechOptions, ReturnType<typeof defaults>>(
+      defaults,
+    );
+  })();
+  return Object.freeze({
+    create,
+    new: create,
+    defaults: () => Object.freeze(defaults()) as Partial<TextToSpeechOptions>,
+  });
+})();
+
+const FfiConverterTypeTextToSpeechOptions = (() => {
+  type TypeName = TextToSpeechOptions;
+  class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+    readFromCursor(c: Cursor): TypeName {
+      return {
+        source: FfiConverterString.readFromCursor(c),
+        architecture: FfiConverterOptionalString.readFromCursor(c),
+        voice: FfiConverterOptionalString.readFromCursor(c),
+        language: FfiConverterOptionalString.readFromCursor(c),
+        speed: FfiConverterOptionalFloat32.readFromCursor(c),
+        steps: FfiConverterOptionalUInt32.readFromCursor(c),
+        silenceDuration: FfiConverterOptionalFloat32.readFromCursor(c),
+        precision: FfiConverterOptionalString.readFromCursor(c),
+        temperature: FfiConverterOptionalFloat32.readFromCursor(c),
+        huggingfaceToken: FfiConverterOptionalString.readFromCursor(c),
+        device: FfiConverterOptionalString.readFromCursor(c),
+      };
+    }
+    writeIntoCursor(value: TypeName, c: Cursor): void {
+      FfiConverterString.writeIntoCursor(value.source, c);
+      FfiConverterOptionalString.writeIntoCursor(value.architecture, c);
+      FfiConverterOptionalString.writeIntoCursor(value.voice, c);
+      FfiConverterOptionalString.writeIntoCursor(value.language, c);
+      FfiConverterOptionalFloat32.writeIntoCursor(value.speed, c);
+      FfiConverterOptionalUInt32.writeIntoCursor(value.steps, c);
+      FfiConverterOptionalFloat32.writeIntoCursor(value.silenceDuration, c);
+      FfiConverterOptionalString.writeIntoCursor(value.precision, c);
+      FfiConverterOptionalFloat32.writeIntoCursor(value.temperature, c);
+      FfiConverterOptionalString.writeIntoCursor(value.huggingfaceToken, c);
+      FfiConverterOptionalString.writeIntoCursor(value.device, c);
+    }
+    allocationSize(value: TypeName): number {
+      return (
+        FfiConverterString.allocationSize(value.source) +
+        FfiConverterOptionalString.allocationSize(value.architecture) +
+        FfiConverterOptionalString.allocationSize(value.voice) +
+        FfiConverterOptionalString.allocationSize(value.language) +
+        FfiConverterOptionalFloat32.allocationSize(value.speed) +
+        FfiConverterOptionalUInt32.allocationSize(value.steps) +
+        FfiConverterOptionalFloat32.allocationSize(value.silenceDuration) +
+        FfiConverterOptionalString.allocationSize(value.precision) +
+        FfiConverterOptionalFloat32.allocationSize(value.temperature) +
+        FfiConverterOptionalString.allocationSize(value.huggingfaceToken) +
+        FfiConverterOptionalString.allocationSize(value.device)
       );
     }
   }
@@ -5294,19 +5282,7 @@ export class RustTextToSpeech
   /**
    * Create a TextToSpeech synthesizer.
    */
-  constructor(
-    source: string,
-    architecture: string | undefined,
-    voice: string | undefined,
-    language: string | undefined,
-    speed: number | undefined,
-    steps: number | undefined,
-    silenceDuration: number | undefined,
-    precision: string | undefined,
-    temperature: number | undefined,
-    huggingfaceToken: string | undefined,
-    device: string | undefined,
-  ) /*throws*/ {
+  constructor(options: TextToSpeechOptions) /*throws*/ {
     super();
     const pointer = uniffiCaller.rustCallWithError(
       /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(
@@ -5314,45 +5290,8 @@ export class RustTextToSpeech
       ),
       /*caller:*/ (callStatus) => {
         return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_new(
-          FfiConverterString.lower(source, nativeModule().rustbuffer_alloc),
-          FfiConverterOptionalString.lower(
-            architecture,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalString.lower(
-            voice,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalString.lower(
-            language,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalFloat32.lower(
-            speed,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalUInt32.lower(
-            steps,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalFloat32.lower(
-            silenceDuration,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalString.lower(
-            precision,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalFloat32.lower(
-            temperature,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalString.lower(
-            huggingfaceToken,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalString.lower(
-            device,
+          FfiConverterTypeTextToSpeechOptions.lower(
+            options,
             nativeModule().rustbuffer_alloc,
           ),
           callStatus,
@@ -5363,6 +5302,55 @@ export class RustTextToSpeech
     this[pointerLiteralSymbol] = pointer;
     this[destructorGuardSymbol] =
       uniffiTypeRustTextToSpeechObjectFactory.bless(pointer);
+  }
+
+  /**
+   * Create a TextToSpeech synthesizer.
+   */
+  static async load(
+    options: TextToSpeechOptions,
+    asyncOpts_?: { signal: AbortSignal },
+  ): Promise<RustTextToSpeechLike> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+      return await uniffiRustCallAsync(
+        /*rustCaller:*/ uniffiCaller,
+        /*rustFutureFunc:*/ () => {
+          return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_load(
+            FfiConverterTypeTextToSpeechOptions.lower(
+              options,
+              nativeModule().rustbuffer_alloc,
+            ),
+          );
+        },
+        /*pollFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
+        /*cancelFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
+        /*completeFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
+        /*freeFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
+        // Async returns always go through the JS-side converter: the
+        // FFI symbol returns the future handle (u64), and the user-level
+        // RustBuffer comes back via the shared `rust_future_complete_*`
+        // export. The bytes the runtime hands back must be deserialized
+        // here using the per-callable return-type converter.
+        /*liftFunc:*/ FfiConverterTypeRustTextToSpeech.lift.bind(
+          FfiConverterTypeRustTextToSpeech,
+        ),
+        /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+        /*asyncOpts:*/ asyncOpts_,
+        /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+          FfiConverterTypeNobodyWhoError,
+        ),
+      );
+    } catch (__error: any) {
+      if (uniffiIsDebug && __error instanceof Error) {
+        __error.stack = __stack;
+      }
+      throw __error;
+    }
   }
 
   /**
@@ -6651,6 +6639,17 @@ const FfiConverterOptionalSequenceTypeRustTool = new FfiConverterOptional(
   FfiConverterSequenceTypeRustTool,
 );
 
+// FfiConverter for string | undefined
+const FfiConverterOptionalString = new FfiConverterOptional(FfiConverterString);
+
+// FfiConverter for number | undefined
+const FfiConverterOptionalFloat32 = new FfiConverterOptional(
+  FfiConverterFloat32,
+);
+
+// FfiConverter for number | undefined
+const FfiConverterOptionalUInt32 = new FfiConverterOptional(FfiConverterUInt32);
+
 // FfiConverter for Array<ContentPart>
 const FfiConverterSequenceTypeContentPart = new FfiConverterArray(
   FfiConverterTypeContentPart,
@@ -6666,17 +6665,9 @@ const FfiConverterOptionalSequenceTypeToolCall = new FfiConverterOptional(
   FfiConverterSequenceTypeToolCall,
 );
 
-// FfiConverter for string | undefined
-const FfiConverterOptionalString = new FfiConverterOptional(FfiConverterString);
-
 // FfiConverter for Array<Message>
 const FfiConverterSequenceTypeMessage = new FfiConverterArray(
   FfiConverterTypeMessage,
-);
-
-// FfiConverter for number | undefined
-const FfiConverterOptionalFloat32 = new FfiConverterOptional(
-  FfiConverterFloat32,
 );
 
 // FfiConverter for number | undefined
@@ -6731,9 +6722,6 @@ const FfiConverterOptionalTypeRustDownloadProgressCallback =
 const FfiConverterSequenceTypeCachedModel = new FfiConverterArray(
   FfiConverterTypeCachedModel,
 );
-
-// FfiConverter for number | undefined
-const FfiConverterOptionalUInt32 = new FfiConverterOptional(FfiConverterUInt32);
 
 // FfiConverter for MtpConfig | undefined
 const FfiConverterOptionalTypeMtpConfig = new FfiConverterOptional(
@@ -6810,14 +6798,6 @@ function uniffiEnsureInitialized() {
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text",
-    );
-  }
-  if (
-    nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech() !==
-    45176
-  ) {
-    throw new UniffiInternalError.ApiChecksumMismatch(
-      "uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech",
     );
   }
   if (
@@ -7205,8 +7185,16 @@ function uniffiEnsureInitialized() {
     );
   }
   if (
+    nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_load() !==
+    59952
+  ) {
+    throw new UniffiInternalError.ApiChecksumMismatch(
+      "uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_load",
+    );
+  }
+  if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new() !==
-    55766
+    10019
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new",
@@ -7532,6 +7520,7 @@ export default Object.freeze({
     FfiConverterTypeSamplerBuilder,
     FfiConverterTypeSamplerConfig,
     FfiConverterTypeShiftTarget,
+    FfiConverterTypeTextToSpeechOptions,
     FfiConverterTypeToolCall,
     FfiConverterTypeToolParameter,
     FfiConverterTypeVoiceActivityDetectionEvent,

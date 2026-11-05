@@ -1321,20 +1321,11 @@ fn parse_text_to_speech_device(
     }
 }
 
-fn build_text_to_speech_config(
-    source: String,
-    architecture: Option<String>,
-    voice: Option<String>,
-    language: Option<String>,
-    speed: Option<f32>,
-    steps: Option<u32>,
-    silence_duration: Option<f32>,
-    precision: Option<String>,
-    temperature: Option<f32>,
-    huggingface_token: Option<String>,
-) -> Result<nobodywho::text_to_speech::TextToSpeechConfig, NobodyWhoError> {
-    let architecture = parse_text_to_speech_architecture(architecture)?;
-    let mut config = nobodywho::text_to_speech::TextToSpeechConfig::from_source(&source, architecture).ok_or_else(|| {
+fn create_text_to_speech(
+    options: TextToSpeechOptions,
+) -> Result<nobodywho::text_to_speech::TextToSpeech, NobodyWhoError> {
+    let architecture = parse_text_to_speech_architecture(options.architecture)?;
+    let mut config = nobodywho::text_to_speech::TextToSpeechConfig::from_source(&options.source, architecture).ok_or_else(|| {
         text_to_speech_error(
             "architecture is required for unknown TextToSpeech sources; pass architecture='kokoro', architecture='pocket-tts', or architecture='supertonic'",
         )
@@ -1342,27 +1333,27 @@ fn build_text_to_speech_config(
 
     match &mut config {
         nobodywho::text_to_speech::TextToSpeechConfig::Kokoro(config) => {
-            if let Some(voice) = voice {
+            if let Some(voice) = options.voice {
                 config.voice = voice;
             }
-            if let Some(language) = language {
+            if let Some(language) = options.language {
                 config.language = language;
             }
-            if let Some(speed) = speed {
+            if let Some(speed) = options.speed {
                 config.speed = speed;
             }
         }
         nobodywho::text_to_speech::TextToSpeechConfig::PocketTts(config) => {
-            if let Some(voice) = voice {
+            if let Some(voice) = options.voice {
                 config.voice = voice;
             }
-            if let Some(language) = language {
+            if let Some(language) = options.language {
                 config.language = language;
             }
-            if let Some(steps) = steps {
+            if let Some(steps) = options.steps {
                 config.lsd_steps = steps as usize;
             }
-            if let Some(precision) = precision {
+            if let Some(precision) = options.precision {
                 config.precision = match precision.to_ascii_lowercase().as_str() {
                     "int8" => nobodywho::text_to_speech::PocketTtsPrecision::Int8,
                     "fp32" => nobodywho::text_to_speech::PocketTtsPrecision::Fp32,
@@ -1373,66 +1364,42 @@ fn build_text_to_speech_config(
                     }
                 };
             }
-            if let Some(temperature) = temperature {
+            if let Some(temperature) = options.temperature {
                 config.temperature = temperature;
             }
-            config.huggingface_token = huggingface_token;
+            config.huggingface_token = options.huggingface_token;
         }
         nobodywho::text_to_speech::TextToSpeechConfig::Supertonic(config) => {
-            if let Some(voice) = voice {
+            if let Some(voice) = options.voice {
                 config.voice = voice;
             }
-            if let Some(language) = language {
+            if let Some(language) = options.language {
                 config.language = language;
             }
-            if let Some(speed) = speed {
+            if let Some(speed) = options.speed {
                 config.speed = speed;
             }
-            if let Some(steps) = steps {
+            if let Some(steps) = options.steps {
                 config.steps = steps as usize;
             }
-            if let Some(silence_duration) = silence_duration {
+            if let Some(silence_duration) = options.silence_duration {
                 config.silence_duration = silence_duration;
             }
         }
     }
-    Ok(config)
-}
-
-fn create_text_to_speech(
-    source: String,
-    architecture: Option<String>,
-    voice: Option<String>,
-    language: Option<String>,
-    speed: Option<f32>,
-    steps: Option<u32>,
-    silence_duration: Option<f32>,
-    precision: Option<String>,
-    temperature: Option<f32>,
-    huggingface_token: Option<String>,
-    device: Option<String>,
-) -> Result<Arc<RustTextToSpeech>, NobodyWhoError> {
-    let config = build_text_to_speech_config(
-        source,
-        architecture,
-        voice,
-        language,
-        speed,
-        steps,
-        silence_duration,
-        precision,
-        temperature,
-        huggingface_token,
-    )?;
-    let device = parse_text_to_speech_device(device)?;
+    let device = parse_text_to_speech_device(options.device)?;
     let inner = nobodywho::text_to_speech::TextToSpeech::with_device(config, device)
         .map_err(|e| text_to_speech_error(nobodywho::render_miette(&e)))?;
-    Ok(Arc::new(RustTextToSpeech { inner }))
+    Ok(inner)
 }
 
-/// Create a TextToSpeech synthesizer.
-#[uniffi::export]
-pub async fn load_text_to_speech(
+/// Creation options for `TextToSpeech`.
+//
+// NOTE: This is passed as a single struct, to avoid ABI issues in Kotlin when
+// passing more than 8 arguments on Aarch64:
+// https://github.com/java-native-access/jna/issues/1751
+#[derive(uniffi::Record, Clone)]
+pub struct TextToSpeechOptions {
     source: String,
     architecture: Option<String>,
     voice: Option<String>,
@@ -1444,56 +1411,26 @@ pub async fn load_text_to_speech(
     temperature: Option<f32>,
     huggingface_token: Option<String>,
     device: Option<String>,
-) -> Result<Arc<RustTextToSpeech>, NobodyWhoError> {
-    AsyncWorker::new()
-        .run(move || {
-            create_text_to_speech(
-                source,
-                architecture,
-                voice,
-                language,
-                speed,
-                steps,
-                silence_duration,
-                precision,
-                temperature,
-                huggingface_token,
-                device,
-            )
-        })
-        .await
 }
 
 #[uniffi::export]
 impl RustTextToSpeech {
     /// Create a TextToSpeech synthesizer.
     #[uniffi::constructor]
-    pub fn new(
-        source: String,
-        architecture: Option<String>,
-        voice: Option<String>,
-        language: Option<String>,
-        speed: Option<f32>,
-        steps: Option<u32>,
-        silence_duration: Option<f32>,
-        precision: Option<String>,
-        temperature: Option<f32>,
-        huggingface_token: Option<String>,
-        device: Option<String>,
-    ) -> Result<Arc<Self>, NobodyWhoError> {
-        create_text_to_speech(
-            source,
-            architecture,
-            voice,
-            language,
-            speed,
-            steps,
-            silence_duration,
-            precision,
-            temperature,
-            huggingface_token,
-            device,
-        )
+    pub fn new(options: TextToSpeechOptions) -> Result<Self, NobodyWhoError> {
+        let inner = create_text_to_speech(options)?;
+        Ok(Self { inner })
+    }
+
+    /// Create a TextToSpeech synthesizer.
+    #[uniffi::constructor]
+    pub async fn load(options: TextToSpeechOptions) -> Result<Self, NobodyWhoError> {
+        AsyncWorker::new()
+            .run(move || {
+                let inner = create_text_to_speech(options)?;
+                Ok(Self { inner })
+            })
+            .await
     }
 
     /// Synthesize text and return WAV bytes.

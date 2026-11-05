@@ -2290,21 +2290,11 @@ open class RustTextToSpeech: RustTextToSpeechProtocol, @unchecked Sendable {
     /**
      * Create a TextToSpeech synthesizer.
      */
-public convenience init(source: String, architecture: String?, voice: String?, language: String?, speed: Float?, steps: UInt32?, silenceDuration: Float?, precision: String?, temperature: Float?, huggingfaceToken: String?, device: String?)throws  {
+public convenience init(options: TextToSpeechOptions)throws  {
     let handle =
         try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
     uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_new(
-        FfiConverterString.lower(source),
-        FfiConverterOptionString.lower(architecture),
-        FfiConverterOptionString.lower(voice),
-        FfiConverterOptionString.lower(language),
-        FfiConverterOptionFloat.lower(speed),
-        FfiConverterOptionUInt32.lower(steps),
-        FfiConverterOptionFloat.lower(silenceDuration),
-        FfiConverterOptionString.lower(precision),
-        FfiConverterOptionFloat.lower(temperature),
-        FfiConverterOptionString.lower(huggingfaceToken),
-        FfiConverterOptionString.lower(device),$0
+        FfiConverterTypeTextToSpeechOptions_lower(options),$0
     )
 }
     self.init(unsafeFromHandle: handle)
@@ -2319,6 +2309,24 @@ public convenience init(source: String, architecture: String?, voice: String?, l
         try! rustCall { uniffi_nobodywho_uniffi_fn_free_rusttexttospeech(handle, $0) }
     }
 
+    
+    /**
+     * Create a TextToSpeech synthesizer.
+     */
+public static func load(options: TextToSpeechOptions)async throws  -> RustTextToSpeech  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_load(FfiConverterTypeTextToSpeechOptions_lower(options)
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_u64,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_u64,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypeRustTextToSpeech_lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
+}
     
 
     
@@ -4012,6 +4020,99 @@ public func FfiConverterTypePendingToolCall_lift(_ buf: RustBuffer) throws -> Pe
 #endif
 public func FfiConverterTypePendingToolCall_lower(_ value: PendingToolCall) -> RustBuffer {
     return FfiConverterTypePendingToolCall.lower(value)
+}
+
+
+/**
+ * Creation options for `TextToSpeech`.
+ */
+public struct TextToSpeechOptions: Equatable, Hashable {
+    public var source: String
+    public var architecture: String?
+    public var voice: String?
+    public var language: String?
+    public var speed: Float?
+    public var steps: UInt32?
+    public var silenceDuration: Float?
+    public var precision: String?
+    public var temperature: Float?
+    public var huggingfaceToken: String?
+    public var device: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(source: String, architecture: String?, voice: String?, language: String?, speed: Float?, steps: UInt32?, silenceDuration: Float?, precision: String?, temperature: Float?, huggingfaceToken: String?, device: String?) {
+        self.source = source
+        self.architecture = architecture
+        self.voice = voice
+        self.language = language
+        self.speed = speed
+        self.steps = steps
+        self.silenceDuration = silenceDuration
+        self.precision = precision
+        self.temperature = temperature
+        self.huggingfaceToken = huggingfaceToken
+        self.device = device
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension TextToSpeechOptions: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTextToSpeechOptions: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TextToSpeechOptions {
+        return
+            try TextToSpeechOptions(
+                source: FfiConverterString.read(from: &buf), 
+                architecture: FfiConverterOptionString.read(from: &buf), 
+                voice: FfiConverterOptionString.read(from: &buf), 
+                language: FfiConverterOptionString.read(from: &buf), 
+                speed: FfiConverterOptionFloat.read(from: &buf), 
+                steps: FfiConverterOptionUInt32.read(from: &buf), 
+                silenceDuration: FfiConverterOptionFloat.read(from: &buf), 
+                precision: FfiConverterOptionString.read(from: &buf), 
+                temperature: FfiConverterOptionFloat.read(from: &buf), 
+                huggingfaceToken: FfiConverterOptionString.read(from: &buf), 
+                device: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TextToSpeechOptions, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.source, into: &buf)
+        FfiConverterOptionString.write(value.architecture, into: &buf)
+        FfiConverterOptionString.write(value.voice, into: &buf)
+        FfiConverterOptionString.write(value.language, into: &buf)
+        FfiConverterOptionFloat.write(value.speed, into: &buf)
+        FfiConverterOptionUInt32.write(value.steps, into: &buf)
+        FfiConverterOptionFloat.write(value.silenceDuration, into: &buf)
+        FfiConverterOptionString.write(value.precision, into: &buf)
+        FfiConverterOptionFloat.write(value.temperature, into: &buf)
+        FfiConverterOptionString.write(value.huggingfaceToken, into: &buf)
+        FfiConverterOptionString.write(value.device, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTextToSpeechOptions_lift(_ buf: RustBuffer) throws -> TextToSpeechOptions {
+    return try FfiConverterTypeTextToSpeechOptions.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTextToSpeechOptions_lower(_ value: TextToSpeechOptions) -> RustBuffer {
+    return FfiConverterTypeTextToSpeechOptions.lower(value)
 }
 
 
@@ -5778,23 +5879,6 @@ public func loadSpeechToText(source: String, language: String?, quantization: St
         )
 }
 /**
- * Create a TextToSpeech synthesizer.
- */
-public func loadTextToSpeech(source: String, architecture: String?, voice: String?, language: String?, speed: Float?, steps: UInt32?, silenceDuration: Float?, precision: String?, temperature: Float?, huggingfaceToken: String?, device: String?)async throws  -> RustTextToSpeech  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(FfiConverterString.lower(source),FfiConverterOptionString.lower(architecture),FfiConverterOptionString.lower(voice),FfiConverterOptionString.lower(language),FfiConverterOptionFloat.lower(speed),FfiConverterOptionUInt32.lower(steps),FfiConverterOptionFloat.lower(silenceDuration),FfiConverterOptionString.lower(precision),FfiConverterOptionFloat.lower(temperature),FfiConverterOptionString.lower(huggingfaceToken),FfiConverterOptionString.lower(device)
-                )
-            },
-            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_u64,
-            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_u64,
-            freeFunc: ffi_nobodywho_uniffi_rust_future_free_u64,
-            liftFunc: FfiConverterTypeRustTextToSpeech_lift,
-            errorHandler: FfiConverterTypeNobodyWhoError_lift
-        )
-}
-/**
  * Create a voice activity detector. `source` is a HuggingFace repo
  * (`hf://owner/repo`) or local directory for the Silero VAD ONNX model;
  * `None` uses the default (`hf://onnx-community/silero-vad`). `sample_rate`
@@ -5943,9 +6027,6 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text() != 3224) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech() != 45176) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection() != 42331) {
@@ -6185,7 +6266,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new() != 9249) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new() != 55766) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_load() != 59952) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new() != 10019) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() != 9431) {
