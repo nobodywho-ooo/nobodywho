@@ -2526,21 +2526,18 @@ impl CompletionStreamAsync {
 // the stream refactor (CC albertsgarde).
 #[derive(Debug)]
 pub struct CompletionStreamThread {
-    output_rx: Option<tokio::sync::mpsc::Receiver<Result<CompletionChunk, GenerateResponseError>>>,
+    output_rx: Option<
+        tokio::sync::mpsc::UnboundedReceiver<Result<CompletionChunk, GenerateResponseError>>,
+    >,
     join_handle: Option<std::thread::JoinHandle<()>>,
 }
 
 impl CompletionStreamThread {
     pub fn new(stream: CompletionStreamAsync) -> Self {
         let mut stream = stream.stream;
-        // Bound to 10 tokens in the queue. That should be sufficient for
-        // never running out of work to do, while also ensuring that the
-        // worker thread doesn't go completely crazy if there's nothing
-        // pulling from it once in a while.
-        //
-        // (rough calculation: 60fps would allow up to 600 tok/s, which should
-        // be impossible to hit unless you're not actually awaiting the stream).
-        let (output_tx, output_rx) = tokio::sync::mpsc::channel(10);
+        // We'd like to bound this, but doing so would unfortunately make
+        // flushing slow.
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
 
         // Generate tokens in a continous loop.
         let join_handle = std::thread::spawn(move || {
@@ -2549,13 +2546,13 @@ impl CompletionStreamThread {
                 match stream.next() {
                     Ok(None) => break,
                     Ok(Some(chunk)) => {
-                        if output_tx.blocking_send(Ok(chunk)).is_err() {
+                        if output_tx.send(Ok(chunk)).is_err() {
                             // Nobody is receiving any more, so stop generating.
                             break;
                         }
                     }
                     Err(e) => {
-                        if let Err(e) = output_tx.blocking_send(Err(e)) {
+                        if let Err(e) = output_tx.send(Err(e)) {
                             error!("failed sending error: {}", e.0.unwrap_err())
                         }
                         break;
