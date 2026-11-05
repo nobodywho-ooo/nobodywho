@@ -349,6 +349,9 @@ pub async fn load_model(
     on_download_progress: Option<Box<dyn RustDownloadProgressCallback>>,
 ) -> Result<Arc<RustModel>, NobodyWhoError> {
     init_logging();
+
+    nobodywho_emscripten::test();
+
     info!(
         "load_model called: path={}, gpu={}, mmproj={:?}, draft={:?}",
         model_path, use_gpu, projection_model_path, draft_model_path,
