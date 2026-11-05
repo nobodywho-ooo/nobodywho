@@ -56,11 +56,16 @@ pub fn init_logging() {
                 .expect("log initialization must only happen once")
         }
 
+        // On Emscripten, log to the console using `emscripten_log`.
+        #[cfg(target_os = "emscripten")]
+        nobodywho_emscripten::init(level);
+
         // All other platforms log to stderr.
         #[cfg(not(any(
             target_os = "android",
             all(target_vendor = "apple", not(target_os = "macos")),
-            all(target_family = "wasm", target_os = "unknown")
+            all(target_family = "wasm", target_os = "unknown"),
+            target_os = "emscripten"
         )))]
         {
             env_logger::Builder::new()

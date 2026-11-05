@@ -3424,6 +3424,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nobodywho-emscripten"
+version = "0.1.0"
+dependencies = [
+ "log",
+]
+
+[[package]]
 name = "nobodywho-flutter"
 version = "6.0.0"
 dependencies = [
@@ -3494,6 +3501,7 @@ dependencies = [
  "env_logger",
  "log",
  "nobodywho",
+ "nobodywho-emscripten",
  "oslog",
  "serde_json",
  "thiserror 2.0.21",

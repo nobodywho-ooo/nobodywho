@@ -83,6 +83,16 @@ rec {
       # File a bug if you depend on any for non-debug work!
       debug = internal.debugCrate { inherit packageId; };
     };
+    "nobodywho-emscripten" = rec {
+      packageId = "nobodywho-emscripten";
+      build = internal.buildRustCrateWithFeatures {
+        packageId = "nobodywho-emscripten";
+      };
+
+      # Debug support which might change between releases.
+      # File a bug if you depend on any for non-debug work!
+      debug = internal.debugCrate { inherit packageId; };
+    };
     "nobodywho-flutter" = rec {
       packageId = "nobodywho-flutter";
       build = internal.buildRustCrateWithFeatures {
@@ -10967,6 +10977,20 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "kokoro" ];
       };
+      "nobodywho-emscripten" = rec {
+        crateName = "nobodywho-emscripten";
+        version = "0.1.0";
+        edition = "2024";
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./emscripten; };
+        libName = "nobodywho_emscripten";
+        dependencies = [
+          {
+            name = "log";
+            packageId = "log";
+          }
+        ];
+
+      };
       "nobodywho-flutter" = rec {
         crateName = "nobodywho-flutter";
         version = "6.0.0";
@@ -11238,6 +11262,11 @@ rec {
             name = "nobodywho";
             packageId = "nobodywho";
             usesDefaultFeatures = false;
+          }
+          {
+            name = "nobodywho-emscripten";
+            packageId = "nobodywho-emscripten";
+            target = { target, features }: ("emscripten" == target."os" or null);
           }
           {
             name = "oslog";
