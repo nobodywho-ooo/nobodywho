@@ -2586,11 +2586,23 @@ impl Drop for CompletionStreamThread {
         // Tell the worker thread to stop.
         drop(self.output_rx.take().expect("double-dropped"));
 
-        // Wait for it to actually stop.
-        // See worker.rs for details.
+        // Though don't wait for it to stop!
+        //
+        // This is required in Godot, since its tool calls are dispatched to
+        // run on the main thread (see godot/src/tools.rs), whereas dropping
+        // the stream before that would cause a deadlock waiting for the tool
+        // call to finish.
+        //
+        // FIXME(madsmtm): We should run tool calls on the calling/main thread
+        // instead of inside the worker thread.
         let join_handle = self.join_handle.take().expect("double-dropped");
-        if let Err(e) = join_handle.join() {
-            std::panic::resume_unwind(e);
+        if join_handle.is_finished() {
+            // If we're sure we won't block on joining, then re-raise whatever
+            // panic happened. This is somewhat non-deterministic, but is
+            // probably nicer in practice.
+            if let Err(e) = join_handle.join() {
+                std::panic::resume_unwind(e);
+            }
         }
     }
 }
