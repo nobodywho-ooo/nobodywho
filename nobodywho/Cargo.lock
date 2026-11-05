@@ -3427,6 +3427,7 @@ dependencies = [
 name = "nobodywho-emscripten"
 version = "0.1.0"
 dependencies = [
+ "bitflags 2.13.2",
  "log",
 ]
 
