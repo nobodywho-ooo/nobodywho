@@ -211,7 +211,7 @@ jobs:
 
           prompt_file="$RUNNER_TEMP/ai-review-prompt.md"
           cat > "$prompt_file" <<PROMPT
-          /skill:code-review
+          /skill:ai-review
 
           Review pull request #${PR_NUMBER} against base branch ${BASE_REF}.
           The PR head is checked out in this workspace.

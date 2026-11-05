@@ -1,5 +1,5 @@
 ---
-name: code-review
+name: ai-review
 description: Review code changes in a git repository, including pull requests, branch diffs, commits, staged/unstaged work, or local changes. Focus on bugs, security, correctness, and maintainability issues introduced by the change.
 ---
 
