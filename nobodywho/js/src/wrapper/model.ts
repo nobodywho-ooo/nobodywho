@@ -1,5 +1,7 @@
 import {
+  downloadModels,
   loadModel,
+  parseModelPaths,
   type RustModelInterface,
 } from "../generated";
 
@@ -52,17 +54,14 @@ export class Model {
     draftModelPath?: string;
     onDownloadProgress?: (downloaded: number, total: number) => void;
   }): Promise<Model> {
+    const useGpuIfAvailable = opts.useGpu ?? true;
     const cb = opts.onDownloadProgress;
     const progressCallback = cb
       ? { onDownloadProgress: (d: bigint, t: bigint) => cb(Number(d), Number(t)) }
       : undefined;
-    const inner = await loadModel(
-      opts.modelPath,
-      opts.useGpu ?? true,
-      opts.projectionModelPath,
-      opts.draftModelPath,
-      progressCallback,
-    );
+    const sources = await parseModelPaths(opts.modelPath, opts.projectionModelPath, opts.draftModelPath, useGpuIfAvailable);
+    const paths = await downloadModels(sources, progressCallback);
+    const inner = await loadModel(opts.modelPath, paths, useGpuIfAvailable);
     return new Model(inner);
   }
 

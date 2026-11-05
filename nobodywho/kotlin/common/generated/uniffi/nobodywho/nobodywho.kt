@@ -691,6 +691,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_download_model(
     ): Int
+    external fun uniffi_nobodywho_uniffi_checksum_func_download_models(
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_get_cached_models(
     ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_load_model(
@@ -700,6 +702,10 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(
     ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(
+    ): Int
+    external fun uniffi_nobodywho_uniffi_checksum_func_parse_model_path(
+    ): Int
+    external fun uniffi_nobodywho_uniffi_checksum_func_parse_model_paths(
     ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(
     ): Int
@@ -1099,17 +1105,23 @@ external fun uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(`v
 ): Unit
 external fun uniffi_nobodywho_uniffi_fn_func_cosine_similarity(`a`: RustBuffer.ByValue,`b`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Float
-external fun uniffi_nobodywho_uniffi_fn_func_download_model(`modelPath`: RustBuffer.ByValue,`headers`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
+external fun uniffi_nobodywho_uniffi_fn_func_download_model(`remote`: RustBuffer.ByValue,`headers`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
+): Long
+external fun uniffi_nobodywho_uniffi_fn_func_download_models(`sources`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_get_cached_models(uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
-external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`draftModelPath`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
+external fun uniffi_nobodywho_uniffi_fn_func_load_model(`source`: RustBuffer.ByValue,`paths`: RustBuffer.ByValue,`useGpu`: Byte,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_load_speech_to_text(`source`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`quantization`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`precision`: RustBuffer.ByValue,`temperature`: RustBuffer.ByValue,`huggingfaceToken`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(`source`: RustBuffer.ByValue,`sampleRate`: Int,`threshold`: RustBuffer.ByValue,`minSilenceDurationMs`: RustBuffer.ByValue,`minSpeechDurationMs`: RustBuffer.ByValue,`prerollDurationMs`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
+): Long
+external fun uniffi_nobodywho_uniffi_fn_func_parse_model_path(`path`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_nobodywho_uniffi_fn_func_parse_model_paths(`modelPath`: RustBuffer.ByValue,`projectionModelPath`: RustBuffer.ByValue,`draftModelPath`: RustBuffer.ByValue,`useGpu`: Byte,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(`grammar`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1253,13 +1265,16 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_func_cosine_similarity() != 63439) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_download_model() != 31331) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_download_model() != 48764) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_download_models() != 19790) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_get_cached_models() != 12002) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 30733) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 39079) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text() != 3224) {
@@ -1269,6 +1284,12 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection() != 42331) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_parse_model_path() != 57785) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_parse_model_paths() != 2050) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() != 13698) {
@@ -7031,6 +7052,98 @@ public object FfiConverterTypeContextShiftOptions: FfiConverterRustBuffer<Contex
 
 
 /**
+ * Paths to a model and its associated projection and draft models.
+ */
+data class ModelPaths (
+    var `languageModel`: PathBuf
+    , 
+    var `projectionModel`: PathBuf?
+    , 
+    var `draftModel`: PathBuf?
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeModelPaths: FfiConverterRustBuffer<ModelPaths> {
+    override fun read(buf: ByteBuffer): ModelPaths {
+        return ModelPaths(
+            FfiConverterTypePathBuf.read(buf),
+            FfiConverterOptionalTypePathBuf.read(buf),
+            FfiConverterOptionalTypePathBuf.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ModelPaths) = (
+            FfiConverterTypePathBuf.allocationSize(value.`languageModel`) +
+            FfiConverterOptionalTypePathBuf.allocationSize(value.`projectionModel`) +
+            FfiConverterOptionalTypePathBuf.allocationSize(value.`draftModel`)
+    )
+
+    override fun write(value: ModelPaths, buf: ByteBuffer) {
+            FfiConverterTypePathBuf.write(value.`languageModel`, buf)
+            FfiConverterOptionalTypePathBuf.write(value.`projectionModel`, buf)
+            FfiConverterOptionalTypePathBuf.write(value.`draftModel`, buf)
+    }
+}
+
+
+
+/**
+ * Sources for a model and its associated projection and draft models.
+ */
+data class ModelSources (
+    var `languageModel`: GgufSource
+    , 
+    var `projectionModel`: GgufSource?
+    , 
+    var `draftModel`: GgufSource?
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeModelSources: FfiConverterRustBuffer<ModelSources> {
+    override fun read(buf: ByteBuffer): ModelSources {
+        return ModelSources(
+            FfiConverterTypeGgufSource.read(buf),
+            FfiConverterOptionalTypeGgufSource.read(buf),
+            FfiConverterOptionalTypeGgufSource.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ModelSources) = (
+            FfiConverterTypeGgufSource.allocationSize(value.`languageModel`) +
+            FfiConverterOptionalTypeGgufSource.allocationSize(value.`projectionModel`) +
+            FfiConverterOptionalTypeGgufSource.allocationSize(value.`draftModel`)
+    )
+
+    override fun write(value: ModelSources, buf: ByteBuffer) {
+            FfiConverterTypeGgufSource.write(value.`languageModel`, buf)
+            FfiConverterOptionalTypeGgufSource.write(value.`projectionModel`, buf)
+            FfiConverterOptionalTypeGgufSource.write(value.`draftModel`, buf)
+    }
+}
+
+
+
+/**
  * Tuning for MTP speculative decoding. Passing one to `RustChat::new`
  * enables MTP; `null` runs the solo decode path. Requires the model to
  * have been loaded with a compatible `draft_model_path`.
@@ -7182,6 +7295,53 @@ public object FfiConverterTypePendingToolCall: FfiConverterRustBuffer<PendingToo
     override fun write(value: PendingToolCall, buf: ByteBuffer) {
             FfiConverterString.write(value.`callId`, buf)
             FfiConverterString.write(value.`argumentsJson`, buf)
+    }
+}
+
+
+
+/**
+ * A GGUF file to fetch over HTTP(s).
+ */
+data class RemoteFile (
+    /**
+     * The URL where the file can be downloaded from.
+     */
+    var `url`: kotlin.String
+    , 
+    /**
+     * Path of the file relative to the model cache root.
+     */
+    var `cachePath`: PathBuf
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeRemoteFile: FfiConverterRustBuffer<RemoteFile> {
+    override fun read(buf: ByteBuffer): RemoteFile {
+        return RemoteFile(
+            FfiConverterString.read(buf),
+            FfiConverterTypePathBuf.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: RemoteFile) = (
+            FfiConverterString.allocationSize(value.`url`) +
+            FfiConverterTypePathBuf.allocationSize(value.`cachePath`)
+    )
+
+    override fun write(value: RemoteFile, buf: ByteBuffer) {
+            FfiConverterString.write(value.`url`, buf)
+            FfiConverterTypePathBuf.write(value.`cachePath`, buf)
     }
 }
 
@@ -7368,6 +7528,98 @@ public object FfiConverterTypeContentPart : FfiConverterRustBuffer<ContentPart>{
             is ContentPart.Audio -> {
                 buf.putInt(3)
                 FfiConverterString.write(value.`path`, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+}
+
+
+
+
+
+/**
+ * Where a single GGUF model file comes from.
+ */
+sealed class GgufSource {
+    
+    /**
+     * A file already on the local filesystem.
+     */
+    data class Local(
+        val v1: uniffi.nobodywho.PathBuf) : GgufSource()
+        
+    {
+        
+
+        companion object
+    }
+    
+    /**
+     * A file that has to be downloaded first.
+     */
+    data class Remote(
+        val v1: uniffi.nobodywho.RemoteFile) : GgufSource()
+        
+    {
+        
+
+        companion object
+    }
+    
+
+    
+
+    
+    
+
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeGgufSource : FfiConverterRustBuffer<GgufSource>{
+    override fun read(buf: ByteBuffer): GgufSource {
+        return when(buf.getInt()) {
+            1 -> GgufSource.Local(
+                FfiConverterTypePathBuf.read(buf),
+                )
+            2 -> GgufSource.Remote(
+                FfiConverterTypeRemoteFile.read(buf),
+                )
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: GgufSource) = when(value) {
+        is GgufSource.Local -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterTypePathBuf.allocationSize(value.v1)
+            )
+        }
+        is GgufSource.Remote -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterTypeRemoteFile.allocationSize(value.v1)
+            )
+        }
+    }
+
+    override fun write(value: GgufSource, buf: ByteBuffer) {
+        when(value) {
+            is GgufSource.Local -> {
+                buf.putInt(1)
+                FfiConverterTypePathBuf.write(value.v1, buf)
+                Unit
+            }
+            is GgufSource.Remote -> {
+                buf.putInt(2)
+                FfiConverterTypeRemoteFile.write(value.v1, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
@@ -8196,6 +8448,38 @@ public object FfiConverterOptionalTypePendingToolCall: FfiConverterRustBuffer<Pe
 /**
  * @suppress
  */
+public object FfiConverterOptionalTypeGgufSource: FfiConverterRustBuffer<GgufSource?> {
+    override fun read(buf: ByteBuffer): GgufSource? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeGgufSource.read(buf)
+    }
+
+    override fun allocationSize(value: GgufSource?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeGgufSource.allocationSize(value)
+        }
+    }
+
+    override fun write(value: GgufSource?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeGgufSource.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterOptionalTypeShiftTarget: FfiConverterRustBuffer<ShiftTarget?> {
     override fun read(buf: ByteBuffer): ShiftTarget? {
         if (buf.get().toInt() == 0) {
@@ -8378,6 +8662,38 @@ public object FfiConverterOptionalMapStringString: FfiConverterRustBuffer<Map<ko
         } else {
             buf.put(1)
             FfiConverterMapStringString.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalTypePathBuf: FfiConverterRustBuffer<PathBuf?> {
+    override fun read(buf: ByteBuffer): PathBuf? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypePathBuf.read(buf)
+    }
+
+    override fun allocationSize(value: PathBuf?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypePathBuf.allocationSize(value)
+        }
+    }
+
+    override fun write(value: PathBuf?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypePathBuf.write(value, buf)
         }
     }
 }
@@ -8837,6 +9153,16 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
 
 
 
+/**
+ * Typealias from the type name used in the UDL file to the builtin type.  This
+ * is needed because the UDL type name is used in function/method signatures.
+ * It's also what we have an external type that references a custom type.
+ */
+public typealias PathBuf = kotlin.String
+public typealias FfiConverterTypePathBuf = FfiConverterString
+
+
+
 
 
 
@@ -8863,14 +9189,29 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
          */
     @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-     suspend fun `downloadModel`(`modelPath`: kotlin.String, `headers`: Map<kotlin.String, kotlin.String>?, `onDownloadProgress`: RustDownloadProgressCallback?) : kotlin.String {
+     suspend fun `downloadModel`(`remote`: RemoteFile, `headers`: Map<kotlin.String, kotlin.String>?, `onDownloadProgress`: RustDownloadProgressCallback?) : kotlin.String {
         return uniffiRustCallAsync(
-        UniffiLib.uniffi_nobodywho_uniffi_fn_func_download_model(FfiConverterString.lower(`modelPath`),FfiConverterOptionalMapStringString.lower(`headers`),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(`onDownloadProgress`),),
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_download_model(FfiConverterTypeRemoteFile.lower(`remote`),FfiConverterOptionalMapStringString.lower(`headers`),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(`onDownloadProgress`),),
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
         { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(future, continuation) },
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
         // lift function
         { FfiConverterString.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `downloadModels`(`sources`: ModelSources, `onDownloadProgress`: RustDownloadProgressCallback?) : ModelPaths {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_download_models(FfiConverterTypeModelSources.lower(`sources`),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(`onDownloadProgress`),),
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypeModelPaths.lift(it) },
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )
@@ -8890,27 +9231,11 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
     }
     
 
-        /**
-         * Load a GGUF model from a local path or remote URL.
-         *
-         * Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
-         * or `auto` for memory-based selection. Downloaded models are cached automatically.
-         *
-         * # MTP speculative decoding
-         *
-         * Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
-         * `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) to enable MTP
-         * speculative decoding on chats built from this model. For models that
-         * bundle MTP layers (e.g. Qwen3.5), pass the model file itself; it is only
-         * loaded once. Whether MTP is
-         * actually used is a per-chat decision — pass it through
-         * `Chat`-level config on the wrapping binding.
-         */
     @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-     suspend fun `loadModel`(`modelPath`: kotlin.String, `useGpu`: kotlin.Boolean, `projectionModelPath`: kotlin.String?, `draftModelPath`: kotlin.String?, `onDownloadProgress`: RustDownloadProgressCallback?) : RustModel {
+     suspend fun `loadModel`(`source`: kotlin.String, `paths`: ModelPaths, `useGpu`: kotlin.Boolean) : RustModel {
         return uniffiRustCallAsync(
-        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(`modelPath`),FfiConverterBoolean.lower(`useGpu`),FfiConverterOptionalString.lower(`projectionModelPath`),FfiConverterOptionalString.lower(`draftModelPath`),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(`onDownloadProgress`),),
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(`source`),FfiConverterTypeModelPaths.lower(`paths`),FfiConverterBoolean.lower(`useGpu`),),
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
         { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
@@ -8982,6 +9307,38 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
         // lift function
         { FfiConverterTypeRustVoiceActivityDetection.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+        /**
+         * Parse and prepare a model path such that it's ready to be downloaded (if necessary).
+         */
+    @Throws(NobodyWhoException::class) fun `parseModelPath`(`path`: kotlin.String): GgufSource {
+            return FfiConverterTypeGgufSource.lift(
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_func_parse_model_path(
+    
+        FfiConverterString.lower(`path`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Parse model paths such that they are ready to be downloaded (if necessary).
+         */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `parseModelPaths`(`modelPath`: kotlin.String, `projectionModelPath`: kotlin.String?, `draftModelPath`: kotlin.String?, `useGpu`: kotlin.Boolean) : ModelSources {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_parse_model_paths(FfiConverterString.lower(`modelPath`),FfiConverterOptionalString.lower(`projectionModelPath`),FfiConverterOptionalString.lower(`draftModelPath`),FfiConverterBoolean.lower(`useGpu`),),
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypeModelSources.lift(it) },
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )

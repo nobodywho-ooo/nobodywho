@@ -3932,12 +3932,17 @@ fn download_model(
     let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
     let download = PythonDownloadContext::new();
     let progress = download.resolve_progress(on_download_progress)?;
-    let path = download.finish(nobodywho::llm::download_model(
-        path_str,
-        headers_vec,
-        progress,
-        Some(download.cancellation_callback()),
-    ))?;
+
+    let path = download.finish(match nobodywho::llm::parse_model_path(path_str) {
+        Ok(nobodywho::llm::GgufSource::Remote(remote)) => nobodywho::llm::download_model(
+            &remote,
+            headers_vec,
+            progress,
+            Some(download.cancellation_callback()),
+        ),
+        Ok(nobodywho::llm::GgufSource::Local(path)) => Ok(path),
+        Err(e) => Err(e),
+    })?;
     Ok(path)
 }
 

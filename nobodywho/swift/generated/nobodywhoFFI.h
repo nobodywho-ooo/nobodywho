@@ -793,7 +793,12 @@ float uniffi_nobodywho_uniffi_fn_func_cosine_similarity(RustBuffer a, RustBuffer
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_DOWNLOAD_MODEL
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_DOWNLOAD_MODEL
-uint64_t uniffi_nobodywho_uniffi_fn_func_download_model(RustBuffer model_path, RustBuffer headers, RustBuffer on_download_progress
+uint64_t uniffi_nobodywho_uniffi_fn_func_download_model(RustBuffer remote, RustBuffer headers, RustBuffer on_download_progress
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_DOWNLOAD_MODELS
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_DOWNLOAD_MODELS
+uint64_t uniffi_nobodywho_uniffi_fn_func_download_models(RustBuffer sources, RustBuffer on_download_progress
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_GET_CACHED_MODELS
@@ -804,7 +809,7 @@ RustBuffer uniffi_nobodywho_uniffi_fn_func_get_cached_models(RustCallStatus *_No
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_MODEL
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_MODEL
-uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(RustBuffer model_path, int8_t use_gpu, RustBuffer projection_model_path, RustBuffer draft_model_path, RustBuffer on_download_progress
+uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(RustBuffer source, RustBuffer paths, int8_t use_gpu
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_SPEECH_TO_TEXT
@@ -820,6 +825,16 @@ uint64_t uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(RustBuffer source, 
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_VOICE_ACTIVITY_DETECTION
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_VOICE_ACTIVITY_DETECTION
 uint64_t uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(RustBuffer source, uint32_t sample_rate, RustBuffer threshold, RustBuffer min_silence_duration_ms, RustBuffer min_speech_duration_ms, RustBuffer preroll_duration_ms, RustBuffer device
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_PARSE_MODEL_PATH
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_PARSE_MODEL_PATH
+RustBuffer uniffi_nobodywho_uniffi_fn_func_parse_model_path(RustBuffer path, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_PARSE_MODEL_PATHS
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_PARSE_MODEL_PATHS
+uint64_t uniffi_nobodywho_uniffi_fn_func_parse_model_paths(RustBuffer model_path, RustBuffer projection_model_path, RustBuffer draft_model_path, int8_t use_gpu
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_SAMPLER_PRESET_CONSTRAIN_WITH_GRAMMAR
@@ -1148,6 +1163,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_func_download_model(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_DOWNLOAD_MODELS
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_DOWNLOAD_MODELS
+uint16_t uniffi_nobodywho_uniffi_checksum_func_download_models(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_GET_CACHED_MODELS
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_GET_CACHED_MODELS
 uint16_t uniffi_nobodywho_uniffi_checksum_func_get_cached_models(void
@@ -1175,6 +1196,18 @@ uint16_t uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_LOAD_VOICE_ACTIVITY_DETECTION
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_LOAD_VOICE_ACTIVITY_DETECTION
 uint16_t uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_PARSE_MODEL_PATH
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_PARSE_MODEL_PATH
+uint16_t uniffi_nobodywho_uniffi_checksum_func_parse_model_path(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_PARSE_MODEL_PATHS
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_PARSE_MODEL_PATHS
+uint16_t uniffi_nobodywho_uniffi_checksum_func_parse_model_paths(void
     
 );
 #endif

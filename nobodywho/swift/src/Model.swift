@@ -34,13 +34,9 @@ public class Model {
         onDownloadProgress: ((UInt64, UInt64) -> Void)? = nil
     ) async throws -> Model {
         let callback = onDownloadProgress.map { DownloadProgressCallbackImpl($0) }
-        let inner = try await NobodyWhoGenerated.loadModel(
-            modelPath: modelPath,
-            useGpu: useGpu,
-            projectionModelPath: projectionModelPath,
-            draftModelPath: draftModelPath,
-            onDownloadProgress: callback
-        )
+        let sources = try await NobodyWhoGenerated.parseModelPaths(modelPath: modelPath, projectionModelPath: projectionModelPath, draftModelPath: draftModelPath, useGpu: useGpu)
+        let paths = try await NobodyWhoGenerated.downloadModels(sources: sources, onDownloadProgress: callback)
+        let inner = try await NobodyWhoGenerated.loadModel(source: modelPath, paths: paths, useGpu: useGpu)
         return Model(inner: inner)
     }
 
@@ -71,11 +67,16 @@ public class Model {
         onDownloadProgress: ((UInt64, UInt64) -> Void)? = nil
     ) async throws -> String {
         let callback = onDownloadProgress.map { DownloadProgressCallbackImpl($0) }
-        return try await NobodyWhoGenerated.downloadModel(
-            modelPath: modelPath,
-            headers: headers,
-            onDownloadProgress: callback
-        )
+        switch try NobodyWhoGenerated.parseModelPath(path: modelPath) {
+        case .local(let path):
+            return path
+        case .remote(let remote):
+            return try await NobodyWhoGenerated.downloadModel(
+                remote: remote,
+                headers: headers,
+                onDownloadProgress: callback
+            )
+        }
     }
 }
 
