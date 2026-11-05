@@ -479,13 +479,6 @@ impl<T> WorkerGuard<T> {
     pub(crate) fn send(&self, msg: T) -> bool {
         self.msg_tx.as_ref().is_some_and(|tx| tx.send(msg).is_ok())
     }
-
-    /// Signal the worker to stop mid-generation (no-op if no stop flag).
-    pub(crate) fn stop(&self) {
-        if let Some(ref flag) = self.should_stop {
-            flag.store(true, Ordering::Relaxed);
-        }
-    }
 }
 
 impl<T> Drop for WorkerGuard<T> {

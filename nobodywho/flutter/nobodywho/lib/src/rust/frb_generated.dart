@@ -562,15 +562,6 @@ abstract class NobodyWhoApi extends BaseApi {
   });
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_CompletionError;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_CompletionError;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_CompletionErrorPtr;
-
-  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_CrossEncoder;
 
   RustArcDecrementStrongCountFnType
@@ -609,6 +600,15 @@ abstract class NobodyWhoApi extends BaseApi {
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_EncoderWorkerErrorPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_GenerateResponseError;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_GenerateResponseError;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_GenerateResponseErrorPtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_GetterError;
@@ -2552,7 +2552,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
           decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError,
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGenerateResponseError,
         ),
         constMeta: kCrateRustTokenStreamCompletedConstMeta,
         argValues: [that],
@@ -4433,14 +4433,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_CompletionError => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_CompletionError => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError;
-
-  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_CrossEncoder => wire
       .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoder;
 
@@ -4479,6 +4471,14 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   RustArcDecrementStrongCountFnType
   get rust_arc_decrement_strong_count_EncoderWorkerError => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoderWorkerError;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_GenerateResponseError => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGenerateResponseError;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_GenerateResponseError => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGenerateResponseError;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_GetterError => wire
@@ -4591,15 +4591,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  CompletionError
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return CompletionErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
   CrossEncoder
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoder(
     dynamic raw,
@@ -4644,6 +4635,15 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return EncoderWorkerErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  GenerateResponseError
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGenerateResponseError(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return GenerateResponseErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -4935,15 +4935,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  CompletionError
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return CompletionErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
   CrossEncoder
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoder(
     dynamic raw,
@@ -4988,6 +4979,15 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return EncoderWorkerErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  GenerateResponseError
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGenerateResponseError(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return GenerateResponseErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -5719,18 +5719,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  CompletionError
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return CompletionErrorImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
   CrossEncoder
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoder(
     SseDeserializer deserializer,
@@ -5785,6 +5773,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return EncoderWorkerErrorImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  GenerateResponseError
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGenerateResponseError(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return GenerateResponseErrorImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -6135,18 +6135,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  CompletionError
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return CompletionErrorImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
   CrossEncoder
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoder(
     SseDeserializer deserializer,
@@ -6201,6 +6189,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return EncoderWorkerErrorImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  GenerateResponseError
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGenerateResponseError(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return GenerateResponseErrorImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -7155,19 +7155,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
-    CompletionError self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as CompletionErrorImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoder(
     CrossEncoder self,
     SseSerializer serializer,
@@ -7227,6 +7214,19 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as EncoderWorkerErrorImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGenerateResponseError(
+    GenerateResponseError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as GenerateResponseErrorImpl).frbInternalSseEncode(move: true),
       serializer,
     );
   }
@@ -7648,19 +7648,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
-    CompletionError self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as CompletionErrorImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoder(
     CrossEncoder self,
     SseSerializer serializer,
@@ -7720,6 +7707,19 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as EncoderWorkerErrorImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGenerateResponseError(
+    GenerateResponseError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as GenerateResponseErrorImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -8668,28 +8668,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 }
 
 @sealed
-class CompletionErrorImpl extends RustOpaque implements CompletionError {
-  // Not to be used by end users
-  CompletionErrorImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  CompletionErrorImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        NobodyWho.instance.api.rust_arc_increment_strong_count_CompletionError,
-    rustArcDecrementStrongCount:
-        NobodyWho.instance.api.rust_arc_decrement_strong_count_CompletionError,
-    rustArcDecrementStrongCountPtr: NobodyWho
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_CompletionErrorPtr,
-  );
-}
-
-@sealed
 class CrossEncoderImpl extends RustOpaque implements CrossEncoder {
   // Not to be used by end users
   CrossEncoderImpl.frbInternalDcoDecode(List<dynamic> wire)
@@ -8842,6 +8820,35 @@ class EncoderWorkerErrorImpl extends RustOpaque implements EncoderWorkerError {
         .instance
         .api
         .rust_arc_decrement_strong_count_EncoderWorkerErrorPtr,
+  );
+}
+
+@sealed
+class GenerateResponseErrorImpl extends RustOpaque
+    implements GenerateResponseError {
+  // Not to be used by end users
+  GenerateResponseErrorImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  GenerateResponseErrorImpl.frbInternalSseDecode(
+    BigInt ptr,
+    int externalSizeOnNative,
+  ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount: NobodyWho
+        .instance
+        .api
+        .rust_arc_increment_strong_count_GenerateResponseError,
+    rustArcDecrementStrongCount: NobodyWho
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_GenerateResponseError,
+    rustArcDecrementStrongCountPtr: NobodyWho
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_GenerateResponseErrorPtr,
   );
 }
 

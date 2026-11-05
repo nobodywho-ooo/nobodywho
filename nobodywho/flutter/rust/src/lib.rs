@@ -846,7 +846,7 @@ impl RustTokenStream {
             .map_err(|e| nobodywho::render_miette(&e))
     }
 
-    pub async fn completed(&mut self) -> Result<String, nobodywho::errors::CompletionError> {
+    pub async fn completed(&mut self) -> Result<String, nobodywho::errors::GenerateResponseError> {
         self.stream.completed().await
     }
 }
