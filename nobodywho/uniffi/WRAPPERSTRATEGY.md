@@ -30,7 +30,7 @@ These types are intentionally thin FFI wrappers. Each target language must provi
 - **`Tool`**: Accepts a user-friendly parameter definition (name, description, ordered parameter array with JSON Schema properties, callback). Arguments from the LLM are passed positionally to the callback in parameter array order, so any regular function can be used directly. Internally constructs `RustTool` and handles JSON parsing and type coercion.
 - **`Encoder`**: `Encoder.fromPath(opts)` factory. `encode(text)` returns embeddings. `destroy()`.
 - **`CrossEncoder`**: `CrossEncoder.fromPath(opts)` factory. `rank()` and `rankAndSort()` (parses JSON tuples). `destroy()`.
-- **`TextToSpeech`**: `TextToSpeech.load(opts)` async factory (wraps `load_text_to_speech` free function).
+- **`TextToSpeech`**: `TextToSpeech.load(opts)` async factory (wraps the `RustTextToSpeech.load` async constructor, which takes a `TextToSpeechOptions` record).
 - **`SpeechToText`**: `SpeechToText.load(opts)` async factory (wraps `load_speech_to_text` free function).
 
 ## Direct Re-exports (no wrapper needed)
@@ -56,7 +56,7 @@ These types are used internally by the wrapper layer but should not be exposed t
 | `PromptPart` | Enum | Implementation detail of `Prompt` wrapper class. |
 | `ToolParameter` | Record | Implementation detail of `Tool` wrapper. Consumers declare parameters as an ordered array. |
 | `load_model` | Function | Replaced by `Model.load()` factory. |
-| `load_text_to_speech` | Function | Replaced by `TextToSpeech.load()` factory. |
+| `TextToSpeechOptions` | Record | Implementation detail of `TextToSpeech` wrapper, which takes the options as arguments. |
 | `load_speech_to_text` | Function | Replaced by `SpeechToText.load()` factory. |
 
 ## Adding a New Type
