@@ -1,5 +1,5 @@
 use crate::errors::LoadModelError;
-use crate::huggingface::{default_progress_callback, parse_model_path, GgufSource, ModelCache};
+use crate::huggingface::{default_progress_callback, ModelCache};
 use crate::memory;
 use crate::model_selection;
 use crate::tokenizer::ProjectionModel;
@@ -14,8 +14,8 @@ use tracing::{error, info, info_span, warn};
 // Back-compat re-exports: bindings (Python, Godot, Flutter) import these via
 // `nobodywho::llm::*`. The implementations now live in `crate::huggingface`.
 pub use crate::huggingface::{
-    get_cached_models, throttled_progress_callback, DownloadCancellationCallback,
-    DownloadProgressCallback,
+    get_cached_models, parse_model_path, throttled_progress_callback, DownloadCancellationCallback,
+    DownloadProgressCallback, GgufSource, RemoteFile,
 };
 
 pub(crate) static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
@@ -211,6 +211,16 @@ pub struct ModelPaths {
 /// Set `use_gpu_if_available` to attempt GPU acceleration if a discrete GPU
 /// is available.
 ///
+/// # MTP speculative decoding
+///
+/// Pass `paths.draft_model` pointing to a compatible MTP heads gguf (e.g.
+/// `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) to enable MTP speculative
+/// decoding on chats built from this model.
+///
+/// For models that bundle MTP layers (e.g. Qwen3.5), pass the model file
+/// itself; it is only loaded once. Whether MTP is actually used is a per-chat
+/// decision — pass it through `Chat`-level config on the wrapping binding.
+///
 /// # Errors
 ///
 /// Returns an error if the model is not found, is invalid or is unsupported.
@@ -343,23 +353,19 @@ pub fn load_model(
     })
 }
 
-/// Helper to allow downloading models with custom headers.
+/// Helper to allow downloading and caching models with custom headers.
 pub fn download_model(
-    model_path: &str,
+    remote: &RemoteFile,
     headers: Vec<(String, String)>,
     progress: Option<DownloadProgressCallback>,
     cancellation: Option<DownloadCancellationCallback>,
-) -> Result<std::path::PathBuf, LoadModelError> {
-    Ok(match parse_model_path(model_path)? {
-        GgufSource::Remote(remote) => ModelCache::open()?.download_file(
-            &remote,
-            &progress.unwrap_or_else(default_progress_callback),
-            &headers,
-            cancellation.as_ref(),
-        )?,
-        // TODO: Maybe throw an error on this path?
-        GgufSource::Local(path) => path,
-    })
+) -> Result<PathBuf, LoadModelError> {
+    ModelCache::open()?.download_file(
+        &remote,
+        &progress.unwrap_or_else(default_progress_callback),
+        &headers,
+        cancellation.as_ref(),
+    )
 }
 
 pub type WriteOutput =

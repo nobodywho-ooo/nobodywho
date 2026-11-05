@@ -364,12 +364,16 @@ pub fn download_model(
         + 'static,
 ) -> Result<String, String> {
     let headers_vec: Vec<(String, String)> = headers.into_iter().collect();
-    nobodywho::llm::download_model(
-        &model_path,
-        headers_vec,
-        Some(wrap_progress(on_download_progress)),
-        None,
-    )
+    match nobodywho::llm::parse_model_path(&model_path) {
+        Ok(nobodywho::llm::GgufSource::Remote(remote)) => nobodywho::llm::download_model(
+            &remote,
+            headers_vec,
+            Some(wrap_progress(on_download_progress)),
+            None,
+        ),
+        Ok(nobodywho::llm::GgufSource::Local(path)) => Ok(path),
+        Err(e) => Err(e),
+    }
     .map(|p| p.to_string_lossy().into_owned())
     .map_err(|e| nobodywho::render_miette(&e))
 }
