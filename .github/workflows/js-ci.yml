@@ -9,6 +9,8 @@ permissions:
 jobs:
   wasm:
     runs-on: warp-ubuntu-latest-x64-4x
+    env:
+      EMSCRIPTEN_VERSION: "6.0.13"
     steps:
       - uses: actions/checkout@v5
 
@@ -30,7 +32,6 @@ jobs:
       # https://github.com/emscripten-core/setup-emsdk/issues/75
       - name: Install Emscripten
         run: |
-          EMSCRIPTEN_VERSION="6.0.13"
           git clone --depth 1 https://github.com/emscripten-core/emsdk.git --branch ${EMSCRIPTEN_VERSION}
           ./emsdk/emsdk install ${EMSCRIPTEN_VERSION}
           ./emsdk/emsdk activate ${EMSCRIPTEN_VERSION}
@@ -39,15 +40,16 @@ jobs:
       - name: "Install build dependencies"
         run: sudo apt-get update && sudo apt-get install -y libclang-dev cmake ninja-build
 
+      # Keyed on the emsdk version, since a restored target dir skips llama.cpp's CMake configure step.
       - name: "Cache Rust build"
         uses: WarpBuilds/cache@v1
         with:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-js-wasm-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-js-wasm-emsdk${{ env.EMSCRIPTEN_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-js-wasm-
+            ${{ runner.os }}-js-wasm-emsdk${{ env.EMSCRIPTEN_VERSION }}-
 
       - name: "Install npm dependencies"
         working-directory: ./nobodywho/js
