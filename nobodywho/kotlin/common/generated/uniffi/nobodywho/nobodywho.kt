@@ -697,8 +697,6 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text(
     ): Int
-    external fun uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(
-    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(
     ): Int
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(
@@ -857,6 +855,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new(
     ): Int
+    external fun uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_load(
+    ): Int
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new(
     ): Int
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new(
@@ -999,7 +999,9 @@ external fun uniffi_nobodywho_uniffi_fn_clone_rusttexttospeech(`handle`: Long,un
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rusttexttospeech(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_new(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`precision`: RustBuffer.ByValue,`temperature`: RustBuffer.ByValue,`huggingfaceToken`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_load(`options`: RustBuffer.ByValue,
+): Long
+external fun uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_new(`options`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rusttexttospeech_synthesize(`ptr`: Long,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
@@ -1106,8 +1108,6 @@ external fun uniffi_nobodywho_uniffi_fn_func_get_cached_models(uniffi_out_err: U
 external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`draftModelPath`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_load_speech_to_text(`source`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`quantization`: RustBuffer.ByValue,
-): Long
-external fun uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`precision`: RustBuffer.ByValue,`temperature`: RustBuffer.ByValue,`huggingfaceToken`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(`source`: RustBuffer.ByValue,`sampleRate`: Int,`threshold`: RustBuffer.ByValue,`minSilenceDurationMs`: RustBuffer.ByValue,`minSpeechDurationMs`: RustBuffer.ByValue,`prerollDurationMs`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
 ): Long
@@ -1263,9 +1263,6 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text() != 3224) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech() != 45176) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection() != 42331) {
@@ -1505,7 +1502,10 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new() != 9249) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new() != 55766) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_load() != 59952) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new() != 10019) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() != 9431) {
@@ -4781,12 +4781,12 @@ open class RustTextToSpeech: Disposable, AutoCloseable, RustTextToSpeechInterfac
     /**
      * Create a TextToSpeech synthesizer.
      */
-    constructor(`source`: kotlin.String, `architecture`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `precision`: kotlin.String?, `temperature`: kotlin.Float?, `huggingfaceToken`: kotlin.String?, `device`: kotlin.String?) :
+    constructor(`options`: TextToSpeechOptions) :
         this(UniffiWithHandle, 
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_new(
     
-        FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`architecture`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`precision`),FfiConverterOptionalFloat.lower(`temperature`),FfiConverterOptionalString.lower(`huggingfaceToken`),FfiConverterOptionalString.lower(`device`),_status)
+        FfiConverterTypeTextToSpeechOptions.lower(`options`),_status)
 }
     )
 
@@ -4908,11 +4908,28 @@ open class RustTextToSpeech: Disposable, AutoCloseable, RustTextToSpeechInterfac
 
 
     
-    
+    companion object {
+        
     /**
-     * @suppress
+     * Create a TextToSpeech synthesizer.
      */
-    companion object
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `load`(`options`: TextToSpeechOptions) : RustTextToSpeech {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_load(FfiConverterTypeTextToSpeechOptions.lower(`options`),),
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
+        // lift function
+        { FfiConverterTypeRustTextToSpeech.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+        
+    }
     
 }
 
@@ -7187,6 +7204,92 @@ public object FfiConverterTypePendingToolCall: FfiConverterRustBuffer<PendingToo
 
 
 
+/**
+ * Creation options for `TextToSpeech`.
+ */
+data class TextToSpeechOptions (
+    var `source`: kotlin.String
+    , 
+    var `architecture`: kotlin.String?
+    , 
+    var `voice`: kotlin.String?
+    , 
+    var `language`: kotlin.String?
+    , 
+    var `speed`: kotlin.Float?
+    , 
+    var `steps`: kotlin.UInt?
+    , 
+    var `silenceDuration`: kotlin.Float?
+    , 
+    var `precision`: kotlin.String?
+    , 
+    var `temperature`: kotlin.Float?
+    , 
+    var `huggingfaceToken`: kotlin.String?
+    , 
+    var `device`: kotlin.String?
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeTextToSpeechOptions: FfiConverterRustBuffer<TextToSpeechOptions> {
+    override fun read(buf: ByteBuffer): TextToSpeechOptions {
+        return TextToSpeechOptions(
+            FfiConverterString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalFloat.read(buf),
+            FfiConverterOptionalUInt.read(buf),
+            FfiConverterOptionalFloat.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalFloat.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: TextToSpeechOptions) = (
+            FfiConverterString.allocationSize(value.`source`) +
+            FfiConverterOptionalString.allocationSize(value.`architecture`) +
+            FfiConverterOptionalString.allocationSize(value.`voice`) +
+            FfiConverterOptionalString.allocationSize(value.`language`) +
+            FfiConverterOptionalFloat.allocationSize(value.`speed`) +
+            FfiConverterOptionalUInt.allocationSize(value.`steps`) +
+            FfiConverterOptionalFloat.allocationSize(value.`silenceDuration`) +
+            FfiConverterOptionalString.allocationSize(value.`precision`) +
+            FfiConverterOptionalFloat.allocationSize(value.`temperature`) +
+            FfiConverterOptionalString.allocationSize(value.`huggingfaceToken`) +
+            FfiConverterOptionalString.allocationSize(value.`device`)
+    )
+
+    override fun write(value: TextToSpeechOptions, buf: ByteBuffer) {
+            FfiConverterString.write(value.`source`, buf)
+            FfiConverterOptionalString.write(value.`architecture`, buf)
+            FfiConverterOptionalString.write(value.`voice`, buf)
+            FfiConverterOptionalString.write(value.`language`, buf)
+            FfiConverterOptionalFloat.write(value.`speed`, buf)
+            FfiConverterOptionalUInt.write(value.`steps`, buf)
+            FfiConverterOptionalFloat.write(value.`silenceDuration`, buf)
+            FfiConverterOptionalString.write(value.`precision`, buf)
+            FfiConverterOptionalFloat.write(value.`temperature`, buf)
+            FfiConverterOptionalString.write(value.`huggingfaceToken`, buf)
+            FfiConverterOptionalString.write(value.`device`, buf)
+    }
+}
+
+
+
 data class ToolCall (
     var `name`: kotlin.String
     , 
@@ -8939,24 +9042,6 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
         // lift function
         { FfiConverterTypeRustSpeechToText.lift(it) },
-        // Error FFI converter
-        NobodyWhoException.ErrorHandler,
-    )
-    }
-
-        /**
-         * Create a TextToSpeech synthesizer.
-         */
-    @Throws(NobodyWhoException::class)
-    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-     suspend fun `loadTextToSpeech`(`source`: kotlin.String, `architecture`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `precision`: kotlin.String?, `temperature`: kotlin.Float?, `huggingfaceToken`: kotlin.String?, `device`: kotlin.String?) : RustTextToSpeech {
-        return uniffiRustCallAsync(
-        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`architecture`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`precision`),FfiConverterOptionalFloat.lower(`temperature`),FfiConverterOptionalString.lower(`huggingfaceToken`),FfiConverterOptionalString.lower(`device`),),
-        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
-        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
-        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
-        // lift function
-        { FfiConverterTypeRustTextToSpeech.lift(it) },
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )
