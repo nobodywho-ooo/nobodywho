@@ -13,6 +13,7 @@ import {
 } from "./nobodywho-ffi";
 import {
   type FfiConverter,
+  type RustBufferAllocator,
   type UniffiByteArray,
   type UniffiGcObject,
   type UniffiHandle,
@@ -86,7 +87,7 @@ export function cosineSimilarity(a: Array<number>, b: Array<number>): number {
  * For unauthenticated downloads, pass the URL directly to `load_model`.
  */
 export async function downloadModel(
-  modelPath: string,
+  remote: RemoteFile,
   headers: Map<string, string> | undefined,
   onDownloadProgress: RustDownloadProgressCallback | undefined,
   asyncOpts_?: { signal: AbortSignal },
@@ -95,7 +96,10 @@ export async function downloadModel(
     /*rustCaller:*/ uniffiCaller,
     /*rustFutureFunc:*/ () => {
       return nativeModule().uniffi_nobodywho_uniffi_fn_func_download_model(
-        FfiConverterString.lower(modelPath, nativeModule().rustbuffer_alloc),
+        FfiConverterTypeRemoteFile.lower(
+          remote,
+          nativeModule().rustbuffer_alloc,
+        ),
         FfiConverterOptionalMapStringString.lower(
           headers,
           nativeModule().rustbuffer_alloc,
@@ -137,6 +141,56 @@ export async function downloadModel(
   );
 }
 
+export async function downloadModels(
+  sources: ModelSources,
+  onDownloadProgress: RustDownloadProgressCallback | undefined,
+  asyncOpts_?: { signal: AbortSignal },
+): Promise<ModelPaths> /*throws*/ {
+  return await uniffiRustCallAsync(
+    /*rustCaller:*/ uniffiCaller,
+    /*rustFutureFunc:*/ () => {
+      return nativeModule().uniffi_nobodywho_uniffi_fn_func_download_models(
+        FfiConverterTypeModelSources.lower(
+          sources,
+          nativeModule().rustbuffer_alloc,
+        ),
+        FfiConverterOptionalTypeRustDownloadProgressCallback.lower(
+          onDownloadProgress,
+          nativeModule().rustbuffer_alloc,
+        ),
+      );
+    },
+    /*pollFunc:*/ nativeModule()
+      .ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+    /*cancelFunc:*/ nativeModule()
+      .ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+    /*completeFunc:*/ nativeModule()
+      .ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+    /*freeFunc:*/ nativeModule()
+      .ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+    // Async returns always go through the JS-side converter: the
+    // FFI symbol returns the future handle (u64), and the user-level
+    // RustBuffer comes back via the shared `rust_future_complete_*`
+    // export. The bytes the runtime hands back must be deserialized
+    // here using the per-callable return-type converter.
+    // Borrowed view over foreign memory: the call site owns the free,
+    // as on the sync paths. Unconditional — a no-op where buffers are
+    // already JS-owned.
+    /*liftFunc:*/ (__rb) => {
+      try {
+        return FfiConverterTypeModelPaths.lift(__rb);
+      } finally {
+        nativeModule().rustbuffer_free(__rb);
+      }
+    },
+    /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    /*asyncOpts:*/ asyncOpts_,
+    /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+      FfiConverterTypeNobodyWhoError,
+    ),
+  );
+}
+
 /**
  * Returns every cached `.gguf` model paired with its byte size.
  */
@@ -159,48 +213,22 @@ export function getCachedModels(): Array<CachedModel> /*throws*/ {
   }
 }
 
-/**
- * Load a GGUF model from a local path or remote URL.
- *
- * Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
- * or `auto` for memory-based selection. Downloaded models are cached automatically.
- *
- * # MTP speculative decoding
- *
- * Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
- * `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) to enable MTP
- * speculative decoding on chats built from this model. For models that
- * bundle MTP layers (e.g. Qwen3.5), pass the model file itself; it is only
- * loaded once. Whether MTP is
- * actually used is a per-chat decision — pass it through
- * `Chat`-level config on the wrapping binding.
- */
 export async function loadModel(
-  modelPath: string,
+  source: string,
+  paths: ModelPaths,
   useGpu: boolean,
-  projectionModelPath: string | undefined,
-  draftModelPath: string | undefined,
-  onDownloadProgress: RustDownloadProgressCallback | undefined,
   asyncOpts_?: { signal: AbortSignal },
 ): Promise<RustModelLike> /*throws*/ {
   return await uniffiRustCallAsync(
     /*rustCaller:*/ uniffiCaller,
     /*rustFutureFunc:*/ () => {
       return nativeModule().uniffi_nobodywho_uniffi_fn_func_load_model(
-        FfiConverterString.lower(modelPath, nativeModule().rustbuffer_alloc),
+        FfiConverterString.lower(source, nativeModule().rustbuffer_alloc),
+        FfiConverterTypeModelPaths.lower(
+          paths,
+          nativeModule().rustbuffer_alloc,
+        ),
         FfiConverterBool.lower(useGpu, nativeModule().rustbuffer_alloc),
-        FfiConverterOptionalString.lower(
-          projectionModelPath,
-          nativeModule().rustbuffer_alloc,
-        ),
-        FfiConverterOptionalString.lower(
-          draftModelPath,
-          nativeModule().rustbuffer_alloc,
-        ),
-        FfiConverterOptionalTypeRustDownloadProgressCallback.lower(
-          onDownloadProgress,
-          nativeModule().rustbuffer_alloc,
-        ),
       );
     },
     /*pollFunc:*/ nativeModule().ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -423,6 +451,86 @@ export async function loadVoiceActivityDetection(
     /*liftFunc:*/ FfiConverterTypeRustVoiceActivityDetection.lift.bind(
       FfiConverterTypeRustVoiceActivityDetection,
     ),
+    /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    /*asyncOpts:*/ asyncOpts_,
+    /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+      FfiConverterTypeNobodyWhoError,
+    ),
+  );
+}
+
+/**
+ * Parse and prepare a model path such that it's ready to be downloaded (if necessary).
+ */
+export function parseModelPath(path: string): GgufSource /*throws*/ {
+  const __rb: Uint8Array = uniffiCaller.rustCallWithError(
+    /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+      FfiConverterTypeNobodyWhoError,
+    ),
+    /*caller:*/ (callStatus) => {
+      return nativeModule().uniffi_nobodywho_uniffi_fn_func_parse_model_path(
+        FfiConverterString.lower(path, nativeModule().rustbuffer_alloc),
+        callStatus,
+      );
+    },
+    /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+  );
+  try {
+    return FfiConverterTypeGgufSource.lift(__rb);
+  } finally {
+    nativeModule().rustbuffer_free(__rb);
+  }
+}
+
+/**
+ * Parse model paths such that they are ready to be downloaded (if necessary).
+ */
+export async function parseModelPaths(
+  modelPath: string,
+  projectionModelPath: string | undefined,
+  draftModelPath: string | undefined,
+  useGpu: boolean,
+  asyncOpts_?: { signal: AbortSignal },
+): Promise<ModelSources> /*throws*/ {
+  return await uniffiRustCallAsync(
+    /*rustCaller:*/ uniffiCaller,
+    /*rustFutureFunc:*/ () => {
+      return nativeModule().uniffi_nobodywho_uniffi_fn_func_parse_model_paths(
+        FfiConverterString.lower(modelPath, nativeModule().rustbuffer_alloc),
+        FfiConverterOptionalString.lower(
+          projectionModelPath,
+          nativeModule().rustbuffer_alloc,
+        ),
+        FfiConverterOptionalString.lower(
+          draftModelPath,
+          nativeModule().rustbuffer_alloc,
+        ),
+        FfiConverterBool.lower(useGpu, nativeModule().rustbuffer_alloc),
+      );
+    },
+    /*pollFunc:*/ nativeModule()
+      .ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+    /*cancelFunc:*/ nativeModule()
+      .ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+    /*completeFunc:*/ nativeModule()
+      .ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+    /*freeFunc:*/ nativeModule()
+      .ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+    // Async returns always go through the JS-side converter: the
+    // FFI symbol returns the future handle (u64), and the user-level
+    // RustBuffer comes back via the shared `rust_future_complete_*`
+    // export. The bytes the runtime hands back must be deserialized
+    // here using the per-callable return-type converter.
+    // Borrowed view over foreign memory: the call site owns the free,
+    // as on the sync paths. Unconditional — a no-op where buffers are
+    // already JS-owned.
+    /*liftFunc:*/ (__rb) => {
+      try {
+        return FfiConverterTypeModelSources.lift(__rb);
+      } finally {
+        nativeModule().rustbuffer_free(__rb);
+      }
+    },
     /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
     /*asyncOpts:*/ asyncOpts_,
     /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
@@ -936,6 +1044,318 @@ const FfiConverterTypeContextShiftOptions = (() => {
         FfiConverterUInt32.allocationSize(value.keepFirstTurns) +
         FfiConverterUInt32.allocationSize(value.keepLastTurns) +
         FfiConverterOptionalTypeShiftTarget.allocationSize(value.target)
+      );
+    }
+  }
+  return new FFIConverter();
+})();
+
+/**
+ * Typealias from the type name used in the UDL file to the builtin type.  This
+ * is needed because the UDL type name is used in function/method signatures.
+ */
+export type PathBuf = string;
+// FfiConverter for PathBuf, a type alias for string.
+const FfiConverterTypePathBuf = FfiConverterString;
+
+/**
+ * Paths to a model and its associated projection and draft models.
+ */
+export type ModelPaths = {
+  languageModel: PathBuf;
+  projectionModel?: PathBuf;
+  draftModel?: PathBuf;
+};
+
+/**
+ * Generated factory for {@link ModelPaths} record objects.
+ */
+export const ModelPaths = (() => {
+  const defaults = () => ({});
+  const create = (() => {
+    return uniffiCreateRecord<ModelPaths, ReturnType<typeof defaults>>(
+      defaults,
+    );
+  })();
+  return Object.freeze({
+    create,
+    new: create,
+    defaults: () => Object.freeze(defaults()) as Partial<ModelPaths>,
+  });
+})();
+
+const FfiConverterTypeModelPaths = (() => {
+  type TypeName = ModelPaths;
+  class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+    readFromCursor(c: Cursor): TypeName {
+      return {
+        languageModel: FfiConverterTypePathBuf.readFromCursor(c),
+        projectionModel: FfiConverterOptionalTypePathBuf.readFromCursor(c),
+        draftModel: FfiConverterOptionalTypePathBuf.readFromCursor(c),
+      };
+    }
+    writeIntoCursor(value: TypeName, c: Cursor): void {
+      FfiConverterTypePathBuf.writeIntoCursor(value.languageModel, c);
+      FfiConverterOptionalTypePathBuf.writeIntoCursor(value.projectionModel, c);
+      FfiConverterOptionalTypePathBuf.writeIntoCursor(value.draftModel, c);
+    }
+    allocationSize(value: TypeName): number {
+      return (
+        FfiConverterTypePathBuf.allocationSize(value.languageModel) +
+        FfiConverterOptionalTypePathBuf.allocationSize(value.projectionModel) +
+        FfiConverterOptionalTypePathBuf.allocationSize(value.draftModel)
+      );
+    }
+  }
+  return new FFIConverter();
+})();
+
+/**
+ * A GGUF file to fetch over HTTP(s).
+ */
+export type RemoteFile = {
+  /**
+   * The URL where the file can be downloaded from.
+   */
+  url: string;
+  /**
+   * Path of the file relative to the model cache root.
+   */
+  cachePath: PathBuf;
+};
+
+/**
+ * Generated factory for {@link RemoteFile} record objects.
+ */
+export const RemoteFile = (() => {
+  const defaults = () => ({});
+  const create = (() => {
+    return uniffiCreateRecord<RemoteFile, ReturnType<typeof defaults>>(
+      defaults,
+    );
+  })();
+  return Object.freeze({
+    create,
+    new: create,
+    defaults: () => Object.freeze(defaults()) as Partial<RemoteFile>,
+  });
+})();
+
+const FfiConverterTypeRemoteFile = (() => {
+  type TypeName = RemoteFile;
+  class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+    readFromCursor(c: Cursor): TypeName {
+      return {
+        url: FfiConverterString.readFromCursor(c),
+        cachePath: FfiConverterTypePathBuf.readFromCursor(c),
+      };
+    }
+    writeIntoCursor(value: TypeName, c: Cursor): void {
+      FfiConverterString.writeIntoCursor(value.url, c);
+      FfiConverterTypePathBuf.writeIntoCursor(value.cachePath, c);
+    }
+    allocationSize(value: TypeName): number {
+      return (
+        FfiConverterString.allocationSize(value.url) +
+        FfiConverterTypePathBuf.allocationSize(value.cachePath)
+      );
+    }
+  }
+  return new FFIConverter();
+})();
+
+// Enum: GgufSource
+export enum GgufSource_Tags {
+  Local = "Local",
+  Remote = "Remote",
+}
+/**
+ * Where a single GGUF model file comes from.
+ */
+export const GgufSource = (() => {
+  type Local__interface = {
+    tag: GgufSource_Tags.Local;
+    inner: Readonly<[PathBuf]>;
+  };
+  /**
+   * A file already on the local filesystem.
+   */
+  class Local_ extends UniffiEnum implements Local__interface {
+    /**
+     * @private
+     * This field is private and should not be used, use `tag` instead.
+     */
+    readonly [uniffiTypeNameSymbol] = "GgufSource";
+    readonly tag = GgufSource_Tags.Local;
+    readonly inner: Readonly<[PathBuf]>;
+    constructor(v0: PathBuf) {
+      super("GgufSource", "Local");
+
+      this.inner = Object.freeze([v0]);
+    }
+    static new(v0: PathBuf): Local_ {
+      return new Local_(v0);
+    }
+
+    static instanceOf(obj: any): obj is Local_ {
+      return obj.tag === GgufSource_Tags.Local;
+    }
+  }
+
+  type Remote__interface = {
+    tag: GgufSource_Tags.Remote;
+    inner: Readonly<[RemoteFile]>;
+  };
+  /**
+   * A file that has to be downloaded first.
+   */
+  class Remote_ extends UniffiEnum implements Remote__interface {
+    /**
+     * @private
+     * This field is private and should not be used, use `tag` instead.
+     */
+    readonly [uniffiTypeNameSymbol] = "GgufSource";
+    readonly tag = GgufSource_Tags.Remote;
+    readonly inner: Readonly<[RemoteFile]>;
+    constructor(v0: RemoteFile) {
+      super("GgufSource", "Remote");
+
+      this.inner = Object.freeze([v0]);
+    }
+    static new(v0: RemoteFile): Remote_ {
+      return new Remote_(v0);
+    }
+
+    static instanceOf(obj: any): obj is Remote_ {
+      return obj.tag === GgufSource_Tags.Remote;
+    }
+  }
+
+  function instanceOf(obj: any): obj is GgufSource {
+    return obj[uniffiTypeNameSymbol] === "GgufSource";
+  }
+
+  return Object.freeze({
+    instanceOf,
+    Local: Local_,
+    Remote: Remote_,
+  });
+})();
+/**
+ * Where a single GGUF model file comes from.
+ */
+export type GgufSource = InstanceType<(typeof GgufSource)["Local" | "Remote"]>;
+
+// FfiConverter for enum GgufSource
+const FfiConverterTypeGgufSource = (() => {
+  type TypeName = GgufSource;
+  class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+    readFromCursor(c: Cursor): TypeName {
+      switch (c.readI32()) {
+        case 1:
+          return new GgufSource.Local(
+            FfiConverterTypePathBuf.readFromCursor(c),
+          );
+        case 2:
+          return new GgufSource.Remote(
+            FfiConverterTypeRemoteFile.readFromCursor(c),
+          );
+        default:
+          throw new UniffiInternalError.UnexpectedEnumCase();
+      }
+    }
+    writeIntoCursor(value: TypeName, c: Cursor): void {
+      switch (value.tag) {
+        case GgufSource_Tags.Local: {
+          c.writeI32(1);
+          const inner = value.inner;
+          FfiConverterTypePathBuf.writeIntoCursor(inner[0], c);
+          return;
+        }
+        case GgufSource_Tags.Remote: {
+          c.writeI32(2);
+          const inner = value.inner;
+          FfiConverterTypeRemoteFile.writeIntoCursor(inner[0], c);
+          return;
+        }
+        default:
+          // Throwing from here means that GgufSource_Tags hasn't matched an ordinal.
+          throw new UniffiInternalError.UnexpectedEnumCase();
+      }
+    }
+    allocationSize(value: TypeName): number {
+      switch (value.tag) {
+        case GgufSource_Tags.Local: {
+          const inner = value.inner;
+          let size = 4;
+          size += FfiConverterTypePathBuf.allocationSize(inner[0]);
+          return size;
+        }
+        case GgufSource_Tags.Remote: {
+          const inner = value.inner;
+          let size = 4;
+          size += FfiConverterTypeRemoteFile.allocationSize(inner[0]);
+          return size;
+        }
+        default:
+          throw new UniffiInternalError.UnexpectedEnumCase();
+      }
+    }
+  }
+  return new FFIConverter();
+})();
+
+/**
+ * Sources for a model and its associated projection and draft models.
+ */
+export type ModelSources = {
+  languageModel: GgufSource;
+  projectionModel?: GgufSource;
+  draftModel?: GgufSource;
+};
+
+/**
+ * Generated factory for {@link ModelSources} record objects.
+ */
+export const ModelSources = (() => {
+  const defaults = () => ({});
+  const create = (() => {
+    return uniffiCreateRecord<ModelSources, ReturnType<typeof defaults>>(
+      defaults,
+    );
+  })();
+  return Object.freeze({
+    create,
+    new: create,
+    defaults: () => Object.freeze(defaults()) as Partial<ModelSources>,
+  });
+})();
+
+const FfiConverterTypeModelSources = (() => {
+  type TypeName = ModelSources;
+  class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+    readFromCursor(c: Cursor): TypeName {
+      return {
+        languageModel: FfiConverterTypeGgufSource.readFromCursor(c),
+        projectionModel: FfiConverterOptionalTypeGgufSource.readFromCursor(c),
+        draftModel: FfiConverterOptionalTypeGgufSource.readFromCursor(c),
+      };
+    }
+    writeIntoCursor(value: TypeName, c: Cursor): void {
+      FfiConverterTypeGgufSource.writeIntoCursor(value.languageModel, c);
+      FfiConverterOptionalTypeGgufSource.writeIntoCursor(
+        value.projectionModel,
+        c,
+      );
+      FfiConverterOptionalTypeGgufSource.writeIntoCursor(value.draftModel, c);
+    }
+    allocationSize(value: TypeName): number {
+      return (
+        FfiConverterTypeGgufSource.allocationSize(value.languageModel) +
+        FfiConverterOptionalTypeGgufSource.allocationSize(
+          value.projectionModel,
+        ) +
+        FfiConverterOptionalTypeGgufSource.allocationSize(value.draftModel)
       );
     }
   }
@@ -6391,6 +6811,16 @@ const FfiConverterOptionalTypeShiftTarget = new FfiConverterOptional(
   FfiConverterTypeShiftTarget,
 );
 
+// FfiConverter for PathBuf | undefined
+const FfiConverterOptionalTypePathBuf = new FfiConverterOptional(
+  FfiConverterTypePathBuf,
+);
+
+// FfiConverter for GgufSource | undefined
+const FfiConverterOptionalTypeGgufSource = new FfiConverterOptional(
+  FfiConverterTypeGgufSource,
+);
+
 // FfiConverter for SamplerConfigLike | undefined
 const FfiConverterOptionalTypeSamplerConfig = new FfiConverterOptional(
   FfiConverterTypeSamplerConfig,
@@ -6553,10 +6983,18 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().uniffi_nobodywho_uniffi_checksum_func_download_model() !==
-    31331
+    48764
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_func_download_model",
+    );
+  }
+  if (
+    nativeModule().uniffi_nobodywho_uniffi_checksum_func_download_models() !==
+    19790
+  ) {
+    throw new UniffiInternalError.ApiChecksumMismatch(
+      "uniffi_nobodywho_uniffi_checksum_func_download_models",
     );
   }
   if (
@@ -6568,7 +7006,7 @@ function uniffiEnsureInitialized() {
     );
   }
   if (
-    nativeModule().uniffi_nobodywho_uniffi_checksum_func_load_model() !== 30733
+    nativeModule().uniffi_nobodywho_uniffi_checksum_func_load_model() !== 39079
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_func_load_model",
@@ -6596,6 +7034,22 @@ function uniffiEnsureInitialized() {
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection",
+    );
+  }
+  if (
+    nativeModule().uniffi_nobodywho_uniffi_checksum_func_parse_model_path() !==
+    57785
+  ) {
+    throw new UniffiInternalError.ApiChecksumMismatch(
+      "uniffi_nobodywho_uniffi_checksum_func_parse_model_path",
+    );
+  }
+  if (
+    nativeModule().uniffi_nobodywho_uniffi_checksum_func_parse_model_paths() !==
+    2050
+  ) {
+    throw new UniffiInternalError.ApiChecksumMismatch(
+      "uniffi_nobodywho_uniffi_checksum_func_parse_model_paths",
     );
   }
   if (
@@ -7282,12 +7736,17 @@ export default Object.freeze({
     FfiConverterTypeChatStats,
     FfiConverterTypeContentPart,
     FfiConverterTypeContextShiftOptions,
+    FfiConverterTypeGgufSource,
     FfiConverterTypeMessage,
     FfiConverterTypeMessageContent,
+    FfiConverterTypeModelPaths,
+    FfiConverterTypeModelSources,
     FfiConverterTypeMtpConfig,
     FfiConverterTypeNobodyWhoError,
     FfiConverterTypeOptions,
+    FfiConverterTypePathBuf,
     FfiConverterTypePendingToolCall,
+    FfiConverterTypeRemoteFile,
     FfiConverterTypeRustChat,
     FfiConverterTypeRustCrossEncoder,
     FfiConverterTypeRustDecision,

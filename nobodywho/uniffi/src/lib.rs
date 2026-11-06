@@ -2,8 +2,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Once};
 
+use nobodywho::llm::{GgufSource, ModelPaths, ModelSources, RemoteFile};
 use nobodywho::worker::AsyncWorker;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
 #[cfg(target_family = "wasm")]
 extern crate uniffi_runtime_wasm as _;
@@ -323,60 +324,115 @@ pub struct RustModel {
     inner: Arc<nobodywho::llm::Model>,
 }
 
-/// Load a GGUF model from a local path or remote URL.
-///
-/// Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
-/// or `auto` for memory-based selection. Downloaded models are cached automatically.
-///
-/// # MTP speculative decoding
-///
-/// Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
-/// `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) to enable MTP
-/// speculative decoding on chats built from this model. For models that
-/// bundle MTP layers (e.g. Qwen3.5), pass the model file itself; it is only
-/// loaded once. Whether MTP is
-/// actually used is a per-chat decision — pass it through
-/// `Chat`-level config on the wrapping binding.
-//
-// This is a free function since async constructors don't work on Kotlin and
-// React Native.
+/// Parse model paths such that they are ready to be downloaded (if necessary).
 #[uniffi::export]
-pub async fn load_model(
+pub async fn parse_model_paths(
     model_path: String,
-    use_gpu: bool,
     projection_model_path: Option<String>,
     draft_model_path: Option<String>,
-    on_download_progress: Option<Box<dyn RustDownloadProgressCallback>>,
-) -> Result<Arc<RustModel>, NobodyWhoError> {
+    use_gpu: bool,
+) -> Result<ModelSources, NobodyWhoError> {
     init_logging();
-    info!(
-        "load_model called: path={}, gpu={}, mmproj={:?}, draft={:?}",
-        model_path, use_gpu, projection_model_path, draft_model_path,
-    );
-
-    let progress = on_download_progress.map(wrap_progress);
-    let model_path_clone = model_path.clone();
-    let model = AsyncWorker::new()
+    // Note: Parsing itself should be fast, but we still run it in a worker in
+    // case it ends up taking time to initialize the llama.cpp backends.
+    let sources = AsyncWorker::new()
         .run(move || {
-            nobodywho::llm::get_model(
-                &model_path_clone,
-                use_gpu,
+            nobodywho::llm::parse_model_paths(
+                &model_path,
                 projection_model_path.as_deref(),
                 draft_model_path.as_deref(),
-                progress,
+                use_gpu,
             )
         })
         .await
-        .map_err(|e| {
-            let msg = nobodywho::render_miette(&e);
-            error!("{}", msg);
-            NobodyWhoError::Error { message: msg }
+        .map_err(|e| NobodyWhoError::Error {
+            message: nobodywho::render_miette(&e),
         })?;
+    Ok(sources)
+}
 
-    info!("load_model SUCCESS for {}", model_path);
+uniffi::custom_type!(PathBuf, String, {
+    remote,
+    try_lift: |path| Ok(PathBuf::from(path)),
+    lower: |path| path.into_string().expect("path must be UTF-8"),
+});
+
+/// Where a single GGUF model file comes from.
+#[uniffi::remote(Enum)]
+pub enum GgufSource {
+    /// A file already on the local filesystem.
+    Local(PathBuf),
+    /// A file that has to be downloaded first.
+    Remote(RemoteFile),
+}
+
+/// A GGUF file to fetch over HTTP(s).
+#[uniffi::remote(Record)]
+pub struct RemoteFile {
+    /// The URL where the file can be downloaded from.
+    pub url: String,
+    /// Path of the file relative to the model cache root.
+    pub cache_path: PathBuf,
+}
+
+/// Sources for a model and its associated projection and draft models.
+#[uniffi::remote(Record)]
+pub struct ModelSources {
+    pub language_model: GgufSource,
+    pub projection_model: Option<GgufSource>,
+    pub draft_model: Option<GgufSource>,
+}
+
+/// Paths to a model and its associated projection and draft models.
+#[uniffi::remote(Record)]
+pub struct ModelPaths {
+    pub language_model: PathBuf,
+    pub projection_model: Option<PathBuf>,
+    pub draft_model: Option<PathBuf>,
+}
+
+#[uniffi::export]
+pub async fn download_models(
+    sources: ModelSources,
+    on_download_progress: Option<Box<dyn RustDownloadProgressCallback>>,
+) -> Result<ModelPaths, NobodyWhoError> {
+    let progress = on_download_progress.map(wrap_progress);
+    let paths = AsyncWorker::new()
+        .run(move || {
+            nobodywho::llm::download_models(&sources, progress, None).map_err(|e| {
+                NobodyWhoError::Error {
+                    message: nobodywho::render_miette(&e),
+                }
+            })
+        })
+        .await?;
+    Ok(paths)
+}
+
+#[uniffi::export]
+pub async fn load_model(
+    source: String,
+    paths: ModelPaths,
+    use_gpu: bool,
+) -> Result<Arc<RustModel>, NobodyWhoError> {
+    let model = AsyncWorker::new()
+        .run(move || nobodywho::llm::load_model(source, &paths, use_gpu))
+        .await
+        .map_err(|e| NobodyWhoError::Error {
+            message: nobodywho::render_miette(&e),
+        })?;
     Ok(Arc::new(RustModel {
         inner: Arc::new(model),
     }))
+}
+
+/// Parse and prepare a model path such that it's ready to be downloaded (if necessary).
+#[uniffi::export]
+pub fn parse_model_path(path: &str) -> Result<GgufSource, NobodyWhoError> {
+    init_logging();
+    nobodywho::llm::parse_model_path(path).map_err(|e| NobodyWhoError::Error {
+        message: nobodywho::render_miette(&e),
+    })
 }
 
 /// Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
@@ -385,7 +441,7 @@ pub async fn load_model(
 /// For unauthenticated downloads, pass the URL directly to `load_model`.
 #[uniffi::export]
 pub async fn download_model(
-    model_path: String,
+    remote: RemoteFile,
     headers: Option<HashMap<String, String>>,
     on_download_progress: Option<Box<dyn RustDownloadProgressCallback>>,
 ) -> Result<String, NobodyWhoError> {
@@ -394,7 +450,7 @@ pub async fn download_model(
     let progress = on_download_progress.map(wrap_progress);
 
     AsyncWorker::new()
-        .run(move || nobodywho::llm::download_model(&model_path, headers_vec, progress))
+        .run(move || nobodywho::llm::download_model(&remote, headers_vec, progress, None))
         .await
         .map(|p| p.to_string_lossy().into_owned())
         .map_err(|e| NobodyWhoError::Error {

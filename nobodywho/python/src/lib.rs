@@ -92,7 +92,7 @@ impl PythonDownloadContext {
     fn cancellation_callback(&self) -> nobodywho::llm::DownloadCancellationCallback {
         let cancelled = Arc::clone(&self.cancelled);
         let signal_error = Arc::clone(&self.signal_error);
-        Arc::new(move || {
+        Arc::new(move |_url| {
             if cancelled.load(Ordering::Relaxed) {
                 return true;
             }
@@ -138,42 +138,50 @@ impl PythonDownloadContext {
 
         let cancelled = Arc::clone(&self.cancelled);
         let signal_error = Arc::clone(&self.signal_error);
-        Ok(Some(Arc::new(move |downloaded: u64, total: u64| {
-            Python::attach(|py| {
-                if let Err(error) = callback.call1(py, (downloaded, total)) {
-                    if error.is_instance_of::<PyKeyboardInterrupt>(py) {
-                        *signal_error.lock().expect("signal error mutex poisoned") = Some(error);
-                        cancelled.store(true, Ordering::Relaxed);
-                    } else {
-                        error.print(py);
+        Ok(Some(
+            Arc::new(move |_url: &str, downloaded: u64, total: u64| {
+                Python::attach(|py| {
+                    if let Err(error) = callback.call1(py, (downloaded, total)) {
+                        if error.is_instance_of::<PyKeyboardInterrupt>(py) {
+                            *signal_error.lock().expect("signal error mutex poisoned") =
+                                Some(error);
+                            cancelled.store(true, Ordering::Relaxed);
+                        } else {
+                            error.print(py);
+                        }
                     }
-                }
-            });
-        }) as nobodywho::llm::DownloadProgressCallback))
+                });
+            }) as nobodywho::llm::DownloadProgressCallback,
+        ))
     }
 }
 
-fn resolve_on_download_progress(
-    py_callback: Option<Py<PyAny>>,
-) -> PyResult<Option<nobodywho::llm::DownloadProgressCallback>> {
-    let Some(callback) = py_callback else {
-        return Ok(None);
-    };
-    Python::attach(|py| {
-        if !callback.bind(py).is_callable() {
-            return Err(pyo3::exceptions::PyTypeError::new_err(
-                "on_download_progress must be callable, taking (downloaded_bytes, total_bytes)",
-            ));
-        }
-        Ok(())
-    })?;
-    Ok(Some(Arc::new(move |downloaded: u64, total: u64| {
-        Python::attach(|py| {
-            if let Err(error) = callback.call1(py, (downloaded, total)) {
-                error.print(py);
-            }
-        });
-    }) as nobodywho::llm::DownloadProgressCallback))
+fn get_model(
+    model_path: &str,
+    projection_model_path: Option<&str>,
+    draft_model_path: Option<&str>,
+    use_gpu_if_available: bool,
+    on_download_progress: Option<Py<PyAny>>,
+) -> PyResult<nobodywho::llm::Model> {
+    let download = PythonDownloadContext::new();
+    let progress = download.resolve_progress(on_download_progress)?;
+
+    let sources = nobodywho::llm::parse_model_paths(
+        model_path,
+        projection_model_path,
+        draft_model_path,
+        use_gpu_if_available,
+    )
+    .map_err(err)?;
+    let paths = download.finish(nobodywho::llm::download_models(
+        &sources,
+        progress,
+        Some(download.cancellation_callback()),
+    ))?;
+    let model = nobodywho::llm::load_model(model_path.to_string(), &paths, use_gpu_if_available)
+        .map_err(err)?;
+
+    Ok(model)
 }
 
 #[pymethods]
@@ -229,16 +237,13 @@ impl Model {
                 })
             })
             .transpose()?;
-        let download = PythonDownloadContext::new();
-        let progress = download.resolve_progress(on_download_progress)?;
-        let model = download.finish(nobodywho::llm::get_model_cancellable(
+        let model = get_model(
             path_str,
-            use_gpu_if_available,
             mmproj_str,
             draft_str,
-            progress,
-            Some(download.cancellation_callback()),
-        ))?;
+            use_gpu_if_available,
+            on_download_progress,
+        )?;
         Ok(Self {
             model: Arc::new(model),
         })
@@ -304,25 +309,21 @@ impl Model {
             })
             .transpose()?
             .map(str::to_owned);
-        let progress = resolve_on_download_progress(on_download_progress)?;
         let worker = AsyncWorker::new();
-        let model_result = worker
+        let model = worker
             .run(move || {
-                nobodywho::llm::get_model(
+                get_model(
                     &path_str,
-                    use_gpu_if_available,
                     mmproj_str.as_deref(),
                     draft_str.as_deref(),
-                    progress,
+                    use_gpu_if_available,
+                    on_download_progress,
                 )
             })
-            .await;
-        match model_result {
-            Ok(model) => Ok(Self {
-                model: Arc::new(model),
-            }),
-            Err(e) => Err(err(e)),
-        }
+            .await?;
+        Ok(Self {
+            model: Arc::new(model),
+        })
     }
 
     /// The identifier used to load this model.
@@ -373,17 +374,8 @@ impl<'py> ModelOrPath<'py> {
                         path.display()
                     ))
                 })?;
-                let download = PythonDownloadContext::new();
-                download
-                    .finish(nobodywho::llm::get_model_cancellable(
-                        path_str,
-                        true,
-                        None,
-                        None,
-                        None,
-                        Some(download.cancellation_callback()),
-                    ))
-                    .map(Arc::new)
+                let model = get_model(path_str, None, None, true, None)?;
+                Ok(Arc::new(model))
             }
         }
     }
@@ -405,30 +397,25 @@ impl NobodyWhoState {
             ModelOrPath::ModelObj(model) => Some(Arc::clone(&model.borrow().model)),
             ModelOrPath::Path(_) => None,
         };
-        let model = py
-            .detach(|| -> Result<Arc<nobodywho::llm::Model>, String> {
-                let mut cached = self
-                    .cached_model
-                    .lock()
-                    .map_err(|_| "NobodyWho model cache is unavailable".to_string())?;
-                if let Some(model) = supplied_model.as_ref() {
-                    *cached = Some(Arc::clone(model));
-                    return Ok(Arc::clone(model));
-                }
-                if let Some(model) = cached
-                    .as_ref()
-                    .filter(|cached| cached.source() == requested_source)
-                    .map(Arc::clone)
-                {
-                    return Ok(model);
-                }
-                let model = nobodywho::llm::get_model(&requested_source, true, None, None, None)
-                    .map(Arc::new)
-                    .map_err(|error| render_miette(&error))?;
-                *cached = Some(Arc::clone(&model));
-                Ok(model)
-            })
-            .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
+        let model = py.detach(|| -> PyResult<Arc<nobodywho::llm::Model>> {
+            let mut cached = self.cached_model.lock().map_err(|_| {
+                pyo3::exceptions::PyRuntimeError::new_err("NobodyWho model cache is unavailable")
+            })?;
+            if let Some(model) = supplied_model.as_ref() {
+                *cached = Some(Arc::clone(model));
+                return Ok(Arc::clone(model));
+            }
+            if let Some(model) = cached
+                .as_ref()
+                .filter(|cached| cached.source() == requested_source)
+                .map(Arc::clone)
+            {
+                return Ok(model);
+            }
+            let model = get_model(&requested_source, None, None, true, None).map(Arc::new)?;
+            *cached = Some(Arc::clone(&model));
+            Ok(model)
+        })?;
         let source = model.source().to_string();
         Ok((model, source))
     }
@@ -3945,12 +3932,18 @@ fn download_model(
     let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
     let download = PythonDownloadContext::new();
     let progress = download.resolve_progress(on_download_progress)?;
-    download.finish(nobodywho::llm::download_model_cancellable(
-        path_str,
-        headers_vec,
-        progress,
-        Some(download.cancellation_callback()),
-    ))
+
+    let path = download.finish(match nobodywho::llm::parse_model_path(path_str) {
+        Ok(nobodywho::llm::GgufSource::Remote(remote)) => nobodywho::llm::download_model(
+            &remote,
+            headers_vec,
+            progress,
+            Some(download.cancellation_callback()),
+        ),
+        Ok(nobodywho::llm::GgufSource::Local(path)) => Ok(path),
+        Err(e) => Err(e),
+    })?;
+    Ok(path)
 }
 
 /// `SamplerConfig` contains the configuration for a token sampler. The mechanism by which
