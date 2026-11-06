@@ -83,6 +83,16 @@ rec {
       # File a bug if you depend on any for non-debug work!
       debug = internal.debugCrate { inherit packageId; };
     };
+    "nobodywho-emscripten" = rec {
+      packageId = "nobodywho-emscripten";
+      build = internal.buildRustCrateWithFeatures {
+        packageId = "nobodywho-emscripten";
+      };
+
+      # Debug support which might change between releases.
+      # File a bug if you depend on any for non-debug work!
+      debug = internal.debugCrate { inherit packageId; };
+    };
     "nobodywho-flutter" = rec {
       packageId = "nobodywho-flutter";
       build = internal.buildRustCrateWithFeatures {
@@ -97,6 +107,16 @@ rec {
       packageId = "nobodywho-godot";
       build = internal.buildRustCrateWithFeatures {
         packageId = "nobodywho-godot";
+      };
+
+      # Debug support which might change between releases.
+      # File a bug if you depend on any for non-debug work!
+      debug = internal.debugCrate { inherit packageId; };
+    };
+    "nobodywho-js" = rec {
+      packageId = "nobodywho-js";
+      build = internal.buildRustCrateWithFeatures {
+        packageId = "nobodywho-js";
       };
 
       # Debug support which might change between releases.
@@ -9257,7 +9277,7 @@ rec {
           "vulkan" = [ "llama-cpp-sys-2/vulkan" ];
           "webgpu" = [ "llama-cpp-sys-2/webgpu" ];
         };
-        resolvedDefaultFeatures = [ "android-static-stdcxx" "common" "llguidance" "mtmd" "opencl" "openmp" "vulkan" ];
+        resolvedDefaultFeatures = [ "android-static-stdcxx" "common" "llguidance" "mtmd" "opencl" "openmp" "vulkan" "webgpu" ];
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
@@ -9305,7 +9325,7 @@ rec {
           "static-openmp" = [ "openmp" ];
           "system-ggml-static" = [ "system-ggml" ];
         };
-        resolvedDefaultFeatures = [ "common" "default" "metal" "mtmd" "opencl" "openmp" "static-stdcxx" "vulkan" ];
+        resolvedDefaultFeatures = [ "common" "default" "metal" "mtmd" "opencl" "openmp" "static-stdcxx" "vulkan" "webgpu" ];
       };
       "llguidance" = rec {
         crateName = "llguidance";
@@ -10763,6 +10783,13 @@ rec {
             features = [ "android-static-stdcxx" "vulkan" "opencl" ];
           }
           {
+            name = "llama-cpp-2";
+            packageId = "llama-cpp-2";
+            usesDefaultFeatures = false;
+            target = { target, features }: ("emscripten" == target."os" or null);
+            features = [ "webgpu" ];
+          }
+          {
             name = "llguidance";
             packageId = "llguidance";
           }
@@ -10960,6 +10987,20 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "kokoro" ];
       };
+      "nobodywho-emscripten" = rec {
+        crateName = "nobodywho-emscripten";
+        version = "0.1.0";
+        edition = "2024";
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./emscripten; };
+        libName = "nobodywho_emscripten";
+        dependencies = [
+          {
+            name = "log";
+            packageId = "log";
+          }
+        ];
+
+      };
       "nobodywho-flutter" = rec {
         crateName = "nobodywho-flutter";
         version = "6.0.0";
@@ -11055,6 +11096,26 @@ rec {
           "kokoro" = [ "nobodywho/kokoro" ];
         };
         resolvedDefaultFeatures = [ "default" "kokoro" ];
+      };
+      "nobodywho-js" = rec {
+        crateName = "nobodywho-js";
+        version = "0.1.0";
+        edition = "2024";
+        crateBin = [
+          {
+            name = "nobodywho_minimal";
+            path = "src/minimal.rs";
+            requiredFeatures = [ ];
+          }
+        ];
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./js/rust; };
+        dependencies = [
+          {
+            name = "nobodywho-uniffi";
+            packageId = "nobodywho-uniffi";
+          }
+        ];
+
       };
       "nobodywho-python" = rec {
         crateName = "nobodywho-python";
@@ -11216,12 +11277,12 @@ rec {
           {
             name = "console_log";
             packageId = "console_log";
-            target = { target, features }: (builtins.elem "wasm" target."family");
+            target = { target, features }: ((builtins.elem "wasm" target."family") && ("unknown" == target."os" or null));
           }
           {
             name = "env_logger";
             packageId = "env_logger";
-            target = { target, features }: (!(("android" == target."os" or null) || (("apple" == target."vendor" or null) && (!("macos" == target."os" or null))) || (builtins.elem "wasm" target."family")));
+            target = { target, features }: (!(("android" == target."os" or null) || (("apple" == target."vendor" or null) && (!("macos" == target."os" or null))) || ((builtins.elem "wasm" target."family") && ("unknown" == target."os" or null))));
           }
           {
             name = "log";
@@ -11231,6 +11292,11 @@ rec {
             name = "nobodywho";
             packageId = "nobodywho";
             usesDefaultFeatures = false;
+          }
+          {
+            name = "nobodywho-emscripten";
+            packageId = "nobodywho-emscripten";
+            target = { target, features }: ("emscripten" == target."os" or null);
           }
           {
             name = "oslog";
@@ -11259,6 +11325,17 @@ rec {
             name = "uniffi";
             packageId = "uniffi";
             features = [ "cli" ];
+          }
+          {
+            name = "uniffi-runtime-wasm";
+            packageId = "uniffi-runtime-wasm";
+            target = { target, features }: (builtins.elem "wasm" target."family");
+          }
+          {
+            name = "uniffi_core";
+            packageId = "uniffi_core";
+            target = { target, features }: (builtins.elem "wasm" target."family");
+            features = [ "wasm-unstable-single-threaded" ];
           }
         ];
         features = {
@@ -18227,6 +18304,16 @@ rec {
         };
         resolvedDefaultFeatures = [ "bindgen" "cargo-metadata" "cli" "default" ];
       };
+      "uniffi-runtime-wasm" = rec {
+        crateName = "uniffi-runtime-wasm";
+        version = "0.31.0-6";
+        edition = "2021";
+        sha256 = "0472bkw411ygpgr28nm0yrdx5b1h3hpq2idrjcss090ir5m99f19";
+        libName = "uniffi_runtime_wasm";type = [ "rlib" ];
+        features = {
+        };
+        resolvedDefaultFeatures = [ "default" ];
+      };
       "uniffi_bindgen" = rec {
         crateName = "uniffi_bindgen";
         version = "0.31.2";
@@ -18347,7 +18434,7 @@ rec {
         features = {
           "tokio" = [ "dep:async-compat" ];
         };
-        resolvedDefaultFeatures = [ "default" ];
+        resolvedDefaultFeatures = [ "default" "wasm-unstable-single-threaded" ];
       };
       "uniffi_internal_macros" = rec {
         crateName = "uniffi_internal_macros";

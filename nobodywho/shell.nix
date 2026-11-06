@@ -56,11 +56,19 @@ pkgs.mkShell {
     # node.js (for napi-rs bindings)
     pkgs.nodejs
 
+    # for the WASM build in nobodywho/js (emcc/em++ for cargo's linker,
+    # bindgen's sysroot and the CMake toolchain for llama.cpp)
+    pkgs.emscripten
+
     # dev tooling
     pkgs.just
   ];
   shellHook = ''
     ulimit -n 2048
     git config core.hooksPath .githooks
+
+    # The WASM build (nobodywho/js) needs the Emscripten rust target. Skipped
+    # silently when offline; `npm test` will tell you what's missing.
+    rustup target add wasm32-unknown-emscripten >/dev/null 2>&1 || true
   '';
 }

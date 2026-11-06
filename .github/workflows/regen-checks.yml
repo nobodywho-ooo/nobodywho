@@ -171,18 +171,23 @@ jobs:
 
       - name: "Generate React Native bindings"
         working-directory: ./nobodywho/js
-        run: npm run generate-bindings -- ${{ github.workspace }}/uniffi-host/libnobodywho_uniffi.so
+        run: npm run generate-jsi-bindings -- ${{ github.workspace }}/uniffi-host/libnobodywho_uniffi.so
 
-      - name: "Verify committed React Native bindings are up to date"
+      - name: "Generate WASM bindings"
+        working-directory: ./nobodywho/js
+        run: npm run generate-wasm-bindings -- ${{ github.workspace }}/uniffi-host/libnobodywho_uniffi.so
+
+      - name: "Verify committed bindings are up to date"
         working-directory: ./nobodywho/js
         run: |
           if git diff --exit-code src/generated/ cpp/generated/; then
-            echo "Generated React Native bindings are up to date"
+            echo "Generated bindings are up to date"
           else
-            echo "ERROR: Committed React Native bindings are out of date."
+            echo "ERROR: Committed bindings are out of date."
             echo "Run the binding generation command and commit the results:"
             echo "  cd nobodywho/js"
             echo "  cargo build -pnobodywho-uniffi"
-            echo "  npm run generate-bindings -- ../target/debug/libnobodywho_uniffi.so"
+            echo "  npm run generate-jsi-bindings -- ../target/debug/libnobodywho_uniffi.so"
+            echo "  npm run generate-wasm-bindings -- ../target/debug/libnobodywho_uniffi.so"
             exit 1
           fi

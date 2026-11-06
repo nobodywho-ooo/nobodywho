@@ -212,12 +212,17 @@ pub fn get_model_cancellable(
     let mtp_bundled = real_draft_model_path
         .as_deref()
         .is_some_and(|p| same_file(p, &real_model_path));
-    let model_params = LlamaModelParams::default()
+    let mut model_params = LlamaModelParams::default()
         .with_n_gpu_layers(gpu_layers)
         .with_load_mtp(mtp_bundled);
 
-    #[cfg(target_os = "android")]
-    let model_params = {
+    if cfg!(target_os = "emscripten") {
+        // Emscripten doesn't support partial unmapping, so if we try to use
+        // mmap there, it leaks a _lot_.
+        model_params = model_params.with_use_mmap(false);
+    }
+
+    if cfg!(target_os = "android") {
         let device = if use_gpu && gpu_layers > 0 {
             memory::select_best_gpu()
         } else {
@@ -229,10 +234,10 @@ pub fn get_model_cancellable(
         // An empty list explicitly selects CPU. Do not let llama.cpp combine
         // OpenCL and Vulkan devices backed by the same physical GPU.
         let devices: Vec<_> = device.into_iter().map(|d| d.index).collect();
-        model_params.with_devices(&devices).map_err(|e| {
+        model_params = model_params.with_devices(&devices).map_err(|e| {
             LoadModelError::InvalidModel(format!("Failed to select Android GPU: {e}"))
-        })?
-    };
+        })?;
+    }
 
     let model_params = pin!(model_params);
     let load_span = info_span!("model_load", path = %real_model_path.display());

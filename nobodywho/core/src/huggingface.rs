@@ -182,10 +182,12 @@ impl ModelCache {
         )))
     }
 
-    /// `dirs` doesn't support Emscripten.
+    /// `dirs` doesn't support Emscripten, so use the temporary directory.
     ///
-    /// Ideally, we'd probably want to mount IDBFS or NODEFS on `/tmp`, to
-    /// make the model persist between page reloads / node.js invocations.
+    /// On Node.js that's the real temporary directory (the JS package mounts
+    /// the host filesystem with `NODEFS`). In browsers the filesystem is
+    /// in-memory, so the JS package mounts IDBFS (IndexedDB) on the temporary
+    /// directory, to make models survive page reloads.
     #[cfg(target_os = "emscripten")]
     fn platform_cache_dir() -> Result<PathBuf, GetCacheDirError> {
         Ok(std::env::temp_dir())
@@ -982,6 +984,7 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     #[test]
+    #[cfg_attr(target_os = "emscripten", ignore = "TcpListener::bind is unavailable")]
     fn cancelled_download_removes_partial_file() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();

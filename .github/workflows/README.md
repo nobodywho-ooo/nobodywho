@@ -14,7 +14,7 @@ The one exception is `changesets.yml`, a standalone PR check that validates `.ch
 
 | bucket | what runs | path trigger | always on |
 |---|---|---|---|
-| `lint` | rustfmt + clippy + `flutter analyze` (binding + test app) + React Native test-app `tsc` | any | every event |
+| `lint` | rustfmt + clippy + `flutter analyze` (binding + test app) | any | every event |
 | `regen` | uniffi/flutter bindings regen-drift | `core/`, `uniffi/`, `grammar/`, `Cargo.*`, `*/generated/`, binding config | main, tag |
 | `rust_core` | `nix flake check` | `core/` | main, tag |
 | `python` | wheels + pytest + pip-install + multimodal (+ always-on static checks: ruff/ty/stubs) | `python/` | main, tag |
@@ -23,7 +23,7 @@ The one exception is `changesets.yml`, a standalone PR check that validates `.ch
 | `flutter` | flutter build + multimodal tests + xcframework | `flutter/` | main, tag |
 | `swift` | uniffi Apple build + xcframework + tests | `swift/`, `uniffi/` | main, tag |
 | `kotlin` | uniffi build + JVM/Android tests + device-test-app compile | `kotlin/`, `testing-apps/kotlin/`, `uniffi/` | main, tag |
-| `js` | uniffi build + RN xcframework | `js/`, `uniffi/` | main, tag |
+| `js` | uniffi build + RN xcframework + WASM build and tests + `tsc` (package + RN test app) | `js/`, `testing-apps/react-native/`, `uniffi/` | main, tag |
 | `apple_extended` | uniffi visionOS/watchOS device+sim (nightly rust, ORT from source) | — (never path-triggered) | main, tag |
 | `docs` | docusaurus build + Cloudflare Pages deploy | — | main only |
 | `docs_preview` | docusaurus build + Cloudflare Pages **preview** deploy of the PR branch; link posted on the PR | — (never path-triggered, not part of full CI) | — (`/docs-ci` only) |
@@ -107,14 +107,15 @@ releases normally, while a `nobodywho-kotlin-v*` tag cannot publish unless its
 ```
 plan.yml            Source of truth: paths/labels/event → run_* flags.
 build-and-test.yml  Entry point: calls plan and gates children.
-linting.yml         Always-on rustfmt + clippy, Dart analysis (Flutter binding
-                    and its device-test app) and the React Native device-test
-                    app's tsc.
+linting.yml         Always-on rustfmt + clippy and Dart analysis (Flutter binding
+                    and its device-test app).
 regen-checks.yml    Bindings regen-drift checks (gated by run_regen).
 build.yml           Per-platform cargo builds; matrix-gen computes integration + macOS matrix.
 test.yml            nix flake check (run_rust_core) + flutter tests (run_flutter) + always-on doctest-drift.
 python-ci.yml       Static checks always; wheels/tests by run_python; model matrix by run_python_models.
 swift-ci.yml        Swift tests. kotlin-ci.yml  Kotlin/Android tests. (both gated upstream)
+js-ci.yml           WASM build + tests, tsc of the package and the React Native
+                    device-test app (gated by run_js).
 docs.yml            Docusaurus deploy: production from main, previews via /docs-ci.
 release.yml         Package publish (release tag).
 mobile-device-tests.yml  On-device tests on real phones via Firebase Test Lab.

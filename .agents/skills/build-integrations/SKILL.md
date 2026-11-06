@@ -53,8 +53,9 @@ LIBPATH="target/debug/libnobodywho_uniffi.$LIBEXT"
 # Kotlin
 ./target/debug/uniffi-bindgen generate --library "$LIBPATH" --language kotlin --out-dir kotlin/common/generated
 
-# React Native
-npm run --prefix js generate-bindings -- $(realpath "$LIBPATH")
+# JavaScript
+npm run --prefix js generate-jsi-bindings -- $(realpath "$LIBPATH")
+npm run --prefix js generate-wasm-bindings -- $(realpath "$LIBPATH")
 ```
 
 ### 3b. React Native wrapper
