@@ -2,7 +2,7 @@
 
 # Build the Emscripten module for the Node.js/web build.
 #
-# Usage: ./build-wasm.sh [debug|release]
+# Usage: ./rust/build.sh [debug|release]
 #
 # Requires the `wasm32-unknown-emscripten` target and the Emscripten SDK.
 
@@ -24,7 +24,7 @@ export CXXFLAGS_wasm32_unknown_emscripten=-fPIC
 # `em++` must be the linker because we build C++ sources (llama.cpp), and not just C sources.
 export CARGO_TARGET_WASM32_UNKNOWN_EMSCRIPTEN_LINKER=em++
 
-# See ./src/main.rs for why this is required.
+# See ./src/minimal.rs for why this is required.
 export CARGO_TARGET_WASM32_UNKNOWN_EMSCRIPTEN_RUSTFLAGS=-Zexport-executable-symbols
 # HACK: Use RUSTC_BOOTSTRAP to avoid having a nightly compiler installed for ^.
 export RUSTC_BOOTSTRAP=1
