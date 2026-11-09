@@ -142,7 +142,6 @@ Build the WASM module, and bundle it with the TypeScript wrappers (unlike React 
 
 ```sh
 cd nobodywho/js
-# Configures various things, such as passing -fPIC and setting the linker to em++
 npm run wasm
 npm run build
 ```
