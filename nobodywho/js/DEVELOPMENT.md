@@ -2,7 +2,7 @@
 
 An amalgamation of:
 - A React Native TurboModule for running LLMs locally on iOS and Android (via Vulkan/Metal GPU acceleration).
-- A WASM binary for running in browsers with WebGPU.
+- A WASM binary for running in browsers (currently CPU, in the future with WebGPU).
 - In the future, N-API bindings (currently Node.js uses the WASM build).
 
 Which one you get is decided by the `exports` conditions in `package.json`:

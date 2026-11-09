@@ -24,7 +24,7 @@ fn main() {
         println!("cargo:rustc-link-arg-bins=-lexports.js");
 
         // Link to the Dawn WebGPU port, as needed by llama.cpp.
-        println!("cargo:rustc-link-arg-bins=--use-port=emdawnwebgpu");
+        // println!("cargo:rustc-link-arg-bins=--use-port=emdawnwebgpu");
 
         // Allow setting environment variables that we read in tests.
         println!("cargo:rustc-link-arg-bins=-sNODE_HOST_ENV=1");
