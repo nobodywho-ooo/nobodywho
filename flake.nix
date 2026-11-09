@@ -120,7 +120,7 @@
           # `npm test`, but with the WASM module from nix instead of `npm run wasm`.
           checkPhase = ''
             cp ${nobodywho-js}/bin/*.js src/uniffi.js
-            cp ${nobodywho-js}/bin/*.wasm src/uniffi.wasm
+            cp ${nobodywho-js}/bin/*.wasm src/nobodywho_minimal.wasm
             npm run typecheck
             npm run build
             TEST_MODEL=${test-models.TEST_MODEL} node --test
