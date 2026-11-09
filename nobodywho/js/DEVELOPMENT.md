@@ -171,7 +171,7 @@ TEST_MODEL=/path/to/Qwen_Qwen3-0.6B-Q4_K_M.gguf npm test
 
 These tests are also run as a nix flake check (`nix build .#checks.x86_64-linux.js-tests`),
 which builds the WASM module with crate2nix (see `workspace.nix`) using its own hermetic
-toolchain (rust with the emscripten std, the Emscripten SDK and its Dawn WebGPU port).
+toolchain (rust with the emscripten std and the Emscripten SDK).
 
 ### Testing on Android
 

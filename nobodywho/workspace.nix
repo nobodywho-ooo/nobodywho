@@ -63,12 +63,14 @@ let
   # `--use-port=emdawnwebgpu` (in js/rust/build.rs and llama.cpp's CMake) makes
   # Emscripten download Dawn's WebGPU port, which the sandbox doesn't allow.
   # Must match `tools/ports/emdawnwebgpu.py` in nixpkgs' Emscripten.
-  emdawnwebgpuVersion = "v20260423.175430";
-  emdawnwebgpuUrl = "https://github.com/google/dawn/releases/download/${emdawnwebgpuVersion}/emdawnwebgpu_pkg-${emdawnwebgpuVersion}.zip";
-  emdawnwebgpu = fetchurl {
-    url = emdawnwebgpuUrl;
-    sha512 = "42784f70b67197c614322f9fabb0f1dc64228a0de10e88f99941fa9d29bee9ad6683f4651d4eefd5a7a9fbd1f976eb522b190b683219ed1793e9b531c602ffa6";
-  };
+  # Disabled for now, since WebGPU support is disabled
+  # (see js/rust/build.rs and core/Cargo.toml).
+  # emdawnwebgpuVersion = "v20260423.175430";
+  # emdawnwebgpuUrl = "https://github.com/google/dawn/releases/download/${emdawnwebgpuVersion}/emdawnwebgpu_pkg-${emdawnwebgpuVersion}.zip";
+  # emdawnwebgpu = fetchurl {
+  #   url = emdawnwebgpuUrl;
+  #   sha512 = "42784f70b67197c614322f9fabb0f1dc64228a0de10e88f99941fa9d29bee9ad6683f4651d4eefd5a7a9fbd1f976eb522b190b683219ed1793e9b531c602ffa6";
+  # };
 
   # For crates that run Emscripten.
   emscriptenSetup = {
@@ -89,15 +91,17 @@ let
       cp -r ${emscripten}/share/emscripten/cache $EM_CACHE
       chmod -R u+w $EM_CACHE
 
-      if ! grep -qF "'${emdawnwebgpuVersion}'" ${emscripten}/share/emscripten/tools/ports/emdawnwebgpu.py; then
-        echo "ERROR: Update emdawnwebgpu in workspace.nix to what Emscripten wants:"
-        grep -E '^(_VERSION|SHA512) =' ${emscripten}/share/emscripten/tools/ports/emdawnwebgpu.py
-        exit 1
-      fi
+      # Re-enable together with `emdawnwebgpu` above (and `--use-port=emdawnwebgpu`
+      # in js/rust/build.rs) when WebGPU support comes back.
+      # if ! grep -qF "''${emdawnwebgpuVersion}''" ${emscripten}/share/emscripten/tools/ports/emdawnwebgpu.py; then
+      #   echo "ERROR: Update emdawnwebgpu in workspace.nix to what Emscripten wants:"
+      #   grep -E '^(_VERSION|SHA512) =' ${emscripten}/share/emscripten/tools/ports/emdawnwebgpu.py
+      #   exit 1
+      # fi
       # Where Emscripten's `Ports.fetch_port_artifact` would unpack it.
-      mkdir -p $EM_CACHE/ports/emdawnwebgpu
-      ${unzip}/bin/unzip -q ${emdawnwebgpu} -d $EM_CACHE/ports/emdawnwebgpu
-      echo '${emdawnwebgpuUrl}' > $EM_CACHE/ports/emdawnwebgpu/.emscripten_url
+      # mkdir -p $EM_CACHE/ports/emdawnwebgpu
+      # ${unzip}/bin/unzip -q ''${emdawnwebgpu} -d $EM_CACHE/ports/emdawnwebgpu
+      # echo ''${emdawnwebgpuUrl} > $EM_CACHE/ports/emdawnwebgpu/.emscripten_url
     '';
     # The host's strip doesn't know WASM.
     dontStrip = true;
