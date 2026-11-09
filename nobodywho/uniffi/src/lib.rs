@@ -52,7 +52,7 @@ pub fn init_logging() {
         // wasm-bindgen log to the console.
         #[cfg(all(target_family = "wasm", target_os = "unknown"))]
         {
-            console_log::init_with_level(level.into())
+            console_log::init_with_level(level.to_level().unwrap())
                 .expect("log initialization must only happen once")
         }
 
