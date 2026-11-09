@@ -1,6 +1,7 @@
 # nobodywho JavaScript bindings (UniFFI)
 
 An amalgamation of:
+
 - A React Native TurboModule for running LLMs locally on iOS and Android (via Vulkan/Metal GPU acceleration).
 - A WASM binary for running in browsers (currently CPU, in the future with WebGPU).
 - In the future, N-API bindings (currently Node.js uses the WASM build).
@@ -8,7 +9,7 @@ An amalgamation of:
 Which one you get is decided by the `exports` conditions in `package.json`:
 
 | Condition               | Entry point                 | Bindings                                |
-|-------------------------|-----------------------------|-----------------------------------------|
+| ----------------------- | --------------------------- | --------------------------------------- |
 | `browser`               | `dist/index.mjs` (built)    | `src/generated/wasm/`                   |
 | `react-native`          | `src/index.react-native.ts` | `src/generated/jsi/` + `cpp/generated/` |
 | (default, e.g. Node.js) | `dist/index.mjs` (built)    | `src/generated/wasm/`                   |
@@ -119,6 +120,7 @@ npm run generate-wasm-bindings -- ../target/debug/libnobodywho_uniffi.dylib
 
 This builds the UniFFI crate for the host (which is valid as long as we assume that there's no `cfg`-guards in our UniFFI bindings that
 would make them differ on WASM), reads the UniFFI metadata embedded in the compiled `.so`/`.dylib` and generates:
+
 - `src/generated/jsi/nobodywho.ts` — TypeScript classes, enums, free functions
 - `src/generated/jsi/nobodywho-ffi.ts` — low-level FFI type bridge
 - `src/generated/wasm/*` — Same as above, but for WASM
@@ -143,13 +145,13 @@ npm run generate-turbo-module
 
 ### Quick reference
 
-| What changed | Regenerate bindings | Regenerate turbo-module | Rebuild native libs |
-|---|---|---|---|
-| Rust API (`uniffi/src/lib.rs`) | Yes | No | Yes |
-| Core Rust library (`core/src/`) | No | No | Yes |
-| TypeScript wrappers (`src/wrapper/`) | No | No | No |
-| Module name / `codegenConfig` | No | Yes| No |
-| `uniffi-bindgen-react-native` version | Yes | Yes| No |
+| What changed                          | Regenerate bindings | Regenerate turbo-module | Rebuild native libs |
+| ------------------------------------- | ------------------- | ----------------------- | ------------------- |
+| Rust API (`uniffi/src/lib.rs`)        | Yes                 | No                      | Yes                 |
+| Core Rust library (`core/src/`)       | No                  | No                      | Yes                 |
+| TypeScript wrappers (`src/wrapper/`)  | No                  | No                      | No                  |
+| Module name / `codegenConfig`         | No                  | Yes                     | No                  |
+| `uniffi-bindgen-react-native` version | Yes                 | Yes                     | No                  |
 
 ## Build system overview
 
@@ -186,6 +188,7 @@ cp nobodywho/target/x86_64-linux-android/release/libnobodywho_uniffi.so \
 ```
 
 For iOS:
+
 ```bash
 cd nobodywho/js
 npm run ios -- --release
@@ -214,6 +217,7 @@ since it instantiates the module itself and doesn't know about Emscripten; so th
 ### Release builds (CI)
 
 In CI, native `.so` files are cross-compiled and uploaded as GitHub Release assets. At install time:
+
 - **Android:** `build.gradle` downloads `.so` files from the GitHub Release matching the package version into `android/src/main/jniLibs/`
 - **iOS:** `Nobodywho.podspec` downloads and extracts `NobodyWho.xcframework.zip` from the same release into `NobodyWho.xcframework/`
 
