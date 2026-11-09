@@ -14,7 +14,7 @@ NobodyWho currently supports only [Laya GGUF](https://huggingface.co/ggml-org/La
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 final decision = await nobodywho.Decision.fromPath(
-  modelPath: Platform.environment['TEST_DECISION_MODEL'] ?? 'Laya-Q8_0.gguf',
+  modelPath: 'hf://ggml-org/Laya-GGUF/Laya-Q8_0.gguf',
 );
 ```
 

@@ -2,7 +2,7 @@
 
 NobodyWho is a React Native / Expo library for running large language models locally and offline on iOS and Android.
 
-Free to use in commercial projects under the EUPL-1.2 license — no API key required. Supports text, vision, hearing, speech-to-text, text-to-speech, voice activity detection, embeddings, RAG & function calling.
+Free to use in commercial projects under the EUPL-1.2 license — no API key required. Supports text, vision, hearing, speech-to-text, text-to-speech, voice activity detection, decision models, embeddings, RAG & function calling.
 
 - [Documentation](https://docs.nobodywho.ooo) — React Native & other frameworks documentation
 - [RN starter example app](https://github.com/nobodywho-ooo/react-native-starter-example) / [Expo starter example app](https://github.com/nobodywho-ooo/expo-starter-example) — Test this library in 5 minutes
@@ -259,3 +259,43 @@ const speech = vad.finish(); // buffered speech, ready to pass to SpeechToText
 You can also segment speech out of an existing recording with `segment()`.
 
 See the [Voice Activity Detection documentation](https://docs.nobodywho.ooo/js/voice-activity-detection/) for more.
+
+## Decision models
+
+A decision model scores predefined answers instead of generating text. NobodyWho currently supports only Laya GGUF decision models.
+
+Load a model and make a decision:
+```ts
+import { Decision } from "react-native-nobodywho";
+
+async function classify() {
+  const decision = await Decision.fromPath({
+    modelPath: "hf://ggml-org/Laya-GGUF/Laya-Q8_0.gguf",
+  });
+  const response = await decision.decide({
+    state: { message: "I was charged twice. Please refund the duplicate payment." },
+    questions: {
+      department: {
+        type: "choice",
+        instructions: "Which team should handle this?",
+        criteria: { billing: "Payments and refunds", technical: "Bugs and login problems" },
+      },
+      refund: { type: "noul", instructions: "Is a refund requested?" },
+      urgency: {
+        type: "score",
+        instructions: "How urgent is this?",
+        criteria: ["can wait", "soon", "urgent"],
+      },
+    },
+  });
+
+  console.log(response.answers);
+  decision.destroy();
+}
+
+void classify();
+```
+
+`decide` returns a `DecisionResponse` with `answers` and `usage`. Each answer is a `DecisionAnswer` matching its question type. `choice` and `score` answers include `confidence`, a value from 0 to 1. `score` also includes `legend`; `noul` contains only its probability. High confidence does not guarantee a correct answer.
+
+See the [Decision models documentation](https://docs.nobodywho.ai/js/decision-models) for more.

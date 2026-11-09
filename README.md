@@ -1,6 +1,5 @@
 [![Discord](https://img.shields.io/discord/1308812521456799765?logo=discord&style=flat-square)](https://discord.gg/qhaMc2qCYB)
 [![Matrix](https://img.shields.io/badge/Matrix-000?logo=matrix&logoColor=fff)](https://matrix.to/#/#nobodywho:matrix.org)
-[![Mastodon](https://img.shields.io/badge/Mastodon-6364FF?logo=mastodon&logoColor=fff&style=flat-square)](https://mastodon.gamedev.place/@nobodywho)
 [![Pub.dev Version](https://img.shields.io/pub/v/nobodywho?include_prereleases&style=flat-square&label=pub.dev)](https://pub.dev/packages/nobodywho)
 [![PyPI Version](https://img.shields.io/pypi/v/nobodywho?style=flat-square&labelColor=%233775A9&color=%23FFD242)](https://pypi.org/project/nobodywho/)
 [![npm Version](https://img.shields.io/npm/v/react-native-nobodywho?style=flat-square&logo=npm&label=npm)](https://www.npmjs.com/package/react-native-nobodywho)
@@ -29,6 +28,7 @@
 * **Speech-to-text** — transcribe audio into text with Whisper
 * **Voice Activity Detection** — know when to stop listening and start transcribing with Silero
 * **Model downloading** — load models directly from [Hugging Face](https://huggingface.co/models?library=gguf&sort=trending) or any URL
+* **Classify** — scores predefined answers instead of generating text with decision models
 
 ## Under the Hood
 
@@ -53,14 +53,14 @@ flowchart TD
     S --> U
     RN --> U
 
-    CORE["NobodyWho · Rust<br/>chat · templates · grammars · sampling · context shifting"]:::core
+    CORE["NobodyWho · Rust<br/>chat · decisions · templates · grammars · sampling · context shifting"]:::core
 
     FRB --> CORE
     P3 --> CORE
     GX --> CORE
     U --> CORE
 
-    CORE --> LCPP["llama.cpp<br/>text · vision · embeddings · reranking"]:::engine
+    CORE --> LCPP["llama.cpp<br/>text · vision · embeddings · reranking · decisions"]:::engine
     CORE --> ORT["ONNX Runtime<br/>speech-to-text · text-to-speech · VAD"]:::engine
 
     LCPP --> HW["Hardware<br/>Vulkan · Metal · CUDA · GPU · CPU"]:::hw
