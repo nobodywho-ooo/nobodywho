@@ -6,7 +6,7 @@
 //! This uses `emscripten_log` with `EM_LOG_CONSOLE`, which is built into the
 //! emscripten runtime — see `<emscripten/console.h>` and
 //! `_emscripten_log_formatted` in emscripten's `libcore.js`. So we can declare
-//! and call it directly, without pulling in `web-sys`/`wasm-bindgen`.use std::ffi::CString;
+//! and call it directly, without pulling in `web-sys`/`wasm-bindgen`.
 use std::ffi::{CString, c_char, c_int};
 
 /// If specified, logs directly to the browser console/inspector window.
