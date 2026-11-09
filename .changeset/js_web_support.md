@@ -4,4 +4,4 @@ bindings:
   react-native: minor
 ---
 
-Added Web, Node.js and Expo Go support by using WebAssembly. This is still experimental, and WebGPU is not supported so it can be fairly slow, but it should be usable for demos and unit tests.
+Added Web, Node.js and Expo Web support by using WebAssembly. This is still experimental, and WebGPU is not supported so it can be fairly slow, but it should be usable for demos and unit tests.

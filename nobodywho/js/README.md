@@ -13,6 +13,7 @@ Free to use in commercial projects under the EUPL-1.2 license — no API key req
 ## How do I get started?
 
 First, install `react-native-nobodywho`.
+
 ```bash
 # React Native
 npm install react-native-nobodywho
@@ -28,13 +29,14 @@ No additional initialization step is required — the native module is loaded au
 
 NobodyWho's native code works fine with a [development build](https://docs.expo.dev/develop/development-builds/introduction/).
 
-See below for [Expo Go](https://docs.expo.dev/get-started/set-up-your-environment/).
+NobodyWho ships native code, so it does **not** run in [Expo Go](https://docs.expo.dev/get-started/set-up-your-environment/). You need a [development build](https://docs.expo.dev/develop/development-builds/introduction/).
 
-### Web / Node.js / Expo Go
+### Web / Node.js / Expo Web
 
 NobodyWho has experimental support for being compiled to WebAssembly and running in the browser.
 
 This functionality automatically enabled, and should be usable, but it has a few limitations at the moment:
+
 - No WebGPU acceleration.
 - `async` tool calls doesn't work.
 - STT, TTS and VAD doesn't work.
@@ -68,6 +70,7 @@ You can also build with [EAS Build](https://docs.expo.dev/build/introduction/) i
 This library uses the **GGUF format** — a binary format optimized for fast loading and efficient LLM inference. A wide selection of GGUF models is available on [Hugging Face](https://huggingface.co/models).
 
 **Compatibility notes:**
+
 - Most GGUF models will work, but some may fail due to formatting issues.
 - For mobile devices, models under 1 GB run smoothly. As a general rule, the device should have at least twice the available RAM as the model file size. Note that available RAM differs from total RAM — iOS typically reserves around 1–2 GB for the kernel and system processes, while Android overhead varies by manufacturer: roughly 2 GB on stock Android (e.g. Pixel devices), and between 2–4 GB on Samsung, Xiaomi, and Oppo devices due to additional services.
 
