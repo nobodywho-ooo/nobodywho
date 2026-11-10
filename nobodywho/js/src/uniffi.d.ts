@@ -23,6 +23,10 @@ export default function createEmscriptenModule(
 
 export interface EmscriptenFS {
   lookupPath(path: string, opts?: {}): unknown;
+  // Includes `.` and `..`.
+  readdir(path: string): string[];
+  stat(path: string): { mode: number };
+  isDir(mode: number): boolean;
   mkdir(path: string): void;
   mkdirTree(path: string): void;
   chdir(path: string): void;

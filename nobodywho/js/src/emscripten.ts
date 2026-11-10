@@ -3,59 +3,68 @@
  */
 
 import createEmscriptenModule from "./uniffi.js";
-import type { EmscriptenFS, EmscriptenModule } from "./uniffi.js";
+import type { EmscriptenModule } from "./uniffi.js";
 
-// Under Node.js, expose the host filesystem at the same absolute paths, so that
-// e.g. `Model.load({ modelPath: "/path/to/model.gguf" })` works.
+// Mount a filesystem over each top-level directory, so that absolute paths
+// (e.g. `Model.load({ modelPath: "/path/to/model.gguf" })`) work everywhere.
 //
-// We mount each top-level host directory with NODEFS, since the root itself
-// can't be mounted over. (`-lnoderawfs.js` would do this, but doesn't work in
-// browsers.) `/dev` and `/proc` are left as Emscripten's own.
-function mountHostFilesystem(FS: EmscriptenFS, NODEFS: unknown) {
-  const nodeProcess = (globalThis as any).process;
-  const { readdirSync, realpathSync, statSync } = nodeProcess.getBuiltinModule("node:fs");
-  for (const name of readdirSync("/")) {
-    if (name === "dev" || name === "proc") continue;
-    try {
-      const path = "/" + name;
-      if (!statSync(path).isDirectory()) continue;
-      try {
-        FS.mkdir(path);
-      } catch {
-        // Already exists.
-      }
-      // NODEFS `lstat`s the root, so it must not be a symlink (e.g. `/tmp` on macOS).
-      FS.mount(NODEFS, { root: realpathSync(path) }, path);
-    } catch {
-      // Not accessible, skip it.
-    }
-  }
-  FS.chdir(nodeProcess.cwd());
-}
-
-// In browsers, persist `/tmp` (where downloaded models are cached) in
-// IndexedDB, so it survives page reloads.
-function mountPersistentStorage({
+// The root itself can't be mounted over, hence each top-level directory.
+// `/dev` and `/proc` are left as Emscripten's own.
+//
+// Under Node.js, the host's directories are mounted with NODEFS. In browsers,
+// Emscripten's default directories (`/tmp` and `/home`) are persisted in
+// IndexedDB with IDBFS, so that e.g. downloaded models survive page reloads.
+function mountFilesystems({
   FS,
+  NODEFS,
   IDBFS,
   addRunDependency,
   removeRunDependency,
 }: EmscriptenModule) {
-  // `autoPersist` writes changes back to IndexedDB as files are modified.
-  FS.mount(IDBFS, { autoPersist: true }, "/tmp");
+  const nodeProcess = (globalThis as any).process;
+  const nodeFs = nodeProcess?.versions?.node
+    ? nodeProcess.getBuiltinModule("node:fs")
+    : null;
 
-  // Load the persisted files before the module starts running.
-  // If IndexedDB is unavailable (e.g. blocked by browser settings), carry on
-  // with `/tmp` as plain in-memory storage.
-  addRunDependency("idbfs");
-  const loaded = (err?: unknown) => {
-    if (err) console.error("failed to load persistent storage:", err);
-    removeRunDependency("idbfs");
-  };
-  try {
-    FS.syncfs(true, loaded);
-  } catch (err) {
-    loaded(err);
+  const names: string[] = nodeFs ? nodeFs.readdirSync("/") : FS.readdir("/");
+  for (const name of names) {
+    if (name === "." || name === ".." || name === "dev" || name === "proc")
+      continue;
+    const path = "/" + name;
+    try {
+      if (nodeFs) {
+        if (!nodeFs.statSync(path).isDirectory()) continue;
+        FS.mkdirTree(path);
+        // NODEFS `lstat`s the root, so it must not be a symlink (e.g. `/tmp` on macOS).
+        FS.mount(NODEFS, { root: nodeFs.realpathSync(path) }, path);
+      } else {
+        if (!FS.isDir(FS.stat(path).mode)) continue;
+        // `autoPersist` writes changes back to IndexedDB as files are modified.
+        FS.mount(IDBFS, { autoPersist: true }, path);
+      }
+    } catch (err) {
+      // Not accessible, skip it.
+      console.error(`failed to mount filesystem at ${path}:`, err);
+    }
+  }
+
+  if (nodeFs) {
+    FS.chdir(nodeProcess.cwd());
+    return;
+  } else {
+    // Load the persisted files before the module starts running.
+    // If IndexedDB is unavailable (e.g. blocked by browser settings), carry on
+    // with plain in-memory storage.
+    addRunDependency("idbfs");
+    const loaded = (err?: unknown) => {
+      if (err) console.error("failed to load persistent storage:", err);
+      removeRunDependency("idbfs");
+    };
+    try {
+      FS.syncfs(true, loaded);
+    } catch (err) {
+      loaded(err);
+    }
   }
 }
 
@@ -65,13 +74,5 @@ function mountPersistentStorage({
 // We don't use the generated `uniffiInitAsync` from `@ubjs/wasm`, as that
 // instantiates the module itself, and doesn't know about Emscripten's imports.
 export default await createEmscriptenModule({
-  preRun: [
-    (module) => {
-      if ((globalThis as any).process?.versions?.node) {
-        mountHostFilesystem(module.FS, module.NODEFS);
-      } else {
-        mountPersistentStorage(module);
-      }
-    },
-  ],
+  preRun: [mountFilesystems],
 });
