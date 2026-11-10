@@ -136,6 +136,10 @@ let
       crateBin = [ ];
     };
 
+    # Only used as rlibs; their cdylibs would link with the host cc.
+    mel_spec = attrs: { type = [ "lib" ]; };
+    llguidance = attrs: { type = [ "lib" ]; };
+
     # Builds `uniffi.{js,wasm}`, like `js/rust/build.sh`.
     nobodywho-js =
       attrs:
