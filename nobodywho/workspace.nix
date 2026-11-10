@@ -295,7 +295,20 @@ let
           ];
         };
       }
-      // lib.optionalAttrs isEmscripten emscriptenCrateOverrides;
+      // lib.optionalAttrs isEmscripten emscriptenCrateOverrides
+      // lib.optionalAttrs (forEmscripten && !isEmscripten) {
+        # Cargo.nix resolves features for Emscripten, but rustix built for the host needs these.
+        linux-raw-sys = attrs: {
+          features = [
+            "auxvec"
+            "general"
+            "errno"
+            "ioctl"
+            "no_std"
+            "elf"
+          ];
+        };
+      };
     };
 
   # IFD-based generation — broken with git workspace deps using inheritance (crate2nix#207).
