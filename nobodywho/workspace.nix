@@ -93,7 +93,7 @@ let
 
       # Re-enable together with `emdawnwebgpu` above (and `--use-port=emdawnwebgpu`
       # in js/rust/build.rs) when WebGPU support comes back.
-      # if ! grep -qF "''${emdawnwebgpuVersion}''" ${emscripten}/share/emscripten/tools/ports/emdawnwebgpu.py; then
+      # if ! grep -qF "''${emdawnwebgpuVersion}" ${emscripten}/share/emscripten/tools/ports/emdawnwebgpu.py; then
       #   echo "ERROR: Update emdawnwebgpu in workspace.nix to what Emscripten wants:"
       #   grep -E '^(_VERSION|SHA512) =' ${emscripten}/share/emscripten/tools/ports/emdawnwebgpu.py
       #   exit 1
