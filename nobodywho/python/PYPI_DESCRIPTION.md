@@ -20,6 +20,7 @@ Free to use in commercial projects under the EUPL-1.2 license, no API key requir
 - **Text-to-speech** - Generate natural-sounding speech from text
 - **Voice activity detection** - Detect speech in an audio stream to know when to start and stop listening
 - **Vision & embeddings** - Multimodal image and audio input, plus embeddings and reranking for semantic search and RAG
+- **Classify** - scores predefined answers instead of generating text with decision models
 - **Infinite conversations** - Conversation-aware preemptive context shifting prevents mid-conversation crashes
 - **GPU accelerated** - Vulkan-powered inference for maximum performance
 - **Thousands of compatible models** - Works with any LLM in GGUF format
@@ -261,6 +262,74 @@ asyncio.run(main())
 The other model types also have async variants: `EncoderAsync`, `CrossEncoderAsync`, and `SpeechToTextAsync`.
 
 See the [Streaming & Async documentation](https://docs.nobodywho.ooo/python/streaming-and-async-api/) for more.
+
+## Decision models
+
+A decision model scores predefined answers instead of generating text. NobodyWho currently supports only Laya GGUF decision models.
+
+Load a model and make a decision:
+```python
+from nobodywho import Decision, Model
+
+model = Model(model_path="hf://ggml-org/Laya-GGUF/Laya-Q8_0.gguf")
+decisions = Decision(model=model, n_ctx=1024)
+
+message = "I was charged twice. Please refund the duplicate payment."
+questions = {
+	"department": {
+		"type": "choice",
+		"instructions": "Which team should handle this?",
+		"criteria": {
+			"billing": "Payments and refunds",
+			"technical": "Bugs and login problems",
+		},
+	},
+	"refund": {
+		"type": "noul",
+		"instructions": "Is a refund requested?",
+	},
+	"urgency": {
+		"type": "score",
+		"instructions": "How urgent is this?",
+		"criteria": ["can wait", "soon", "urgent"],
+	},
+}
+
+result = decisions.decide(state={"message": message}, questions=questions)
+team = result["answers"]["department"]["choice"]
+probabilities = result["answers"]["department"]["probabilities"]
+refund_probability = result["answers"]["refund"]["noul"]
+urgency = result["answers"]["urgency"]["score"]
+assert result["usage"]["output_tokens"] == 0
+```
+
+`decide` returns a Python `dict` with `answers` and `usage` (token counts). Question IDs and option IDs keep their insertion order.
+
+- `answers`: an answer `dict` for each question ID. Each answer contains the fields for its question type:
+  - `type`: `choice`, `noul`, or `score`.
+  - `choice`: the selected option ID.
+  - `noul`: the probability that the answer is yes, from 0 to 1.
+  - `score`: the probability-weighted average of the zero-based levels.
+  - `probabilities`: the probability of each option or level, for `choice` and `score`.
+  - `confidence`: how concentrated the probabilities are, from 0 to 1. Only `choice` and `score` return `confidence`. High confidence does not guarantee a correct answer.
+  - `legend`: level IDs mapped to their descriptions, for `score`.
+
+To await inference, use DecisionAsync. The constructor is synchronous.
+
+```python
+import asyncio
+from nobodywho import DecisionAsync
+
+async_decisions = DecisionAsync(model=model, n_ctx=1024)
+
+async def classify():
+	return await async_decisions.decide(state={"message": message}, questions=questions)
+
+async_result = asyncio.run(main=classify())
+assert async_result["usage"]["output_tokens"] == 0
+```
+
+See the [Decision models documentation](https://docs.nobodywho.ai/python/decision-models) for more.
 
 ## Documentation
 

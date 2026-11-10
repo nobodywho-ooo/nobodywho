@@ -2,7 +2,7 @@
 
 NobodyWho is a Flutter library for running large language models locally and offline on iOS, Android, macOS, Linux, and Windows.
 
-Free to use in commercial projects under the EUPL-1.2 license — no API key required. Support text, vision, hearing, speech-to-text, text-to-speech, voice activity detection, embeddings, RAG & function calling.
+Free to use in commercial projects under the EUPL-1.2 license — no API key required. Support text, vision, hearing, speech-to-text, text-to-speech, voice activity detection, decision models, embeddings, RAG & function calling.
 
 - [Documentation](https://docs.nobodywho.ooo) — Flutter & other frameworks documentation
 - [Discord](https://discord.gg/qhaMc2qCYB) — Get help, share ideas, and connect with other developers
@@ -321,3 +321,60 @@ final speech = vad.finish(); // buffered speech, ready to pass to SpeechToText
 You can also segment speech out of an existing recording with `segment()`.
 
 See the [Voice Activity Detection documentation](https://docs.nobodywho.ooo/flutter/voice-activity-detection/) for more.
+
+## Decision models
+
+A decision model scores predefined answers instead of generating text. NobodyWho currently supports only Laya GGUF decision models.
+
+Load a model and make a decision:
+```dart
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
+
+final decision = await nobodywho.Decision.fromPath(
+  modelPath: 'hf://ggml-org/Laya-GGUF/Laya-Q8_0.gguf',
+);
+
+final message = 'I was charged twice. Please refund the duplicate payment.';
+final questions = {
+  'department': {
+    'type': 'choice',
+    'instructions': 'Which team should handle this?',
+    'criteria': {
+      'billing': 'Payments and refunds',
+      'technical': 'Bugs and login problems',
+    },
+  },
+  'refund': {
+    'type': 'noul',
+    'instructions': 'Is a refund requested?',
+  },
+  'urgency': {
+    'type': 'score',
+    'instructions': 'How urgent is this?',
+    'criteria': ['can wait', 'soon', 'urgent'],
+  },
+};
+
+final result = await decision.decide(
+  state: {'message': message},
+  questions: questions,
+);
+final answers = (result as Map)['answers'] as Map;
+final team = (answers['department'] as Map)['choice'] as String;
+final refundProbability = (answers['refund'] as Map)['noul'] as double;
+final urgency = (answers['urgency'] as Map)['score'] as double;
+print('$team, refund $refundProbability, urgency $urgency');
+```
+
+`decide` returns a `Map` with `answers` and `usage` (token counts). Question IDs and option IDs keep their order.
+
+- `answers`: an answer map for each question ID. Each answer contains the fields for its question type:
+  - `type`: `choice`, `noul`, or `score`.
+  - `choice`: the selected option ID.
+  - `noul`: the probability that the answer is yes, from 0 to 1.
+  - `score`: the probability-weighted average of the zero-based levels.
+  - `probabilities`: the probability of each option or level, for `choice` and `score`.
+  - `confidence`: how concentrated the probabilities are, from 0 to 1. Only `choice` and `score` return `confidence`. High confidence does not guarantee a correct answer.
+  - `legend`: level IDs mapped to their descriptions, for `score`.
+
+See the [Decision models documentation](https://docs.nobodywho.ai/flutter/decision-models) for more.

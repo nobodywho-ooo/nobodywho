@@ -282,6 +282,16 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
   buffer.writeln("          hfLink.createSync(modelPath);");
   buffer.writeln("        }");
   buffer.writeln("      }");
+  buffer.writeln("      final decisionPath = Platform.environment['TEST_DECISION_MODEL'];");
+  buffer.writeln("      if (decisionPath != null) {");
+  buffer.writeln("        final cacheHome = Platform.environment['XDG_CACHE_HOME'] ?? '\${Platform.environment['HOME']}/.cache';");
+  buffer.writeln("        final hfCache = Directory('\$cacheHome/nobodywho/models/ggml-org/Laya-GGUF');");
+  buffer.writeln("        hfCache.createSync(recursive: true);");
+  buffer.writeln("        final hfLink = Link('\${hfCache.path}/Laya-Q8_0.gguf');");
+  buffer.writeln("        if (!hfLink.existsSync()) {");
+  buffer.writeln("          hfLink.createSync(decisionPath);");
+  buffer.writeln("        }");
+  buffer.writeln("      }");
   buffer.writeln("    });");
   buffer.writeln();
 
@@ -294,11 +304,13 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
   buffer.writeln("          link.deleteSync();");
   buffer.writeln("        }");
   buffer.writeln("      }");
-  buffer.writeln("      // Clean up HF cache symlink");
+  buffer.writeln("      // Clean up HF cache symlinks");
   buffer.writeln("      final cacheHome = Platform.environment['XDG_CACHE_HOME'] ?? '\${Platform.environment['HOME']}/.cache';");
-  buffer.writeln("      final hfLink = Link('\$cacheHome/nobodywho/models/NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf');");
-  buffer.writeln("      if (hfLink.existsSync()) {");
-  buffer.writeln("        hfLink.deleteSync();");
+  buffer.writeln("      for (final path in ['NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf', 'ggml-org/Laya-GGUF/Laya-Q8_0.gguf']) {");
+  buffer.writeln("        final hfLink = Link('\$cacheHome/nobodywho/models/\$path');");
+  buffer.writeln("        if (hfLink.existsSync()) {");
+  buffer.writeln("          hfLink.deleteSync();");
+  buffer.writeln("        }");
   buffer.writeln("      }");
   buffer.writeln("    });");
   buffer.writeln();

@@ -59,6 +59,16 @@ void main() {
           hfLink.createSync(modelPath);
         }
       }
+      final decisionPath = Platform.environment['TEST_DECISION_MODEL'];
+      if (decisionPath != null) {
+        final cacheHome = Platform.environment['XDG_CACHE_HOME'] ?? '${Platform.environment['HOME']}/.cache';
+        final hfCache = Directory('$cacheHome/nobodywho/models/ggml-org/Laya-GGUF');
+        hfCache.createSync(recursive: true);
+        final hfLink = Link('${hfCache.path}/Laya-Q8_0.gguf');
+        if (!hfLink.existsSync()) {
+          hfLink.createSync(decisionPath);
+        }
+      }
     });
 
     tearDownAll(() async {
@@ -70,11 +80,13 @@ void main() {
           link.deleteSync();
         }
       }
-      // Clean up HF cache symlink
+      // Clean up HF cache symlinks
       final cacheHome = Platform.environment['XDG_CACHE_HOME'] ?? '${Platform.environment['HOME']}/.cache';
-      final hfLink = Link('$cacheHome/nobodywho/models/NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf');
-      if (hfLink.existsSync()) {
-        hfLink.deleteSync();
+      for (final path in ['NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf', 'ggml-org/Laya-GGUF/Laya-Q8_0.gguf']) {
+        final hfLink = Link('$cacheHome/nobodywho/models/$path');
+        if (hfLink.existsSync()) {
+          hfLink.deleteSync();
+        }
       }
     });
 
@@ -199,7 +211,7 @@ void main() {
 
     test('decision-models.md:13', () async {
       final decision = await nobodywho.Decision.fromPath(
-        modelPath: Platform.environment['TEST_DECISION_MODEL'] ?? 'Laya-Q8_0.gguf',
+        modelPath: 'hf://ggml-org/Laya-GGUF/Laya-Q8_0.gguf',
       );
       final message = 'I was charged twice. Please refund the duplicate payment.';
       final questions = {
