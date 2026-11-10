@@ -33,7 +33,9 @@ function mountFilesystems({
     const path = "/" + name;
     try {
       if (nodeFs) {
-        if (!nodeFs.statSync(path).isDirectory()) continue;
+        // Skips dangling symlinks (e.g. `/.VolumeIcon.icns` on macOS).
+        const stat = nodeFs.statSync(path, { throwIfNoEntry: false });
+        if (!stat?.isDirectory()) continue;
         FS.mkdirTree(path);
         // NODEFS `lstat`s the root, so it must not be a symlink (e.g. `/tmp` on macOS).
         FS.mount(NODEFS, { root: nodeFs.realpathSync(path) }, path);
@@ -43,7 +45,6 @@ function mountFilesystems({
         FS.mount(IDBFS, { autoPersist: true }, path);
       }
     } catch (err) {
-      // Not accessible, skip it.
       console.error(`failed to mount filesystem at ${path}:`, err);
     }
   }
