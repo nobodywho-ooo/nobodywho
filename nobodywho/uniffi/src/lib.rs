@@ -5,8 +5,10 @@ use std::sync::{Arc, Once};
 use nobodywho::worker::AsyncWorker;
 use tracing::{debug, error, info};
 
+// Provide runtime symbols such as `__ubrn_alloc` which are required by the
+// JavaScript side of `uniffi-bindgen-react-native`.
 #[cfg(target_family = "wasm")]
-extern crate uniffi_runtime_wasm as _;
+use uniffi_runtime_wasm as _;
 
 uniffi::setup_scaffolding!("nobodywho");
 
