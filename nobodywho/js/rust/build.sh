@@ -11,9 +11,10 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 profile="debug"
+cargo_args=""
 case "${1:-debug}" in
   debug) profile="debug" ;;
-  release) profile="release" ;;
+  release) profile="release"; cargo_args="--release" ;;
   *) echo "usage: $0 [debug|release]" >&2; exit 1 ;;
 esac
 
@@ -25,7 +26,7 @@ export CXXFLAGS_wasm32_unknown_emscripten=-fPIC
 export CARGO_TARGET_WASM32_UNKNOWN_EMSCRIPTEN_LINKER=em++
 
 # Build the Emscripten .js and .wasm files.
-cargo build --target=wasm32-unknown-emscripten --package=nobodywho-js --profile=$profile
+cargo build --target=wasm32-unknown-emscripten --package=nobodywho-js $cargo_args
 
 # Copy the outputs.
 out="../../target/wasm32-unknown-emscripten/$profile"
