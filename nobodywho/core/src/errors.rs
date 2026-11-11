@@ -824,10 +824,6 @@ pub enum TextToSpeechError {
     InvalidConfig { message: String },
 
     // ── Platform support ─────────────────────────────────────────────
-    #[error("TextToSpeech is not supported on WebAssembly")]
-    #[diagnostic(code(nobodywho::tts_wasm_unsupported))]
-    WasmUnsupported,
-
     #[error("Kokoro support was not compiled in; build NobodyWho with the `kokoro` Cargo feature")]
     #[diagnostic(code(nobodywho::tts_kokoro_not_compiled))]
     KokoroNotCompiled,
@@ -859,9 +855,6 @@ pub enum SpeechToTextError {
     #[error("Error initializing SpeechToText: {0}")]
     Init(String),
 
-    #[error("SpeechToText is not supported on WebAssembly")]
-    WasmUnsupported,
-
     #[error("Error during transcription: {0}")]
     Transcription(String),
 
@@ -884,9 +877,6 @@ impl From<HuggingFaceError> for SpeechToTextError {
 pub enum VoiceActivityDetectionError {
     #[error("Error initializing VAD: {0}")]
     Init(String),
-
-    #[error("Voice activity detection is not supported on WebAssembly")]
-    WasmUnsupported,
 
     #[error("ONNX Runtime error: {0}")]
     Ort(#[from] ort::Error),
