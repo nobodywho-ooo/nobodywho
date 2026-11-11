@@ -26,6 +26,8 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: wasm32-unknown-emscripten
+          # Cached by the "Cache Rust build" step instead.
+          cache: false
 
       # We don't use emscripten-core/setup-emsdk, since:
       # - It doesn't support alternative cache providers.
