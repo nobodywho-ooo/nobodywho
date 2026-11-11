@@ -147,7 +147,7 @@ let
         preBuild = ''
           # Link with em++ (llama.cpp is C++). Passed after buildRustCrate's
           # `-C linker=cc`, so it wins.
-          EXTRA_RUSTC_FLAGS="-C linker=em++ -Zexport-executable-symbols"
+          EXTRA_RUSTC_FLAGS="-C linker=em++"
         '';
       };
   };

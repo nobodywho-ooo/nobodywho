@@ -5,8 +5,6 @@
 //
 // We want that `.js` file though, so we build a `#![no_main]` binary that
 // will act as a dylib.
-//
-// This requires the unstable `-Zexport-executable-symbols` though.
 #![cfg_attr(target_os = "emscripten", no_main)]
 
 // Make `rustc` see that it should expose the symbols from `nobodywho-uniffi`.
