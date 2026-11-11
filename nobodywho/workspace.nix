@@ -144,6 +144,12 @@ let
     nobodywho-js =
       attrs:
       emscriptenSetup
+      // {
+        # Passed after buildRustCrate's `-C linker=cc`, so it wins.
+        preBuild = ''
+          EXTRA_RUSTC_FLAGS="-C linker=emcc"
+        '';
+      };
   };
 
   # The build scripts and proc-macros must be built by the same rustc too.
