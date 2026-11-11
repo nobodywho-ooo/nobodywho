@@ -63,6 +63,7 @@ This functionality is automatically enabled, and should be usable, but it has a 
 - STT, TTS and VAD don't work.
 - Inference processes each token on the UI thread, so you might want to use it in a web worker to avoid frame hitches.
 - Node.js on Windows isn't supported yet. Use WSL instead.
+- In browsers, every file stored in `/tmp` and `/home` is loaded into memory when the page loads, so storing large models there uses a lot of memory.
 
 ## Supported Model Format
 
