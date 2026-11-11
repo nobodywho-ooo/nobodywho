@@ -27,21 +27,7 @@ No additional initialization step is required — the native module is loaded au
 
 ### Expo
 
-NobodyWho's native code works fine with a [development build](https://docs.expo.dev/develop/development-builds/introduction/).
-
 NobodyWho ships native code, so it does **not** run in [Expo Go](https://docs.expo.dev/get-started/set-up-your-environment/). You need a [development build](https://docs.expo.dev/develop/development-builds/introduction/).
-
-### Web / Node.js / Expo Web
-
-NobodyWho has experimental support for being compiled to WebAssembly and running in the browser.
-
-This functionality automatically enabled, and should be usable, but it has a few limitations at the moment:
-
-- No WebGPU acceleration.
-- `async` tool calls doesn't work.
-- STT, TTS and VAD doesn't work.
-- Inference processes each token on the UI thread, so you might want to use it in a web worker to avoid frame hitches.
-- Node.js on Windows isn't supported yet. Use WSL instead.
 
 #### • Continuous Native Generation (CNG) projects
 
@@ -65,6 +51,18 @@ npx expo run:ios            # then rebuild (or run:android)
 Here `ios/` and `android/` are committed. Autolinking registers the module on your next native build — just rebuild with `expo run:*` (or your existing native build). Do not run `prebuild --clean` here unless you intend to regenerate the native folders, since it overwrites manual native edits.
 
 You can also build with [EAS Build](https://docs.expo.dev/build/introduction/) instead of building locally. No config plugin is required.
+
+### Web / Node.js / Expo Web
+
+NobodyWho has experimental support for being compiled to WebAssembly and running in the browser.
+
+This functionality is automatically enabled, and should be usable, but it has a few limitations at the moment:
+
+- No WebGPU acceleration.
+- `async` tool calls don't work.
+- STT, TTS and VAD don't work.
+- Inference processes each token on the UI thread, so you might want to use it in a web worker to avoid frame hitches.
+- Node.js on Windows isn't supported yet. Use WSL instead.
 
 ## Supported Model Format
 
