@@ -178,9 +178,9 @@ uniffi_nobodywho_uniffi_fn_method_rustchat_tokenize_with_prompt(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
 void uniffi_nobodywho_uniffi_fn_free_rustcrossencoder(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
-    /*handle*/ uint64_t model, RustBuffer context_size,
-    RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t
+uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_create(
+    /*handle*/ uint64_t model, RustBuffer context_size);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustcrossencoder_rank(
     /*handle*/ uint64_t ptr, RustBuffer query, RustBuffer documents);
 /*handle*/ uint64_t
@@ -199,9 +199,8 @@ void uniffi_nobodywho_uniffi_fn_free_rustdecision(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
 void uniffi_nobodywho_uniffi_fn_free_rustencoder(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
-    /*handle*/ uint64_t model, RustBuffer context_size,
-    RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustencoder_create(
+    /*handle*/ uint64_t model, RustBuffer context_size);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(
     /*handle*/ uint64_t ptr, RustBuffer text);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(
@@ -635,9 +634,9 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_typical_p();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_xtc();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json();
 uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new();
-uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new();
+uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_create();
 uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rustdecision_new();
-uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new();
+uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_create();
 uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new();
 uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_load();
 uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new();
@@ -3180,16 +3179,16 @@ NativeNobodywho::NativeNobodywho(
             return this->cpp_uniffi_nobodywho_uniffi_fn_free_rustcrossencoder(
                 rt, thisVal, args, count);
           });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new"] =
+  props["ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_create"] =
       jsi::Function::createFromHostFunction(
           rt,
           jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
-                                        "constructor_rustcrossencoder_new"),
+                                        "constructor_rustcrossencoder_create"),
           2,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
+                ->cpp_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_create(
                     rt, thisVal, args, count);
           });
   props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustcrossencoder_rank"] =
@@ -3286,17 +3285,17 @@ NativeNobodywho::NativeNobodywho(
             return this->cpp_uniffi_nobodywho_uniffi_fn_free_rustencoder(
                 rt, thisVal, args, count);
           });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new"] =
+  props["ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_create"] =
       jsi::Function::createFromHostFunction(
           rt,
           jsi::PropNameID::forAscii(
               rt,
-              "ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new"),
+              "ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_create"),
           2,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this
-                ->cpp_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
+                ->cpp_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_create(
                     rt, thisVal, args, count);
           });
   props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustencoder_encode"] =
@@ -5800,15 +5799,15 @@ NativeNobodywho::NativeNobodywho(
                     rt, thisVal, args, count);
           });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_"
-        "new"] = jsi::Function::createFromHostFunction(
+        "create"] = jsi::Function::createFromHostFunction(
       rt,
       jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
-                                    "constructor_rustcrossencoder_new"),
+                                    "constructor_rustcrossencoder_create"),
       0,
       [this](jsi::Runtime &rt, const jsi::Value &thisVal,
              const jsi::Value *args, size_t count) -> jsi::Value {
         return this
-            ->cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new(
+            ->cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_create(
                 rt, thisVal, args, count);
       });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustdecision_new"] =
@@ -5823,18 +5822,18 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustdecision_new(
                     rt, thisVal, args, count);
           });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
-                                        "constructor_rustencoder_new"),
-          0,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new(
-                    rt, thisVal, args, count);
-          });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_"
+        "create"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "constructor_rustencoder_create"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_create(
+                rt, thisVal, args, count);
+      });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_"
         "new"] = jsi::Function::createFromHostFunction(
       rt,
@@ -6857,18 +6856,14 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_free_rustcrossencoder(
   return jsi::Value::undefined();
 }
 jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
+    cpp_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_create(
         jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
         size_t count) {
-  RustCallStatus status =
-      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
-  auto value = uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
+  auto value = uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_create(
       uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
                                                         args[0]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
-      &status);
-  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
-      rt, callInvoker, status, args[count - 1]);
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                      args[1]));
 
   return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
                                                          value);
@@ -6993,18 +6988,14 @@ jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_free_rustencoder(
   return jsi::Value::undefined();
 }
 jsi::Value
-NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_create(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
-  RustCallStatus status =
-      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
-  auto value = uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
+  auto value = uniffi_nobodywho_uniffi_fn_constructor_rustencoder_create(
       uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
                                                         args[0]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
-      &status);
-  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
-      rt, callInvoker, status, args[count - 1]);
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                      args[1]));
 
   return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
                                                          value);
@@ -9538,11 +9529,11 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new(
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new(
+    cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_create(
         jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
         size_t count) {
   auto value =
-      uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new();
+      uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_create();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
@@ -9555,10 +9546,11 @@ jsi::Value NativeNobodywho::
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new(
+    cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_create(
         jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
         size_t count) {
-  auto value = uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new();
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_create();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

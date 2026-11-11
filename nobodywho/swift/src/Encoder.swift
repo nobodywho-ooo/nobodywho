@@ -10,11 +10,14 @@ import NobodyWhoGenerated
 public class Encoder {
     private let inner: NobodyWhoGenerated.RustEncoder
 
+    /// Create an encoder from a loaded model asynchronously.
+    ///
     /// - Parameters:
     ///   - model: A loaded model to use for encoding.
     ///   - contextSize: Maximum context size in tokens. Defaults to 4096 if nil.
-    public init(model: Model, contextSize: UInt32? = nil) {
-        self.inner = NobodyWhoGenerated.RustEncoder(model: model.inner, contextSize: contextSize)
+    /// - Throws: If the context cannot be created.
+    public init(model: Model, contextSize: UInt32? = nil) async throws {
+        self.inner = try await NobodyWhoGenerated.RustEncoder.create(model: model.inner, contextSize: contextSize)
     }
 
     /// Create an encoder directly from a model path.
@@ -24,7 +27,7 @@ public class Encoder {
         contextSize: UInt32? = nil
     ) async throws -> Encoder {
         let model = try await Model.load(modelPath: modelPath, useGpu: useGpu)
-        return Encoder(model: model, contextSize: contextSize)
+        return try await Encoder(model: model, contextSize: contextSize)
     }
 
     /// Encode text into an embedding vector.

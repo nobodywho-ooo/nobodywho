@@ -114,7 +114,7 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_rustcrossencoder(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_create(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rustcrossencoder_rank(
@@ -142,7 +142,7 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_rustencoder(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_create(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(
@@ -844,13 +844,14 @@ protected:
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value
-  cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new(
+  cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_create(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustdecision_new(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new(
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_create(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value

@@ -847,11 +847,11 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new(
     ): Int
-    external fun uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new(
+    external fun uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_create(
     ): Int
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rustdecision_new(
     ): Int
-    external fun uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new(
+    external fun uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_create(
     ): Int
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new(
     ): Int
@@ -945,7 +945,7 @@ external fun uniffi_nobodywho_uniffi_fn_clone_rustcrossencoder(`handle`: Long,un
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rustcrossencoder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(`model`: Long,`contextSize`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_create(`model`: Long,`contextSize`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustcrossencoder_rank(`ptr`: Long,`query`: RustBuffer.ByValue,`documents`: RustBuffer.ByValue,
 ): Long
@@ -963,7 +963,7 @@ external fun uniffi_nobodywho_uniffi_fn_clone_rustencoder(`handle`: Long,uniffi_
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rustencoder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(`model`: Long,`contextSize`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rustencoder_create(`model`: Long,`contextSize`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(`ptr`: Long,`text`: RustBuffer.ByValue,
 ): Long
@@ -1490,13 +1490,13 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 4810) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_create() != 59679) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustdecision_new() != 3605) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 27902) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_create() != 13139) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new() != 9249) {
@@ -3011,17 +3011,6 @@ open class RustCrossEncoder: Disposable, AutoCloseable, RustCrossEncoderInterfac
         this.handle = 0
         this.cleanable = null
     }
-    /**
-     * Create a new cross-encoder for ranking documents by relevance.
-     */
-    constructor(`model`: RustModel, `contextSize`: kotlin.UInt?) :
-        this(UniffiWithHandle, 
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
-    
-        FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalUInt.lower(`contextSize`),_status)
-}
-    )
 
     protected val handle: Long
     protected val cleanable: UniffiCleaner.Cleanable?
@@ -3150,11 +3139,28 @@ open class RustCrossEncoder: Disposable, AutoCloseable, RustCrossEncoderInterfac
 
 
     
-    
+    companion object {
+        
     /**
-     * @suppress
+     * Create a new cross-encoder for ranking documents by relevance.
      */
-    companion object
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `create`(`model`: RustModel, `contextSize`: kotlin.UInt?) : RustCrossEncoder {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_create(FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalUInt.lower(`contextSize`),),
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
+        // lift function
+        { FfiConverterTypeRustCrossEncoder.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+        
+    }
     
 }
 
@@ -3603,17 +3609,6 @@ open class RustEncoder: Disposable, AutoCloseable, RustEncoderInterface
         this.handle = 0
         this.cleanable = null
     }
-    /**
-     * Create a new encoder for generating text embeddings.
-     */
-    constructor(`model`: RustModel, `contextSize`: kotlin.UInt?) :
-        this(UniffiWithHandle, 
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
-    
-        FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalUInt.lower(`contextSize`),_status)
-}
-    )
 
     protected val handle: Long
     protected val cleanable: UniffiCleaner.Cleanable?
@@ -3740,11 +3735,28 @@ open class RustEncoder: Disposable, AutoCloseable, RustEncoderInterface
 
 
     
-    
+    companion object {
+        
     /**
-     * @suppress
+     * Create a new encoder for generating text embeddings.
      */
-    companion object
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `create`(`model`: RustModel, `contextSize`: kotlin.UInt?) : RustEncoder {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustencoder_create(FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalUInt.lower(`contextSize`),),
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
+        // lift function
+        { FfiConverterTypeRustEncoder.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+        
+    }
     
 }
 

@@ -4,7 +4,6 @@ use crate::llm;
 use crate::llm::WorkerGuard;
 use llama_cpp_2::context::params::LlamaPoolingType;
 use std::sync::Arc;
-use tracing::error;
 use yoke::Yoke;
 
 #[derive(Clone)]
@@ -18,9 +17,9 @@ pub struct EncoderAsync {
 }
 
 impl Encoder {
-    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
-        let async_handle = EncoderAsync::new(model, n_ctx);
-        Self { async_handle }
+    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
+        let async_handle = futures::executor::block_on(EncoderAsync::new(model, n_ctx))?;
+        Ok(Self { async_handle })
     }
 
     pub fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
@@ -33,26 +32,32 @@ impl Encoder {
 }
 
 impl EncoderAsync {
-    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
+    pub async fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
+        let (init_tx, init_rx) = tokio::sync::oneshot::channel();
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let join_handle = std::thread::spawn(move || {
-            let worker = EncoderWorker::new(model, n_ctx);
-            let mut worker_state = match worker {
-                Ok(worker_state) => worker_state,
-                Err(errmsg) => {
-                    return error!(error=%errmsg, "Could not set up the worker initial state")
+            let mut worker = match EncoderWorker::new(model, n_ctx) {
+                Ok(worker) => {
+                    let _ = init_tx.send(Ok(()));
+                    worker
+                }
+                Err(e) => {
+                    let _ = init_tx.send(Err(e));
+                    return;
                 }
             };
 
             while let Ok(msg) = msg_rx.recv() {
-                process_worker_msg(&mut worker_state, msg);
+                process_worker_msg(&mut worker, msg);
             }
         });
 
-        Self {
+        init_rx.await.expect("creating encoder panicked")?;
+
+        Ok(Self {
             guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, None)),
-        }
+        })
     }
 
     pub async fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
@@ -171,7 +176,7 @@ mod tests {
     #[test]
     fn test_encoder_sync() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_embeddings_model();
-        let encoder = Encoder::new(model, 1024);
+        let encoder = Encoder::new(model, 1024)?;
 
         let copenhagen_embedding =
             encoder.encode("Copenhagen is the capital of Denmark.".to_string())?;
@@ -256,7 +261,7 @@ mod tests {
     fn test_encoder_batch_matches_individual_embeddings() -> Result<(), Box<dyn std::error::Error>>
     {
         let model = test_utils::load_embeddings_model();
-        let encoder = Encoder::new(model, 20);
+        let encoder = Encoder::new(model, 20)?;
         let texts = vec![
             "Copenhagen is the capital of Denmark.".to_string(),
             "Berlin is the capital of Germany.".to_string(),
@@ -283,7 +288,7 @@ mod tests {
     #[test]
     fn test_deterministic_encoder() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_embeddings_model();
-        let encoder = Encoder::new(model, 1024);
+        let encoder = Encoder::new(model, 1024)?;
 
         let input = "I don't want to be different";
 
@@ -302,7 +307,7 @@ mod tests {
     #[test]
     fn test_oversized_input_keeps_encoder_alive() {
         let model = test_utils::load_embeddings_model();
-        let encoder = Encoder::new(model, 64);
+        let encoder = Encoder::new(model, 64).unwrap();
 
         let err = encoder.encode("word ".repeat(500)).unwrap_err();
         assert!(

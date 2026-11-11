@@ -438,10 +438,9 @@ interface NativeModuleInterface {
     uniffiSelf: bigint,
     parts: Uint8Array,
   ): bigint;
-  ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
+  ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_create(
     model: bigint,
     contextSize: Uint8Array,
-    uniffi_out_err: UniffiRustCallStatus,
   ): bigint;
   ubrn_uniffi_nobodywho_uniffi_fn_method_rustcrossencoder_rank(
     uniffiSelf: bigint,
@@ -463,10 +462,9 @@ interface NativeModuleInterface {
     stateJson: Uint8Array,
     questionsJson: Uint8Array,
   ): bigint;
-  ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
+  ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_create(
     model: bigint,
     contextSize: Uint8Array,
-    uniffi_out_err: UniffiRustCallStatus,
   ): bigint;
   ubrn_uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(
     uniffiSelf: bigint,
@@ -743,12 +741,12 @@ interface NativeModuleInterface {
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize_with_prompt(): number;
-  ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new(): number;
+  ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_create(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustdecision_new(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustdecision_decide(): number;
-  ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new(): number;
+  ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_create(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx(): number;

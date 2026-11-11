@@ -44,7 +44,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1422853312;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 849553103;
 
 // Section: executor
 
@@ -52,13 +52,70 @@ flutter_rust_bridge::frb_generated_default_handler!();
 
 // Section: wire_funcs
 
+fn wire__crate__CrossEncoder_create_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "CrossEncoder_create",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_model = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>,
+            >>::sse_decode(&mut deserializer);
+            let api_n_ctx = <u32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, String>(
+                    (move || async move {
+                        let mut api_model_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_model, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_model_guard =
+                                        Some(api_model.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_model_guard = api_model_guard.unwrap();
+                        let output_ok =
+                            crate::CrossEncoder::create(&*api_model_guard, api_n_ctx).await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__CrossEncoder_from_path_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "CrossEncoder_from_path",
             port: Some(port_),
@@ -82,65 +139,21 @@ fn wire__crate__CrossEncoder_from_path_impl(
             let api_n_ctx = <u32>::sse_decode(&mut deserializer);
             let api_use_gpu = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let output_ok = crate::CrossEncoder::from_path(
-                        &api_model_path,
-                        api_on_download_progress,
-                        api_n_ctx,
-                        api_use_gpu,
-                    )?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
-        },
-    )
-}
-fn wire__crate__CrossEncoder_new_impl(
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "CrossEncoder_new",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
+            move |context| async move {
+                transform_result_sse::<_, String>(
+                    (move || async move {
+                        let output_ok = crate::CrossEncoder::from_path(
+                            &api_model_path,
+                            api_on_download_progress,
+                            api_n_ctx,
+                            api_use_gpu,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
                 )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_model = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>,
-            >>::sse_decode(&mut deserializer);
-            let api_n_ctx = <u32>::sse_decode(&mut deserializer);
-            deserializer.end();
-            transform_result_sse::<_, ()>((move || {
-                let mut api_model_guard = None;
-                let decode_indices_ =
-                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                            &api_model, 0, false,
-                        ),
-                    ]);
-                for i in decode_indices_ {
-                    match i {
-                        0 => api_model_guard = Some(api_model.lockable_decode_sync_ref()),
-                        _ => unreachable!(),
-                    }
-                }
-                let api_model_guard = api_model_guard.unwrap();
-                let output_ok =
-                    Ok::<_, ()>(crate::CrossEncoder::new(&*api_model_guard, api_n_ctx))?;
-                std::result::Result::Ok(output_ok)
-            })())
+            }
         },
     )
 }
@@ -415,6 +428,63 @@ fn wire__crate__Decision_new_impl(
         },
     )
 }
+fn wire__crate__Encoder_create_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "Encoder_create",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_model = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>,
+            >>::sse_decode(&mut deserializer);
+            let api_n_ctx = <u32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, String>(
+                    (move || async move {
+                        let mut api_model_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_model, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_model_guard =
+                                        Some(api_model.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_model_guard = api_model_guard.unwrap();
+                        let output_ok =
+                            crate::Encoder::create(&*api_model_guard, api_n_ctx).await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__Encoder_encode_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -534,7 +604,7 @@ fn wire__crate__Encoder_from_path_impl(
     rust_vec_len_: i32,
     data_len_: i32,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "Encoder_from_path",
             port: Some(port_),
@@ -558,64 +628,21 @@ fn wire__crate__Encoder_from_path_impl(
             let api_n_ctx = <u32>::sse_decode(&mut deserializer);
             let api_use_gpu = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let output_ok = crate::Encoder::from_path(
-                        &api_model_path,
-                        api_on_download_progress,
-                        api_n_ctx,
-                        api_use_gpu,
-                    )?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
-        },
-    )
-}
-fn wire__crate__Encoder_new_impl(
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "Encoder_new",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
+            move |context| async move {
+                transform_result_sse::<_, String>(
+                    (move || async move {
+                        let output_ok = crate::Encoder::from_path(
+                            &api_model_path,
+                            api_on_download_progress,
+                            api_n_ctx,
+                            api_use_gpu,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
                 )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_model = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>,
-            >>::sse_decode(&mut deserializer);
-            let api_n_ctx = <u32>::sse_decode(&mut deserializer);
-            deserializer.end();
-            transform_result_sse::<_, ()>((move || {
-                let mut api_model_guard = None;
-                let decode_indices_ =
-                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                            &api_model, 0, false,
-                        ),
-                    ]);
-                for i in decode_indices_ {
-                    match i {
-                        0 => api_model_guard = Some(api_model.lockable_decode_sync_ref()),
-                        _ => unreachable!(),
-                    }
-                }
-                let api_model_guard = api_model_guard.unwrap();
-                let output_ok = Ok::<_, ()>(crate::Encoder::new(&*api_model_guard, api_n_ctx))?;
-                std::result::Result::Ok(output_ok)
-            })())
+            }
         },
     )
 }
@@ -6161,14 +6188,16 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        1 => wire__crate__CrossEncoder_from_path_impl(port, ptr, rust_vec_len, data_len),
+        1 => wire__crate__CrossEncoder_create_impl(port, ptr, rust_vec_len, data_len),
+        2 => wire__crate__CrossEncoder_from_path_impl(port, ptr, rust_vec_len, data_len),
         3 => wire__crate__CrossEncoder_rank_impl(port, ptr, rust_vec_len, data_len),
         4 => wire__crate__CrossEncoder_rank_and_sort_impl(port, ptr, rust_vec_len, data_len),
         5 => wire__crate__Decision_decide_impl(port, ptr, rust_vec_len, data_len),
         6 => wire__crate__Decision_from_path_impl(port, ptr, rust_vec_len, data_len),
-        8 => wire__crate__Encoder_encode_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__Encoder_encode_batch_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__Encoder_from_path_impl(port, ptr, rust_vec_len, data_len),
+        8 => wire__crate__Encoder_create_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__Encoder_encode_impl(port, ptr, rust_vec_len, data_len),
+        10 => wire__crate__Encoder_encode_batch_impl(port, ptr, rust_vec_len, data_len),
+        11 => wire__crate__Encoder_from_path_impl(port, ptr, rust_vec_len, data_len),
         12 => wire__crate__Model_load_impl(port, ptr, rust_vec_len, data_len),
         13 => wire__crate__Model_max_ctx_impl(port, ptr, rust_vec_len, data_len),
         15 => wire__crate__RustChat_ask_impl(port, ptr, rust_vec_len, data_len),
@@ -6221,9 +6250,7 @@ fn pde_ffi_dispatcher_sync_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        2 => wire__crate__CrossEncoder_new_impl(ptr, rust_vec_len, data_len),
         7 => wire__crate__Decision_new_impl(ptr, rust_vec_len, data_len),
-        11 => wire__crate__Encoder_new_impl(ptr, rust_vec_len, data_len),
         14 => wire__crate__Model_source_impl(ptr, rust_vec_len, data_len),
         26 => wire__crate__RustChat_new_impl(ptr, rust_vec_len, data_len),
         37 => wire__crate__RustChat_stop_generation_impl(ptr, rust_vec_len, data_len),

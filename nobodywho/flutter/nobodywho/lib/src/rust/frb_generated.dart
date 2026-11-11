@@ -83,7 +83,7 @@ class NobodyWho
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1422853312;
+  int get rustContentHash => 849553103;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -95,6 +95,11 @@ class NobodyWho
 }
 
 abstract class NobodyWhoApi extends BaseApi {
+  Future<CrossEncoder> crateCrossEncoderCreate({
+    required Model model,
+    int nCtx = 4096,
+  });
+
   Future<CrossEncoder> crateCrossEncoderFromPath({
     required String modelPath,
     FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
@@ -102,8 +107,6 @@ abstract class NobodyWhoApi extends BaseApi {
     int nCtx = 4096,
     bool useGpu = true,
   });
-
-  CrossEncoder crateCrossEncoderNew({required Model model, int nCtx = 4096});
 
   Future<Float32List> crateCrossEncoderRank({
     required CrossEncoder that,
@@ -133,6 +136,8 @@ abstract class NobodyWhoApi extends BaseApi {
 
   Decision crateDecisionNew({required Model model, int nCtx = 1024});
 
+  Future<Encoder> crateEncoderCreate({required Model model, int nCtx = 4096});
+
   Future<Float32List> crateEncoderEncode({
     required Encoder that,
     required String text,
@@ -150,8 +155,6 @@ abstract class NobodyWhoApi extends BaseApi {
     int nCtx = 4096,
     bool useGpu = true,
   });
-
-  Encoder crateEncoderNew({required Model model, int nCtx = 4096});
 
   Future<Model> crateModelLoad({
     required String modelPath,
@@ -731,6 +734,44 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   });
 
   @override
+  Future<CrossEncoder> crateCrossEncoderCreate({
+    required Model model,
+    int nCtx = 4096,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
+            model,
+            serializer,
+          );
+          sse_encode_u_32(nCtx, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 1,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoder,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateCrossEncoderCreateConstMeta,
+        argValues: [model, nCtx],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateCrossEncoderCreateConstMeta => const TaskConstMeta(
+    debugName: "CrossEncoder_create",
+    argNames: ["model", "nCtx"],
+  );
+
+  @override
   Future<CrossEncoder> crateCrossEncoderFromPath({
     required String modelPath,
     FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
@@ -752,7 +793,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 1,
+            funcId: 2,
             port: port_,
           );
         },
@@ -771,36 +812,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   TaskConstMeta get kCrateCrossEncoderFromPathConstMeta => const TaskConstMeta(
     debugName: "CrossEncoder_from_path",
     argNames: ["modelPath", "onDownloadProgress", "nCtx", "useGpu"],
-  );
-
-  @override
-  CrossEncoder crateCrossEncoderNew({required Model model, int nCtx = 4096}) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
-            model,
-            serializer,
-          );
-          sse_encode_u_32(nCtx, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoder,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateCrossEncoderNewConstMeta,
-        argValues: [model, nCtx],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateCrossEncoderNewConstMeta => const TaskConstMeta(
-    debugName: "CrossEncoder_new",
-    argNames: ["model", "nCtx"],
   );
 
   @override
@@ -997,6 +1008,41 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   );
 
   @override
+  Future<Encoder> crateEncoderCreate({required Model model, int nCtx = 4096}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
+            model,
+            serializer,
+          );
+          sse_encode_u_32(nCtx, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 8,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoder,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateEncoderCreateConstMeta,
+        argValues: [model, nCtx],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateEncoderCreateConstMeta => const TaskConstMeta(
+    debugName: "Encoder_create",
+    argNames: ["model", "nCtx"],
+  );
+
+  @override
   Future<Float32List> crateEncoderEncode({
     required Encoder that,
     required String text,
@@ -1013,7 +1059,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 9,
             port: port_,
           );
         },
@@ -1051,7 +1097,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 10,
             port: port_,
           );
         },
@@ -1094,7 +1140,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 11,
             port: port_,
           );
         },
@@ -1113,36 +1159,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   TaskConstMeta get kCrateEncoderFromPathConstMeta => const TaskConstMeta(
     debugName: "Encoder_from_path",
     argNames: ["modelPath", "onDownloadProgress", "nCtx", "useGpu"],
-  );
-
-  @override
-  Encoder crateEncoderNew({required Model model, int nCtx = 4096}) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
-            model,
-            serializer,
-          );
-          sse_encode_u_32(nCtx, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoder,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateEncoderNewConstMeta,
-        argValues: [model, nCtx],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateEncoderNewConstMeta => const TaskConstMeta(
-    debugName: "Encoder_new",
-    argNames: ["model", "nCtx"],
   );
 
   @override

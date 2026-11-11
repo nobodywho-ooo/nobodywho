@@ -70,12 +70,17 @@ impl NobodyWhoCrossEncoder {
                 );
                 return Variant::nil();
             };
-            // CrossEncoderAsync::new is non-blocking (spawns a worker thread).
-            Gd::from_init_fn(|base| Self {
-                handle: CrossEncoderAsync::new(arc, n_ctx),
-                base,
-            })
-            .to_variant()
+            let result = CrossEncoderAsync::new(arc, n_ctx).await;
+            match result {
+                Ok(handle) => Gd::from_init_fn(|base| Self { handle, base }).to_variant(),
+                Err(e) => {
+                    godot_error!(
+                        "Failed to create crossencoder: {}",
+                        nobodywho::render_miette(&e)
+                    );
+                    Variant::nil()
+                }
+            }
         })
         .bind()
         .wait()

@@ -203,8 +203,8 @@ import asyncio
 from nobodywho import EncoderAsync, CrossEncoderAsync
 
 async def main():
-    encoder = EncoderAsync('./embedding-model.gguf')
-    crossencoder = CrossEncoderAsync('./reranker-model.gguf')
+    encoder = await EncoderAsync.create('./embedding-model.gguf')
+    crossencoder = await CrossEncoderAsync.create('./reranker-model.gguf')
     
     # Generate embeddings asynchronously
     embeddings = await encoder.encode_batch([

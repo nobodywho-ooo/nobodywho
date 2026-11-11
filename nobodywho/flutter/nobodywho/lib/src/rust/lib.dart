@@ -93,6 +93,14 @@ bool frbInternalLoggingSetupDartLoggingOutput() =>
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoder>>
 abstract class CrossEncoder implements RustOpaqueInterface {
+  /// Create a cross-encoder from an already-loaded model.
+  ///
+  /// Args:
+  ///     model: A loaded model.
+  ///     n_ctx: Context size for the cross-encoder. Defaults to 4096.
+  static Future<CrossEncoder> create({required Model model, int nCtx = 4096}) =>
+      NobodyWho.instance.api.crateCrossEncoderCreate(model: model, nCtx: nCtx);
+
   /// Load a cross-encoder model from a local path, HuggingFace path, or HTTPS URL.
   ///
   /// Args:
@@ -114,9 +122,6 @@ abstract class CrossEncoder implements RustOpaqueInterface {
     nCtx: nCtx,
     useGpu: useGpu,
   );
-
-  factory CrossEncoder({required Model model, int nCtx = 4096}) =>
-      NobodyWho.instance.api.crateCrossEncoderNew(model: model, nCtx: nCtx);
 
   Future<Float32List> rank({
     required String query,
@@ -174,6 +179,14 @@ abstract class Decision implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Encoder>>
 abstract class Encoder implements RustOpaqueInterface {
+  /// Create an encoder from an already-loaded model.
+  ///
+  /// Args:
+  ///     model: A loaded model.
+  ///     n_ctx: Context size for the encoder. Defaults to 4096.
+  static Future<Encoder> create({required Model model, int nCtx = 4096}) =>
+      NobodyWho.instance.api.crateEncoderCreate(model: model, nCtx: nCtx);
+
   Future<Float32List> encode({required String text});
 
   /// Encode multiple texts, preserving input order.
@@ -200,9 +213,6 @@ abstract class Encoder implements RustOpaqueInterface {
     nCtx: nCtx,
     useGpu: useGpu,
   );
-
-  factory Encoder({required Model model, int nCtx = 4096}) =>
-      NobodyWho.instance.api.crateEncoderNew(model: model, nCtx: nCtx);
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderWorkerError>>

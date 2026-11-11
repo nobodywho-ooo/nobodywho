@@ -159,7 +159,7 @@ def test_encoder_batch_sync(encoder):
 @pytest.mark.asyncio
 async def test_encoder_async(encoder_model):
     """Test that encoder can generate embeddings using async API"""
-    encoder_async = nobodywho.EncoderAsync(encoder_model, n_ctx=1024)
+    encoder_async = await nobodywho.EncoderAsync.create(encoder_model, n_ctx=1024)
 
     embedding = await encoder_async.encode("Test text for embedding.")
 
@@ -172,7 +172,7 @@ async def test_encoder_async(encoder_model):
 
 @pytest.mark.asyncio
 async def test_encoder_batch_async(encoder_model):
-    encoder = nobodywho.EncoderAsync(encoder_model, n_ctx=1024)
+    encoder = await nobodywho.EncoderAsync.create(encoder_model, n_ctx=1024)
     texts = ["Copenhagen is in Denmark.", "Berlin is in Germany."]
     individual = [await encoder.encode(text) for text in texts]
     batched = await encoder.encode_batch(texts)
@@ -237,7 +237,9 @@ def test_crossencoder_rank_sync(crossencoder):
 
 @pytest.mark.asyncio
 async def test_crossencoder_rank_async(crossencoder_model):
-    crossencoder_async = nobodywho.CrossEncoderAsync(crossencoder_model, n_ctx=4096)
+    crossencoder_async = await nobodywho.CrossEncoderAsync.create(
+        crossencoder_model, n_ctx=4096
+    )
 
     query = "What is the capital of France?"
     documents = ["Paris is the capital of France.", "Berlin is the capital of Germany."]
@@ -272,7 +274,9 @@ def test_crossencoder_rank_and_sort_sync(crossencoder):
 @pytest.mark.asyncio
 async def test_crossencoder_rank_and_sort_async(crossencoder_model):
     """Test that cross-encoder rank and sort works with async API"""
-    crossencoder_async = nobodywho.CrossEncoderAsync(crossencoder_model, n_ctx=4096)
+    crossencoder_async = await nobodywho.CrossEncoderAsync.create(
+        crossencoder_model, n_ctx=4096
+    )
 
     query = "What is the capital of France?"
     documents = ["Paris is the capital of France.", "Berlin is the capital of Germany."]
@@ -301,25 +305,27 @@ def test_load_chat_from_path():
     assert isinstance(new_async_chat, nobodywho.ChatAsync)
 
 
-def test_load_encoder_from_path():
+@pytest.mark.asyncio
+async def test_load_encoder_from_path():
     model_path = os.environ.get("TEST_EMBEDDINGS_MODEL")
     assert isinstance(model_path, str)
 
     new_encoder = nobodywho.Encoder(model_path)
     assert isinstance(new_encoder, nobodywho.Encoder)
 
-    new_encoder_async = nobodywho.EncoderAsync(model_path)
+    new_encoder_async = await nobodywho.EncoderAsync.create(model_path)
     assert isinstance(new_encoder_async, nobodywho.EncoderAsync)
 
 
-def test_load_crossencoder_from_path():
+@pytest.mark.asyncio
+async def test_load_crossencoder_from_path():
     model_path = os.environ.get("TEST_CROSSENCODER_MODEL")
     assert isinstance(model_path, str)
 
     new_encoder = nobodywho.CrossEncoder(model_path)
     assert isinstance(new_encoder, nobodywho.CrossEncoder)
 
-    new_encoder_async = nobodywho.CrossEncoderAsync(model_path)
+    new_encoder_async = await nobodywho.CrossEncoderAsync.create(model_path)
     assert isinstance(new_encoder_async, nobodywho.CrossEncoderAsync)
 
 

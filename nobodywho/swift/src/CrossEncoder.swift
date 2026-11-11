@@ -10,11 +10,14 @@ import NobodyWhoGenerated
 public class CrossEncoder {
     private let inner: NobodyWhoGenerated.RustCrossEncoder
 
+    /// Create a cross-encoder from a loaded model asynchronously.
+    ///
     /// - Parameters:
     ///   - model: A loaded model to use for ranking.
     ///   - contextSize: Maximum context size in tokens. Defaults to 4096 if nil.
-    public init(model: Model, contextSize: UInt32? = nil) {
-        self.inner = NobodyWhoGenerated.RustCrossEncoder(model: model.inner, contextSize: contextSize)
+    /// - Throws: If the context cannot be created.
+    public init(model: Model, contextSize: UInt32? = nil) async throws {
+        self.inner = try await NobodyWhoGenerated.RustCrossEncoder.create(model: model.inner, contextSize: contextSize)
     }
 
     /// Create a cross-encoder directly from a model path.
@@ -24,7 +27,7 @@ public class CrossEncoder {
         contextSize: UInt32? = nil
     ) async throws -> CrossEncoder {
         let model = try await Model.load(modelPath: modelPath, useGpu: useGpu)
-        return CrossEncoder(model: model, contextSize: contextSize)
+        return try await CrossEncoder(model: model, contextSize: contextSize)
     }
 
     /// Rank documents by relevance to a query. Returns similarity scores.
