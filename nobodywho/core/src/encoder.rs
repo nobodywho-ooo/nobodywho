@@ -8,7 +8,7 @@ use yoke::Yoke;
 
 #[derive(Debug)]
 pub struct Encoder {
-    engine: Yoke<InferenceEngine<'static>, Arc<llm::Model>>,
+    engine: sync_wrapper::SyncWrapper<Yoke<InferenceEngine<'static>, Arc<llm::Model>>>,
     pooling: LlamaPoolingType,
 }
 
@@ -29,12 +29,14 @@ impl Encoder {
         let engine = Yoke::try_attach_to_cart(model, |model| {
             InferenceEngine::new(model, n_ctx, true, None, None, pooling)
         })?;
+        let engine = sync_wrapper::SyncWrapper::new(engine);
         Ok(Self { engine, pooling })
     }
 
     pub fn encode_batch(&mut self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, EncoderError> {
         let pooling = self.pooling;
         self.engine
+            .get_mut()
             .with_mut_return(move |e| {
                 e.read_strings_batched::<_, EncoderError>(texts, |ctx, sequence_id| {
                     let embedding = if pooling == LlamaPoolingType::None {
@@ -58,16 +60,24 @@ impl Encoder {
     }
 
     #[cfg(test)]
-    fn get_embedding(&self) -> Result<Vec<f32>, llama_cpp_2::EmbeddingsSeqError> {
-        Ok(self.engine.get().ctx.embeddings_seq_ith(0)?.to_vec())
+    fn get_embedding(&mut self) -> Result<Vec<f32>, llama_cpp_2::EmbeddingsSeqError> {
+        Ok(self
+            .engine
+            .get_mut()
+            .get()
+            .ctx
+            .embeddings_seq_ith(0)?
+            .to_vec())
     }
 
     /// Tokenize `text` and read it into the context.
     #[cfg(test)]
     #[tracing::instrument(level = "trace", skip(self))]
     fn read_string(&mut self, text: String) -> Result<&mut Self, crate::errors::ReadError> {
-        let chunks = self.engine.get().tokenize(text, vec![])?;
-        self.engine.with_mut_return(|e| e.read_chunks(chunks))?;
+        let chunks = self.engine.get_mut().get().tokenize(text, vec![])?;
+        self.engine
+            .get_mut()
+            .with_mut_return(|e| e.read_chunks(chunks))?;
         Ok(self)
     }
 }

@@ -9,7 +9,7 @@ use yoke::Yoke;
 
 #[derive(Debug)]
 pub struct CrossEncoder {
-    engine: Yoke<InferenceEngine<'static>, Arc<llm::Model>>,
+    engine: sync_wrapper::SyncWrapper<Yoke<InferenceEngine<'static>, Arc<llm::Model>>>,
 }
 
 impl CrossEncoder {
@@ -17,6 +17,7 @@ impl CrossEncoder {
         let engine = Yoke::try_attach_to_cart(model, |model| {
             InferenceEngine::new(model, n_ctx, true, None, None, LlamaPoolingType::Rank)
         })?;
+        let engine = sync_wrapper::SyncWrapper::new(engine);
         Ok(Self { engine })
     }
 
@@ -25,7 +26,7 @@ impl CrossEncoder {
         query: String,
         documents: Vec<String>,
     ) -> Result<Vec<f32>, CrossEncoderError> {
-        let vocab = self.engine.backing_cart().language_model.vocab();
+        let vocab = self.engine.get_mut().backing_cart().language_model.vocab();
 
         let bos = vocab.bos();
         let bos = if bos.0 != -1 {
@@ -51,6 +52,7 @@ impl CrossEncoder {
             .collect();
 
         self.engine
+            .get_mut()
             .with_mut_return(|e| e.read_strings_batched(inputs, classification_score_for))
             .map_err(|error| match error {
                 BatchedReadError::Read(error) => CrossEncoderError::Read(error),
