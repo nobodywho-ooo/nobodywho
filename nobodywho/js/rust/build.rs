@@ -63,13 +63,21 @@ fn main() {
         // TODO: Enable pthreads in some configurations?
         // println!("cargo:rustc-link-arg-bins=-pthread"); // Also needs to be set in CFLAGS/CXXFLAGS, and needs -Zbuild-std and -Ctarget-feature=+atomics
 
-        // `uniffi-bindgen-react-native` wants to add additional entries to the
-        // function table, and needs access to the WASM exports.
-        //
-        // The other exports are needed to load file systems.
+        // The `@ubjs/wasm` player installs JS trampolines (panic logging,
+        // callbacks) into the module's indirect function table, so the table
+        // must be exported and growable. `ALLOW_TABLE_GROWTH` makes Emscripten
+        // pass `--export-table --growable-table` to wasm-ld.
         println!("cargo:rustc-link-arg-bins=-sALLOW_TABLE_GROWTH=1");
+
+        // `uniffi-bindgen-react-native` adds additional entries to the
+        // function table (see above), and thus needs access to `wasmExports`.
+        //
+        // At `-O3`, the `wasm-metadce` would still strip the exports though,
+        // we avoid that by exporting `wasmTable` too.
+        //
+        // The remaining exports are needed to load file systems.
         println!(
-            "cargo:rustc-link-arg-bins=-sEXPORTED_RUNTIME_METHODS=wasmExports,FS,NODEFS,IDBFS,addRunDependency,removeRunDependency"
+            "cargo:rustc-link-arg-bins=-sEXPORTED_RUNTIME_METHODS=wasmExports,wasmTable,FS,NODEFS,IDBFS,addRunDependency,removeRunDependency"
         );
     }
 }
