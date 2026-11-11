@@ -2132,7 +2132,8 @@ impl EncoderAsync {
     #[staticmethod]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "EncoderAsync")]
     pub async fn create(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
-        let nw_model = model.get_inner_model()?;
+        let worker = AsyncWorker::new();
+        let nw_model = worker.run(move || model.get_inner_model()).await?;
         let encoder_handle = nobodywho::encoder::EncoderAsync::new(nw_model, n_ctx)
             .await
             .map_err(err)?;
@@ -2310,7 +2311,8 @@ impl CrossEncoderAsync {
     #[staticmethod]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "CrossEncoderAsync")]
     pub async fn create(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
-        let nw_model = model.get_inner_model()?;
+        let worker = AsyncWorker::new();
+        let nw_model = worker.run(move || model.get_inner_model()).await?;
         let crossencoder_handle = nobodywho::crossencoder::CrossEncoderAsync::new(nw_model, n_ctx)
             .await
             .map_err(err)?;
