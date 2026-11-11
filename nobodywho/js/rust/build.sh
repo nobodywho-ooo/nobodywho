@@ -22,9 +22,6 @@ esac
 export CFLAGS_wasm32_unknown_emscripten=-fPIC
 export CXXFLAGS_wasm32_unknown_emscripten=-fPIC
 
-# `em++` must be the linker because we build C++ sources (llama.cpp), and not just C sources.
-export CARGO_TARGET_WASM32_UNKNOWN_EMSCRIPTEN_LINKER=em++
-
 # Build the Emscripten .js and .wasm files.
 cargo build --target=wasm32-unknown-emscripten --package=nobodywho-js $cargo_args
 

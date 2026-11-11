@@ -14,6 +14,9 @@ fn main() {
         println!("cargo:rustc-link-arg-bins=-sMODULARIZE=1");
         println!("cargo:rustc-link-arg-bins=-sEXPORT_ES6=1");
 
+        // Make `emcc` pass C++ libraries to the linker (required for llama.cpp).
+        println!("cargo:rustc-link-arg-bins=-sDEFAULT_TO_CXX");
+
         // Emscripten minifies wasm export names at -O2+ (and renames them in
         // its glue JS to match), which breaks UniFFI which looks up
         // `__ubrn_alloc` etc. by name.

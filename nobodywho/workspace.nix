@@ -140,16 +140,6 @@ let
     nobodywho-js =
       attrs:
       emscriptenSetup
-      // {
-        env = emscriptenSetup.env // {
-          RUSTC_BOOTSTRAP = "1";
-        };
-        preBuild = ''
-          # Link with em++ (llama.cpp is C++). Passed after buildRustCrate's
-          # `-C linker=cc`, so it wins.
-          EXTRA_RUSTC_FLAGS="-C linker=em++"
-        '';
-      };
   };
 
   # The build scripts and proc-macros must be built by the same rustc too.
