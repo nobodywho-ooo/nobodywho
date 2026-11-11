@@ -130,7 +130,7 @@ impl EncoderWorker {
             .map(LlamaPoolingType::from)
             .unwrap_or(LlamaPoolingType::Unspecified);
         let engine = Yoke::try_attach_to_cart(model, |model| {
-            InferenceEngine::new_with_type(model, n_ctx, true, None, None, pooling)
+            InferenceEngine::new(model, n_ctx, true, None, None, pooling)
         })?;
         Ok(Self { engine, pooling })
     }

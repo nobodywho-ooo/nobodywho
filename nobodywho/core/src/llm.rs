@@ -1,14 +1,12 @@
-use crate::errors::{InitWorkerError, LoadModelError};
+use crate::errors::LoadModelError;
 use crate::huggingface::{download_gguf, parse_model_path};
-use crate::inference::{BatchCapacity, EngineContext, InferenceEngine, SpeculativeEngine};
 use crate::memory;
 use crate::model_selection;
-use crate::tokenizer::{ProjectionModel, Tokenizer};
-use llama_cpp_2::context::params::{LlamaContextParams, LlamaContextType, LlamaPoolingType};
+use crate::tokenizer::ProjectionModel;
+use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::LlamaModel;
-use llama_cpp_2::speculative::{MtpSpeculative, MtpSpeculativeParams};
 use std::pin::pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
@@ -33,10 +31,6 @@ pub(crate) static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
 
     LlamaBackend::init().expect("Failed to initialize llama backend")
 });
-
-// llama.cpp rejects contexts above LLAMA_MAX_SEQ; llama_max_parallel_sequences()
-// returns 256 in the pinned version. llama-cpp-2 does not expose that function yet.
-const MAX_EMBEDDING_SEQUENCES: u32 = 256;
 
 #[derive(Debug)]
 pub struct Model {
@@ -330,127 +324,6 @@ pub fn download_model_cancellable(
 pub type WriteOutput =
     crate::stream::StreamOutput<Box<dyn miette::Diagnostic + Send + Sync + 'static>>;
 
-impl<'a> InferenceEngine<'a> {
-    // FIXME(madsmtm): Move this to inference.rs
-    pub(crate) fn new_with_type(
-        model: &'a Model,
-        n_ctx: u32,
-        use_embeddings: bool,
-        mtp: Option<crate::chat::MtpConfig>,
-        n_threads: Option<u32>,
-        pooling_type: LlamaPoolingType,
-    ) -> Result<Self, InitWorkerError> {
-        let projection_model = model.projection_model.as_ref();
-
-        // Set up context parameters. Without an explicit request this uses physical cores
-        // rather than logical ones: hyperthread siblings and efficiency cores slow down
-        // ggml's per-node barrier.
-        let n_threads = crate::cpu::inference_thread_count(n_threads) as i32;
-        let ctx_plan = memory::plan_context(
-            std::cmp::min(n_ctx, model.language_model.n_ctx_train()),
-            model.projection_model.is_some(),
-            memory::ModelArchitecture {
-                n_layers: model.language_model.n_layer(),
-                n_embd: model.language_model.n_embd() as u32,
-                n_head: model.language_model.n_head(),
-                n_head_kv: model.language_model.n_head_kv(),
-            },
-        )?;
-        let planned_n_ctx = ctx_plan.n_ctx;
-        let n_seq_max = if use_embeddings
-            && !matches!(
-                pooling_type,
-                LlamaPoolingType::None | LlamaPoolingType::Unspecified
-            ) {
-            planned_n_ctx.min(MAX_EMBEDDING_SEQUENCES)
-        } else {
-            1
-        };
-        // Bidirectional attention needs the whole input in one microbatch.
-        // This includes Laya, even with one sequence and no embedding pooling.
-        let n_ubatch = if use_embeddings {
-            planned_n_ctx
-        } else {
-            ctx_plan.n_ubatch
-        };
-        for w in &ctx_plan.warnings {
-            warn!("{}", w);
-        }
-
-        let ctx_params = LlamaContextParams::default()
-            .with_n_ctx(std::num::NonZero::new(planned_n_ctx))
-            .with_n_batch(planned_n_ctx) // n_batch sets the max size of a batch (i.e. max prompt size)
-            .with_n_ubatch(n_ubatch)
-            .with_n_seq_max(n_seq_max)
-            .with_n_threads(n_threads)
-            .with_n_threads_batch(n_threads)
-            .with_embeddings(use_embeddings)
-            .with_pooling_type(pooling_type)
-            .with_kv_unified(n_seq_max > 1)
-            // Lets recurrent models roll back rejected MTP drafts; llama.cpp ignores it for
-            // architectures that can't.
-            .with_n_rs_seq(mtp.as_ref().map_or(0, |mtp| mtp.k_max));
-
-        let ctx = model
-            .language_model
-            .new_context(&LLAMA_BACKEND, ctx_params)?;
-        let n_batch = planned_n_ctx as usize;
-
-        let engine_ctx = if let Some(mtp_config) = mtp {
-            let draft_model = match &model.draft_model {
-                Some(DraftModel::Separate(draft_model)) => Some(draft_model),
-                Some(DraftModel::Bundled) => Some(&model.language_model),
-                None => None,
-            };
-            match draft_model {
-                Some(draft_model) => {
-                    info!("Initializing MTP speculative draft context");
-                    // MTP replays every batch the target decodes, prompts included.
-                    let draft_params = LlamaContextParams::default()
-                        .with_n_ctx(std::num::NonZero::new(planned_n_ctx))
-                        .with_n_batch(planned_n_ctx)
-                        .with_n_ubatch(n_ubatch)
-                        .with_n_threads(n_threads)
-                        .with_n_threads_batch(n_threads)
-                        .with_context_type(LlamaContextType::Mtp)
-                        .with_n_rs_seq(0);
-                    let draft_ctx = draft_model.new_context_with_ctx_other(
-                        &LLAMA_BACKEND,
-                        draft_params,
-                        &ctx,
-                    )?;
-                    let spec_params = MtpSpeculativeParams {
-                        n_max: mtp_config.k_max as i32,
-                        n_min: 0,
-                        p_min: mtp_config.p_min,
-                    };
-                    let spec = MtpSpeculative::new(ctx, draft_ctx, spec_params)?;
-                    EngineContext::Speculative(SpeculativeEngine::new(spec))
-                }
-                None => {
-                    return Err(InitWorkerError::MtpDraftModelNotLoaded);
-                }
-            }
-        } else {
-            EngineContext::Solo(ctx)
-        };
-
-        let tokenizer = Tokenizer::new(&model.language_model, projection_model);
-
-        Ok(InferenceEngine::new(
-            &model.language_model,
-            engine_ctx,
-            projection_model,
-            BatchCapacity {
-                tokens: n_batch,
-                sequences: n_seq_max as usize,
-            },
-            tokenizer,
-            use_embeddings,
-        ))
-    }
-}
-
 /// Owns a background worker thread's resources and ensures clean shutdown.
 ///
 /// When dropped: sets the optional stop flag, closes the message channel (causing the
@@ -498,8 +371,6 @@ impl<T> Drop for WorkerGuard<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tokenizer::{TokenizerChunk, TokenizerChunks};
-    use llama_cpp_2::token::LlamaToken;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
@@ -543,65 +414,5 @@ mod tests {
         cb(50, 100);
         cb(100, 100);
         assert_eq!(count.load(Ordering::Relaxed), 2);
-    }
-
-    /// A rewind of two tokens on a recurrent model, right after a one-token decode.
-    #[test]
-    fn recurrent_rewind_after_two_token_decode() {
-        let Some(model) = crate::test_utils::load_model_from_env("TEST_RECURRENT_MODEL", None)
-        else {
-            return;
-        };
-        // MTP sets n_rs_seq, which lets recurrent memory roll back a few tokens.
-        let new_engine = || {
-            let params = LlamaContextParams::default().with_n_rs_seq(3);
-            let ctx = model
-                .language_model
-                .new_context(&LLAMA_BACKEND, params)
-                .unwrap();
-            let capacity = BatchCapacity {
-                tokens: 512,
-                sequences: 1,
-            };
-            let tokenizer = Tokenizer::new(&model.language_model, None);
-            InferenceEngine::new(
-                &model.language_model,
-                EngineContext::Solo(ctx),
-                None,
-                capacity,
-                tokenizer,
-                false,
-            )
-        };
-        let sync = |engine: &mut InferenceEngine, tokens: &[LlamaToken]| {
-            let mut chunks = TokenizerChunks::new();
-            chunks.append(TokenizerChunk::new_text(tokens.to_vec()));
-            engine.sync_context(chunks, None).unwrap();
-        };
-
-        let tokens =
-            model
-                .language_model
-                .vocab()
-                .tokenize(b"Once upon a time there was a", true, false);
-        let (prompt, tail) = tokens.split_at(tokens.len() - 2);
-        let swapped = [prompt, &[tail[1], tail[0]]].concat();
-
-        let mut engine = new_engine();
-        sync(&mut engine, prompt);
-        sync(&mut engine, &tokens);
-        sync(&mut engine, &swapped);
-
-        let mut reference = new_engine();
-        sync(&mut reference, prompt);
-        sync(&mut reference, &swapped);
-
-        let logits = engine
-            .ctx
-            .get_logits()
-            .iter()
-            .zip(reference.ctx.get_logits());
-        let error = logits.map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
-        assert!(error < 0.5, "max logit error {error}");
     }
 }

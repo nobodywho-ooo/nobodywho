@@ -135,7 +135,7 @@ struct CrossEncoderWorker {
 impl CrossEncoderWorker {
     pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
         let engine = Yoke::try_attach_to_cart(model, |model| {
-            InferenceEngine::new_with_type(model, n_ctx, true, None, None, LlamaPoolingType::Rank)
+            InferenceEngine::new(model, n_ctx, true, None, None, LlamaPoolingType::Rank)
         })?;
         Ok(Self { engine })
     }
