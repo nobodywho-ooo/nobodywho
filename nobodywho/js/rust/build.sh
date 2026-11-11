@@ -18,6 +18,10 @@ case "${1:-debug}" in
   *) echo "usage: $0 [debug|release]" >&2; exit 1 ;;
 esac
 
+# FIXME(madsmtm): Remove the need for this by fixing it in cc-rs.
+export CFLAGS_wasm32_unknown_emscripten=-fPIC
+export CXXFLAGS_wasm32_unknown_emscripten=-fPIC
+
 # Build the Emscripten .js and .wasm files.
 cargo build --target=wasm32-unknown-emscripten --package=nobodywho-js $cargo_args
 

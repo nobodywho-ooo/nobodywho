@@ -80,6 +80,9 @@ let
       CC_wasm32_unknown_emscripten = "emcc";
       CXX_wasm32_unknown_emscripten = "em++";
       AR_wasm32_unknown_emscripten = "emar";
+      # Same as js/rust/build.sh.
+      CFLAGS_wasm32_unknown_emscripten = "-fPIC";
+      CXXFLAGS_wasm32_unknown_emscripten = "-fPIC";
     };
     preConfigure = ''
       # Emscripten builds system libraries and ports into its cache on
