@@ -69,6 +69,14 @@ function mountFilesystems({
   }
 }
 
+// Emscripten's filesystem only understands POSIX paths.
+const nodeProcess = (globalThis as any).process;
+if (nodeProcess?.versions?.node && nodeProcess.platform === "win32") {
+  throw new Error(
+    "NobodyWho doesn't support Node.js on Windows yet, use WSL instead.",
+  );
+}
+
 // Instantiate the WASM module using Emscripten's logic, which also provides
 // the JS side of the imports it needs (WebGPU, filesystem, etc.).
 //

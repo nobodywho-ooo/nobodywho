@@ -41,6 +41,7 @@ This functionality automatically enabled, and should be usable, but it has a few
 - `async` tool calls doesn't work.
 - STT, TTS and VAD doesn't work.
 - Inference processes each token on the UI thread, so you might want to use it in a web worker to avoid frame hitches.
+- Node.js on Windows isn't supported yet. Use WSL instead.
 
 #### • Continuous Native Generation (CNG) projects
 
