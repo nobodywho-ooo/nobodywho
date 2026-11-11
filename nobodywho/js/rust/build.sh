@@ -18,6 +18,11 @@ case "${1:-debug}" in
   *) echo "usage: $0 [debug|release]" >&2; exit 1 ;;
 esac
 
+# Takes precedence over a host `CC`/`CXX`/`AR`, such as the ones `nix develop` sets.
+export CC_wasm32_unknown_emscripten=emcc
+export CXX_wasm32_unknown_emscripten=em++
+export AR_wasm32_unknown_emscripten=emar
+
 # FIXME(madsmtm): Remove the need for this by fixing it in cc-rs.
 export CFLAGS_wasm32_unknown_emscripten=-fPIC
 export CXXFLAGS_wasm32_unknown_emscripten=-fPIC
