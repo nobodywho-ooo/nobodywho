@@ -540,9 +540,14 @@ uint64_t uniffi_nobodywho_uniffi_fn_clone_rusttexttospeech(uint64_t handle, Rust
 void uniffi_nobodywho_uniffi_fn_free_rusttexttospeech(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTTEXTTOSPEECH_LOAD
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTTEXTTOSPEECH_LOAD
+uint64_t uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_load(RustBuffer options
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTTEXTTOSPEECH_NEW
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTTEXTTOSPEECH_NEW
-uint64_t uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_new(RustBuffer source, RustBuffer architecture, RustBuffer voice, RustBuffer language, RustBuffer speed, RustBuffer steps, RustBuffer silence_duration, RustBuffer precision, RustBuffer temperature, RustBuffer huggingface_token, RustBuffer device, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_new(RustBuffer options, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTTEXTTOSPEECH_SYNTHESIZE
@@ -810,11 +815,6 @@ uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(RustBuffer model_path, int8_
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_SPEECH_TO_TEXT
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_SPEECH_TO_TEXT
 uint64_t uniffi_nobodywho_uniffi_fn_func_load_speech_to_text(RustBuffer source, RustBuffer language, RustBuffer quantization
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_TEXT_TO_SPEECH
-#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_TEXT_TO_SPEECH
-uint64_t uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(RustBuffer source, RustBuffer architecture, RustBuffer voice, RustBuffer language, RustBuffer speed, RustBuffer steps, RustBuffer silence_duration, RustBuffer precision, RustBuffer temperature, RustBuffer huggingface_token, RustBuffer device
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_VOICE_ACTIVITY_DETECTION
@@ -1163,12 +1163,6 @@ uint16_t uniffi_nobodywho_uniffi_checksum_func_load_model(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_LOAD_SPEECH_TO_TEXT
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_LOAD_SPEECH_TO_TEXT
 uint16_t uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text(void
-    
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_LOAD_TEXT_TO_SPEECH
-#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_LOAD_TEXT_TO_SPEECH
-uint16_t uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(void
     
 );
 #endif
@@ -1643,6 +1637,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_RUSTSPEECHTOTEXT_NEW
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_RUSTSPEECHTOTEXT_NEW
 uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_RUSTTEXTTOSPEECH_LOAD
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_RUSTTEXTTOSPEECH_LOAD
+uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_load(void
     
 );
 #endif
