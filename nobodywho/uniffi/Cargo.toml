@@ -36,7 +36,8 @@ console_log = "1.1.0"
 env_logger = "0.11.11"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-uniffi-runtime-wasm = "0.31.0-3"
+# Must match `@ubjs/wasm` in js/package.json.
+uniffi-runtime-wasm = "=0.31.0-6"
 # FIXME: Remove this, it shouldn't be necessary?
 uniffi_core = { version = "0.31", features = ["wasm-unstable-single-threaded"] }
 
