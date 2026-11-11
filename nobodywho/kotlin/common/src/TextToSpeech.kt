@@ -1,8 +1,8 @@
 package ai.nobodywho
 
 import java.io.Closeable
+import uniffi.nobodywho.TextToSpeechOptions
 import uniffi.nobodywho.RustTextToSpeech as InternalTts
-import uniffi.nobodywho.loadTextToSpeech as loadInternalTextToSpeech
 
 enum class TextToSpeechArchitecture(internal val value: String) {
     KOKORO("kokoro"),
@@ -35,17 +35,19 @@ class TextToSpeech private constructor(
         device: TextToSpeechDevice = TextToSpeechDevice.AUTO
     ) : this(
         InternalTts(
-            source = source,
-            architecture = architecture?.value,
-            voice = voice,
-            language = language,
-            speed = speed,
-            steps = steps,
-            silenceDuration = silenceDuration,
-            precision = precision,
-            temperature = temperature,
-            huggingfaceToken = huggingfaceToken,
-            device = device.value
+            TextToSpeechOptions(
+                source = source,
+                architecture = architecture?.value,
+                voice = voice,
+                language = language,
+                speed = speed,
+                steps = steps,
+                silenceDuration = silenceDuration,
+                precision = precision,
+                temperature = temperature,
+                huggingfaceToken = huggingfaceToken,
+                device = device.value
+            )
         )
     )
 
@@ -64,18 +66,20 @@ class TextToSpeech private constructor(
             huggingfaceToken: String? = null,
             device: TextToSpeechDevice = TextToSpeechDevice.AUTO
         ): TextToSpeech = TextToSpeech(
-            loadInternalTextToSpeech(
-                source = source,
-                architecture = architecture?.value,
-                voice = voice,
-                language = language,
-                speed = speed,
-                steps = steps,
-                silenceDuration = silenceDuration,
-                precision = precision,
-                temperature = temperature,
-                huggingfaceToken = huggingfaceToken,
-                device = device.value
+            InternalTts.load(
+                TextToSpeechOptions(
+                    source = source,
+                    architecture = architecture?.value,
+                    voice = voice,
+                    language = language,
+                    speed = speed,
+                    steps = steps,
+                    silenceDuration = silenceDuration,
+                    precision = precision,
+                    temperature = temperature,
+                    huggingfaceToken = huggingfaceToken,
+                    device = device.value
+                )
             )
         )
     }

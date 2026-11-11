@@ -301,19 +301,6 @@ interface NativeModuleInterface {
     language: Uint8Array,
     quantization: Uint8Array,
   ): bigint;
-  ubrn_uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(
-    source: Uint8Array,
-    architecture: Uint8Array,
-    voice: Uint8Array,
-    language: Uint8Array,
-    speed: Uint8Array,
-    steps: Uint8Array,
-    silenceDuration: Uint8Array,
-    precision: Uint8Array,
-    temperature: Uint8Array,
-    huggingfaceToken: Uint8Array,
-    device: Uint8Array,
-  ): bigint;
   ubrn_uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(
     source: Uint8Array,
     sampleRate: number,
@@ -520,18 +507,11 @@ interface NativeModuleInterface {
   ubrn_uniffi_nobodywho_uniffi_fn_method_rustspeechtotextstream_next_token(
     uniffiSelf: bigint,
   ): bigint;
+  ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_load(
+    options: Uint8Array,
+  ): bigint;
   ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_new(
-    source: Uint8Array,
-    architecture: Uint8Array,
-    voice: Uint8Array,
-    language: Uint8Array,
-    speed: Uint8Array,
-    steps: Uint8Array,
-    silenceDuration: Uint8Array,
-    precision: Uint8Array,
-    temperature: Uint8Array,
-    huggingfaceToken: Uint8Array,
-    device: Uint8Array,
+    options: Uint8Array,
     uniffi_out_err: UniffiRustCallStatus,
   ): bigint;
   ubrn_uniffi_nobodywho_uniffi_fn_method_rusttexttospeech_synthesize(
@@ -730,7 +710,6 @@ interface NativeModuleInterface {
   ubrn_uniffi_nobodywho_uniffi_checksum_func_get_cached_models(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text(): number;
-  ubrn_uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema(): number;
@@ -779,6 +758,7 @@ interface NativeModuleInterface {
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_pcm(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_completed(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_next_token(): number;
+  ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_load(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize(): number;
   ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize_async(): number;

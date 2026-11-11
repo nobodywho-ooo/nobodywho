@@ -1544,7 +1544,7 @@ impl Chat {
                 model_output.resolved_format(),
             )?;
 
-            let engine = InferenceEngine::new_with_type(
+            let engine = InferenceEngine::new(
                 model,
                 config.n_ctx,
                 false,

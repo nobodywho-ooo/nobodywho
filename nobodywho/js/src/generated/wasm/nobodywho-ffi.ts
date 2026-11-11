@@ -495,23 +495,6 @@ const DEFINITIONS = {
       ret: FfiType.Handle,
       hasRustCallStatus: false,
     },
-    uniffi_nobodywho_uniffi_fn_func_load_text_to_speech: {
-      args: [
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-      ],
-      ret: FfiType.Handle,
-      hasRustCallStatus: false,
-    },
     uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection: {
       args: [
         FfiType.RustBuffer,
@@ -770,20 +753,13 @@ const DEFINITIONS = {
       ret: FfiType.Handle,
       hasRustCallStatus: false,
     },
+    uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_load: {
+      args: [FfiType.RustBuffer],
+      ret: FfiType.Handle,
+      hasRustCallStatus: false,
+    },
     uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_new: {
-      args: [
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-        FfiType.RustBuffer,
-      ],
+      args: [FfiType.RustBuffer],
       ret: FfiType.Handle,
       hasRustCallStatus: true,
     },
@@ -1020,11 +996,6 @@ const DEFINITIONS = {
       hasRustCallStatus: false,
     },
     uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text: {
-      args: [],
-      ret: FfiType.UInt16,
-      hasRustCallStatus: false,
-    },
-    uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech: {
       args: [],
       ret: FfiType.UInt16,
       hasRustCallStatus: false,
@@ -1268,6 +1239,11 @@ const DEFINITIONS = {
       hasRustCallStatus: false,
     },
     uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_next_token: {
+      args: [],
+      ret: FfiType.UInt16,
+      hasRustCallStatus: false,
+    },
+    uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_load: {
       args: [],
       ret: FfiType.UInt16,
       hasRustCallStatus: false,
@@ -1824,19 +1800,6 @@ interface NativeModuleInterface {
     language: Uint8Array,
     quantization: Uint8Array,
   ): bigint;
-  uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(
-    source: Uint8Array,
-    architecture: Uint8Array,
-    voice: Uint8Array,
-    language: Uint8Array,
-    speed: Uint8Array,
-    steps: Uint8Array,
-    silenceDuration: Uint8Array,
-    precision: Uint8Array,
-    temperature: Uint8Array,
-    huggingfaceToken: Uint8Array,
-    device: Uint8Array,
-  ): bigint;
   uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(
     source: Uint8Array,
     sampleRate: number,
@@ -2043,18 +2006,11 @@ interface NativeModuleInterface {
   uniffi_nobodywho_uniffi_fn_method_rustspeechtotextstream_next_token(
     uniffiSelf: bigint,
   ): bigint;
+  uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_load(
+    options: Uint8Array,
+  ): bigint;
   uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_new(
-    source: Uint8Array,
-    architecture: Uint8Array,
-    voice: Uint8Array,
-    language: Uint8Array,
-    speed: Uint8Array,
-    steps: Uint8Array,
-    silenceDuration: Uint8Array,
-    precision: Uint8Array,
-    temperature: Uint8Array,
-    huggingfaceToken: Uint8Array,
-    device: Uint8Array,
+    options: Uint8Array,
     uniffi_out_err: UniffiRustCallStatus,
   ): bigint;
   uniffi_nobodywho_uniffi_fn_method_rusttexttospeech_synthesize(
@@ -2253,7 +2209,6 @@ interface NativeModuleInterface {
   uniffi_nobodywho_uniffi_checksum_func_get_cached_models(): number;
   uniffi_nobodywho_uniffi_checksum_func_load_model(): number;
   uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text(): number;
-  uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(): number;
   uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(): number;
   uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(): number;
   uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema(): number;
@@ -2302,6 +2257,7 @@ interface NativeModuleInterface {
   uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_pcm(): number;
   uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_completed(): number;
   uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_next_token(): number;
+  uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_load(): number;
   uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new(): number;
   uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize(): number;
   uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize_async(): number;
