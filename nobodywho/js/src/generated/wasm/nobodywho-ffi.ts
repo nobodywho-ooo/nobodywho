@@ -678,10 +678,10 @@ const DEFINITIONS = {
       ret: FfiType.Handle,
       hasRustCallStatus: false,
     },
-    uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new: {
+    uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_create: {
       args: [FfiType.Handle, FfiType.RustBuffer],
       ret: FfiType.Handle,
-      hasRustCallStatus: true,
+      hasRustCallStatus: false,
     },
     uniffi_nobodywho_uniffi_fn_method_rustcrossencoder_rank: {
       args: [FfiType.Handle, FfiType.RustBuffer, FfiType.RustBuffer],
@@ -703,10 +703,10 @@ const DEFINITIONS = {
       ret: FfiType.Handle,
       hasRustCallStatus: false,
     },
-    uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new: {
+    uniffi_nobodywho_uniffi_fn_constructor_rustencoder_create: {
       args: [FfiType.Handle, FfiType.RustBuffer],
       ret: FfiType.Handle,
-      hasRustCallStatus: true,
+      hasRustCallStatus: false,
     },
     uniffi_nobodywho_uniffi_fn_method_rustencoder_encode: {
       args: [FfiType.Handle, FfiType.RustBuffer],
@@ -1167,7 +1167,7 @@ const DEFINITIONS = {
       ret: FfiType.UInt16,
       hasRustCallStatus: false,
     },
-    uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new: {
+    uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_create: {
       args: [],
       ret: FfiType.UInt16,
       hasRustCallStatus: false,
@@ -1193,7 +1193,7 @@ const DEFINITIONS = {
       ret: FfiType.UInt16,
       hasRustCallStatus: false,
     },
-    uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new: {
+    uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_create: {
       args: [],
       ret: FfiType.UInt16,
       hasRustCallStatus: false,
@@ -1937,10 +1937,9 @@ interface NativeModuleInterface {
     uniffiSelf: bigint,
     parts: Uint8Array,
   ): bigint;
-  uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
+  uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_create(
     model: bigint,
     contextSize: Uint8Array,
-    uniffi_out_err: UniffiRustCallStatus,
   ): bigint;
   uniffi_nobodywho_uniffi_fn_method_rustcrossencoder_rank(
     uniffiSelf: bigint,
@@ -1962,10 +1961,9 @@ interface NativeModuleInterface {
     stateJson: Uint8Array,
     questionsJson: Uint8Array,
   ): bigint;
-  uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
+  uniffi_nobodywho_uniffi_fn_constructor_rustencoder_create(
     model: bigint,
     contextSize: Uint8Array,
-    uniffi_out_err: UniffiRustCallStatus,
   ): bigint;
   uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(
     uniffiSelf: bigint,
@@ -2242,12 +2240,12 @@ interface NativeModuleInterface {
   uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation(): number;
   uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize(): number;
   uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize_with_prompt(): number;
-  uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new(): number;
+  uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_create(): number;
   uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank(): number;
   uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json(): number;
   uniffi_nobodywho_uniffi_checksum_constructor_rustdecision_new(): number;
   uniffi_nobodywho_uniffi_checksum_method_rustdecision_decide(): number;
-  uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new(): number;
+  uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_create(): number;
   uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(): number;
   uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch(): number;
   uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx(): number;
