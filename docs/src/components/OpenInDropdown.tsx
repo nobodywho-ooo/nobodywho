@@ -1,5 +1,6 @@
 import React, {useState, useRef, useEffect} from 'react';
 import useIsBrowser from '@docusaurus/useIsBrowser';
+import {useDoc} from '@docusaurus/plugin-content-docs/client';
 
 const GH_BASE =
   'https://github.com/nobodywho-ooo/nobodywho/blob/main/docs/';
@@ -21,23 +22,8 @@ function Icon({name}: {name: keyof typeof ICONS}) {
   return <span className="page-action__icon" aria-hidden="true" dangerouslySetInnerHTML={{__html: ICONS[name]}} />;
 }
 
-function deriveSourcePath(pathname: string): string {
-  const clean = pathname.replace(/\/$/, '') || '/docs';
-  const prefixMap: Record<string, string> = {
-    '/python': 'docs-python',
-    '/swift': 'docs-swift',
-    '/js': 'docs-js',
-    '/flutter': 'docs-flutter',
-    '/godot': 'docs-godot',
-    '/docs': 'docs',
-  };
-  for (const [prefix, dir] of Object.entries(prefixMap)) {
-    if (clean === prefix || clean.startsWith(prefix + '/')) {
-      const slug = clean.slice(prefix.length).replace(/^\//, '') || 'index';
-      return `${dir}/${slug}.md`;
-    }
-  }
-  return `docs${clean}.md`;
+function sourcePathOf(source: string): string {
+  return source.replace(/^@site\//, '');
 }
 
 function CopyPageButton() {
@@ -67,6 +53,7 @@ export default function PageActions(): React.JSX.Element | null {
   const ref = useRef<HTMLDivElement>(null);
   // False during SSR and hydration, so the first client render matches the server HTML
   const isBrowser = useIsBrowser();
+  const sourcePath = sourcePathOf(useDoc().metadata.source);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -86,8 +73,6 @@ export default function PageActions(): React.JSX.Element | null {
   // Placeholder with the buttons' size, so the layout doesn't shift when they render
   if (!isBrowser) return <div className="page-actions page-actions--placeholder" aria-hidden="true" />;
 
-  const pathname = window.location.pathname;
-  const sourcePath = deriveSourcePath(pathname);
   const pageUrl = window.location.href;
   const rawMdUrl = `${RAW_BASE}${sourcePath}`;
   const githubUrl = `${GH_BASE}${sourcePath}`;
