@@ -18,7 +18,6 @@
 //! the largest input length the voice has a style row for.
 
 use crate::errors::TextToSpeechError;
-use crate::text_to_speech::architecture::TextToSpeechArchitectureImpl;
 use crate::text_to_speech::{TextToSpeechDevice, DEFAULT_SAMPLE_RATE};
 use espeak_ng::Translator;
 use misaki_rs::{language::Language, G2P};
@@ -363,10 +362,10 @@ fn init_translator(language: &str) -> Result<Translator, TextToSpeechError> {
         .map_err(|source| TextToSpeechError::EspeakInit { source })
 }
 
-impl TextToSpeechArchitectureImpl for KokoroBackend {
+impl KokoroBackend {
     /// Synthesize `text` a piece at a time, since one model call takes at
     /// most `max_input_phonemes` phonemes.
-    fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TextToSpeechError> {
+    pub(super) fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TextToSpeechError> {
         let phonemes = self.text_to_phonemes(text)?;
         let pieces = split_phonemes(&phonemes, self.voice.max_input_phonemes(), |c| {
             self.vocab
@@ -382,12 +381,10 @@ impl TextToSpeechArchitectureImpl for KokoroBackend {
         Ok(pcm)
     }
 
-    fn sample_rate(&self) -> u32 {
+    pub(super) fn sample_rate(&self) -> u32 {
         DEFAULT_SAMPLE_RATE
     }
-}
 
-impl KokoroBackend {
     /// Phonemize `text`, trim it, and check something is left to say.
     fn text_to_phonemes(&self, text: &str) -> Result<String, TextToSpeechError> {
         let phonemes = self.phonemizer.phonemize(text)?;

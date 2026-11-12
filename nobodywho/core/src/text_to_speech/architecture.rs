@@ -1,18 +1,38 @@
-use crate::errors::TextToSpeechError;
 use crate::huggingface;
 #[cfg(feature = "kokoro")]
 use crate::text_to_speech::kokoro;
+use crate::text_to_speech::supertonic::SupertonicBackend;
 use crate::text_to_speech::{pocket, supertonic, TextToSpeechConfig, TextToSpeechDevice};
+use crate::{errors::TextToSpeechError, text_to_speech::pocket::PocketTtsBackend};
 use std::time::Instant;
 use tracing::info;
 
-pub(super) trait TextToSpeechArchitectureImpl: Send {
-    fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TextToSpeechError>;
-    fn sample_rate(&self) -> u32;
+pub(super) enum TextToSpeechBackend {
+    #[cfg(feature = "kokoro")]
+    Kokoro(Box<kokoro::KokoroBackend>),
+    PocketTts(Box<PocketTtsBackend>),
+    Supertonic(Box<SupertonicBackend>),
+}
+
+impl TextToSpeechBackend {
+    pub(super) fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TextToSpeechError> {
+        match self {
+            Self::Kokoro(backend) => backend.synthesize_raw(text),
+            Self::PocketTts(backend) => backend.synthesize(text),
+            Self::Supertonic(backend) => backend.synthesize_raw(text),
+        }
+    }
+
+    pub(super) fn sample_rate(&self) -> u32 {
+        match self {
+            Self::Kokoro(backend) => backend.sample_rate(),
+            Self::PocketTts(backend) => backend.sample_rate(),
+            Self::Supertonic(backend) => backend.sample_rate(),
+        }
+    }
 
     /// Synthesize `text` and encode the resulting PCM as a WAV byte buffer.
-    /// Default implementation; architectures typically don't need to override.
-    fn synthesize(&mut self, text: &str) -> Result<Vec<u8>, TextToSpeechError> {
+    pub(super) fn synthesize(&mut self, text: &str) -> Result<Vec<u8>, TextToSpeechError> {
         let synth_start = Instant::now();
         let samples = self.synthesize_raw(text)?;
         let sample_rate = self.sample_rate();
@@ -26,49 +46,49 @@ pub(super) trait TextToSpeechArchitectureImpl: Send {
 
         encode_wav(&samples, sample_rate)
     }
-}
 
-pub(super) fn load_architecture(
-    config: TextToSpeechConfig,
-    device: TextToSpeechDevice,
-) -> Result<Box<dyn TextToSpeechArchitectureImpl>, TextToSpeechError> {
-    match config {
-        #[cfg(not(feature = "kokoro"))]
-        TextToSpeechConfig::Kokoro(_) => Err(TextToSpeechError::KokoroNotCompiled),
-        #[cfg(feature = "kokoro")]
-        TextToSpeechConfig::Kokoro(config) => {
-            let init_start = Instant::now();
-            let model_dir = huggingface::download_onnx(&config.source, &[], None)?;
-            let backend = kokoro::KokoroBackend::new(
-                &model_dir,
-                &config.voice,
-                &config.language,
-                config.speed,
-                device,
-            )?;
-            info!(elapsed = ?init_start.elapsed(), "Initialized Kokoro TextToSpeech");
-            Ok(Box::new(backend))
-        }
-        TextToSpeechConfig::PocketTts(config) => {
-            let init_start = Instant::now();
-            let backend = pocket::PocketTtsBackend::new(&config, device)?;
-            info!(elapsed = ?init_start.elapsed(), "Initialized Pocket TTS");
-            Ok(Box::new(backend))
-        }
-        TextToSpeechConfig::Supertonic(config) => {
-            let init_start = Instant::now();
-            let model_dir = huggingface::download_onnx(&config.source, &[], None)?;
-            let backend = supertonic::SupertonicBackend::new(
-                &model_dir,
-                &config.voice,
-                &config.language,
-                config.steps,
-                config.speed,
-                config.silence_duration,
-                device,
-            )?;
-            info!(elapsed = ?init_start.elapsed(), "Initialized Supertonic TextToSpeech");
-            Ok(Box::new(backend))
+    pub(super) fn load(
+        config: TextToSpeechConfig,
+        device: TextToSpeechDevice,
+    ) -> Result<Self, TextToSpeechError> {
+        match config {
+            #[cfg(not(feature = "kokoro"))]
+            TextToSpeechConfig::Kokoro(_) => Err(TextToSpeechError::KokoroNotCompiled),
+            #[cfg(feature = "kokoro")]
+            TextToSpeechConfig::Kokoro(config) => {
+                let init_start = Instant::now();
+                let model_dir = huggingface::download_onnx(&config.source, &[], None)?;
+                let backend = kokoro::KokoroBackend::new(
+                    &model_dir,
+                    &config.voice,
+                    &config.language,
+                    config.speed,
+                    device,
+                )?;
+                info!(elapsed = ?init_start.elapsed(), "Initialized Kokoro TextToSpeech");
+                Ok(Self::Kokoro(Box::new(backend)))
+            }
+            TextToSpeechConfig::PocketTts(config) => {
+                let init_start = Instant::now();
+                let backend = pocket::PocketTtsBackend::new(&config, device)?;
+                info!(elapsed = ?init_start.elapsed(), "Initialized Pocket TTS");
+                Ok(Self::PocketTts(Box::new(backend)))
+            }
+            TextToSpeechConfig::Supertonic(config) => {
+                let init_start = Instant::now();
+                let model_dir = huggingface::download_onnx(&config.source, &[], None)?;
+                let backend = supertonic::SupertonicBackend::new(
+                    &model_dir,
+                    &config.voice,
+                    &config.language,
+                    config.steps,
+                    config.speed,
+                    config.silence_duration,
+                    device,
+                )?;
+                info!(elapsed = ?init_start.elapsed(), "Initialized Supertonic TextToSpeech");
+                Ok(Self::Supertonic(Box::new(backend)))
+            }
         }
     }
 }

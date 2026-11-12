@@ -1,5 +1,4 @@
 use crate::errors::TextToSpeechError;
-use crate::text_to_speech::architecture::TextToSpeechArchitectureImpl;
 use crate::text_to_speech::TextToSpeechDevice;
 use ndarray::{Array, Array3};
 use ort::session::Session;
@@ -178,10 +177,8 @@ impl SupertonicBackend {
             settings,
         })
     }
-}
 
-impl TextToSpeechArchitectureImpl for SupertonicBackend {
-    fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TextToSpeechError> {
+    pub(super) fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TextToSpeechError> {
         let text = text.trim();
         if text.is_empty() {
             return Err(TextToSpeechError::EmptyText);
@@ -189,7 +186,7 @@ impl TextToSpeechArchitectureImpl for SupertonicBackend {
         self.call(text)
     }
 
-    fn sample_rate(&self) -> u32 {
+    pub(super) fn sample_rate(&self) -> u32 {
         self.sample_rate as u32
     }
 }

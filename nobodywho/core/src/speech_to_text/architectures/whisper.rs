@@ -9,7 +9,6 @@
 
 use crate::errors::{HuggingFaceError, SpeechToTextError};
 use crate::onnx::Device;
-use crate::speech_to_text::architecture::SpeechToTextArchitectureImpl;
 use ort::memory::Allocator;
 use ort::session::Session;
 use ort::value::{DynValue, Tensor};
@@ -459,8 +458,8 @@ impl WhisperBackend {
     }
 }
 
-impl SpeechToTextArchitectureImpl for WhisperBackend {
-    fn transcribe_window(
+impl WhisperBackend {
+    pub(crate) fn transcribe_window(
         &mut self,
         window: &[f32],
         on_token: &mut dyn FnMut(String),

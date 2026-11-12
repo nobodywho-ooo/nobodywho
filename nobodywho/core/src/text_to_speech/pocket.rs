@@ -1,5 +1,4 @@
 use crate::errors::TextToSpeechError;
-use crate::text_to_speech::architecture::TextToSpeechArchitectureImpl;
 use crate::text_to_speech::TextToSpeechDevice;
 use ndarray::{Array, ArrayD, IxDyn};
 use ort::session::{Session, SessionInputValue, SessionOutputs};
@@ -108,7 +107,7 @@ impl PocketTtsBackend {
         })
     }
 
-    fn synthesize(&mut self, text: &str) -> Result<Vec<f32>, TextToSpeechError> {
+    pub(super) fn synthesize(&mut self, text: &str) -> Result<Vec<f32>, TextToSpeechError> {
         let chunks = self.chunk_text(text)?;
         let mut audio = Vec::new();
         for chunk in chunks {
@@ -260,14 +259,8 @@ impl PocketTtsBackend {
         }
         Ok(audio)
     }
-}
 
-impl TextToSpeechArchitectureImpl for PocketTtsBackend {
-    fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TextToSpeechError> {
-        self.synthesize(text)
-    }
-
-    fn sample_rate(&self) -> u32 {
+    pub(super) fn sample_rate(&self) -> u32 {
         self.sample_rate
     }
 }

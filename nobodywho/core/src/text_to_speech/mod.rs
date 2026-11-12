@@ -53,7 +53,10 @@ mod pocket;
 mod supertonic;
 
 pub use crate::onnx::Device as TextToSpeechDevice;
-use crate::{errors::TextToSpeechError, worker::AsyncWorker};
+use crate::{
+    errors::TextToSpeechError, text_to_speech::architecture::TextToSpeechBackend,
+    worker::AsyncWorker,
+};
 pub use pocket::{PocketTtsConfig, PocketTtsPrecision};
 use std::{str::FromStr, sync::Arc};
 pub use supertonic::SupertonicConfig;
@@ -156,7 +159,7 @@ impl KokoroConfig {
 pub(super) const DEFAULT_SAMPLE_RATE: u32 = 24000;
 
 pub struct TextToSpeech {
-    architecture: Arc<tokio::sync::Mutex<Box<dyn architecture::TextToSpeechArchitectureImpl>>>,
+    backend: Arc<tokio::sync::Mutex<TextToSpeechBackend>>,
     worker: AsyncWorker,
 }
 
@@ -173,15 +176,15 @@ impl TextToSpeech {
         if cfg!(target_os = "emscripten") {
             return Err(TextToSpeechError::WasmUnsupported);
         }
-        let architecture = architecture::load_architecture(config, device)?;
+        let backend = TextToSpeechBackend::load(config, device)?;
         Ok(Self {
-            architecture: Arc::new(tokio::sync::Mutex::new(architecture)),
+            backend: Arc::new(tokio::sync::Mutex::new(backend)),
             worker: AsyncWorker::new(),
         })
     }
 
     pub fn synthesize(&self, text: impl Into<String>) -> Result<Vec<u8>, TextToSpeechError> {
-        self.architecture.blocking_lock().synthesize(&text.into())
+        self.backend.blocking_lock().synthesize(&text.into())
     }
 
     pub async fn synthesize_async(
@@ -189,7 +192,7 @@ impl TextToSpeech {
         text: impl Into<String>,
     ) -> Result<Vec<u8>, TextToSpeechError> {
         let text = text.into();
-        let mut arch = Arc::clone(&self.architecture).lock_owned().await;
+        let mut arch = Arc::clone(&self.backend).lock_owned().await;
         self.worker.run(move || arch.synthesize(&text)).await
     }
 }

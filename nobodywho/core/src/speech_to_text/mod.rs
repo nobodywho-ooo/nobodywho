@@ -4,6 +4,7 @@ pub(crate) mod audio;
 
 use crate::errors::SpeechToTextError;
 pub use crate::onnx::Device;
+use crate::speech_to_text::architecture::SpeechToTextBackend;
 pub use crate::stream::{StreamOutput, TokenStream, TokenStreamAsync};
 pub use architectures::WhisperConfig;
 use std::path::PathBuf;
@@ -74,13 +75,13 @@ impl SpeechToText {
         if cfg!(target_os = "emscripten") {
             return Err(SpeechToTextError::WasmUnsupported);
         }
-        let mut architecture = architecture::load_architecture(config, device)?;
+        let mut architecture = SpeechToTextBackend::load(config, device)?;
         let (msg_tx, msg_rx) = mpsc::channel::<SpeechToTextRequest>();
         let join = std::thread::spawn(move || {
             while let Ok((input, response)) = msg_rx.recv() {
                 match response {
                     SpeechToTextResponseChannel::Full(tx) => {
-                        let result = architecture::transcribe_sync(architecture.as_mut(), input);
+                        let result = architecture.transcribe_sync(input);
                         if tx.blocking_send(result).is_err() {
                             tracing::warn!(
                                 "SpeechToText caller dropped before result could be delivered"
@@ -88,7 +89,7 @@ impl SpeechToText {
                         }
                     }
                     SpeechToTextResponseChannel::Stream(tx) => {
-                        architecture::transcribe_streaming(architecture.as_mut(), input, tx);
+                        architecture.transcribe_streaming(input, tx);
                     }
                 }
             }
