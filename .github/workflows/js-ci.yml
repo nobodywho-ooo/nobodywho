@@ -10,7 +10,6 @@ jobs:
   wasm:
     runs-on: warp-ubuntu-latest-x64-4x
     env:
-      # Keep in sync with test-npm-publish.yml.
       EMSCRIPTEN_VERSION: "6.0.13"
     steps:
       - uses: actions/checkout@v5

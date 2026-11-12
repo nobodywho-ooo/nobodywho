@@ -127,7 +127,7 @@ mobile-device-tests.yml  On-device tests on real phones via Firebase Test Lab.
 ci-command.yml      Parses /<bucket>-ci PR comments (strict; hard-rejects unknown) →
                     dispatches build-and-test with the selected buckets.
 ai-review.yml       `/ai-review` comment. (independent, not plan-gated)
-rust-install-test.yml / test-npm-publish.yml  Standalone smoke tests (dispatch only).
+rust-install-test.yml  Standalone smoke test (dispatch only).
 ```
 
 ## Adding a bucket
