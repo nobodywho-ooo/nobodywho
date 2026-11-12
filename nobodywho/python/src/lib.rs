@@ -2014,12 +2014,15 @@ impl DecisionAsync {
 /// See `EncoderAsync` for the async version of this class.
 #[pyclass]
 pub struct Encoder {
-    encoder: Option<nobodywho::encoder::Encoder>,
+    encoder: Option<tokio::sync::Mutex<nobodywho::encoder::Encoder>>,
 }
 
 impl Encoder {
-    fn inner(&self) -> &nobodywho::encoder::Encoder {
-        self.encoder.as_ref().expect("Encoder used after drop")
+    fn inner(&self) -> tokio::sync::MutexGuard<'_, nobodywho::encoder::Encoder> {
+        self.encoder
+            .as_ref()
+            .expect("Encoder used after drop")
+            .blocking_lock()
     }
 }
 
@@ -2042,15 +2045,16 @@ impl Encoder {
     ///     An Encoder instance
     ///
     /// Raises:
-    ///     RuntimeError: If the model cannot be loaded
-
+    ///     RuntimeError: If the model cannot be loaded or the context cannot be created
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "Encoder")]
-    pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
+    pub fn new(model: ModelOrPath, n_ctx: u32, py: Python) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
-        let encoder = nobodywho::encoder::Encoder::new(nw_model, n_ctx);
+        let encoder = py
+            .detach(|| nobodywho::encoder::Encoder::new(nw_model, n_ctx))
+            .map_err(err)?;
         Ok(Self {
-            encoder: Some(encoder),
+            encoder: Some(tokio::sync::Mutex::new(encoder)),
         })
     }
 
@@ -2124,13 +2128,15 @@ impl EncoderAsync {
     ///     An EncoderAsync instance
     ///
     /// Raises:
-    ///     RuntimeError: If the model cannot be loaded
-
-    #[new]
+    ///     RuntimeError: If the model cannot be loaded or the context cannot be created
+    #[staticmethod]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "EncoderAsync")]
-    pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
-        let nw_model = model.get_inner_model()?;
-        let encoder_handle = nobodywho::encoder::EncoderAsync::new(nw_model, n_ctx);
+    pub async fn create(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
+        let worker = AsyncWorker::new();
+        let nw_model = worker.run(move || model.get_inner_model()).await?;
+        let encoder_handle = nobodywho::encoder::EncoderAsync::new(nw_model, n_ctx)
+            .await
+            .map_err(err)?;
         Ok(Self {
             encoder_handle: Some(encoder_handle),
         })
@@ -2179,14 +2185,15 @@ impl EncoderAsync {
 /// See `CrossEncoderAsync` for the async version of this class.
 #[pyclass]
 pub struct CrossEncoder {
-    crossencoder: Option<nobodywho::crossencoder::CrossEncoder>,
+    crossencoder: Option<tokio::sync::Mutex<nobodywho::crossencoder::CrossEncoder>>,
 }
 
 impl CrossEncoder {
-    fn inner(&self) -> &nobodywho::crossencoder::CrossEncoder {
+    fn inner(&self) -> tokio::sync::MutexGuard<'_, nobodywho::crossencoder::CrossEncoder> {
         self.crossencoder
             .as_ref()
             .expect("CrossEncoder used after drop")
+            .blocking_lock()
     }
 }
 
@@ -2209,15 +2216,16 @@ impl CrossEncoder {
     ///     A CrossEncoder instance
     ///
     /// Raises:
-    ///     RuntimeError: If the model cannot be loaded
-
+    ///     RuntimeError: If the model cannot be loaded or the context cannot be created
     #[new]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "CrossEncoder")]
-    pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
+    pub fn new(model: ModelOrPath, n_ctx: u32, py: Python) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
-        let crossencoder = nobodywho::crossencoder::CrossEncoder::new(nw_model, n_ctx);
+        let crossencoder = py
+            .detach(|| nobodywho::crossencoder::CrossEncoder::new(nw_model, n_ctx))
+            .map_err(err)?;
         Ok(Self {
-            crossencoder: Some(crossencoder),
+            crossencoder: Some(tokio::sync::Mutex::new(crossencoder)),
         })
     }
 
@@ -2299,13 +2307,15 @@ impl CrossEncoderAsync {
     ///     A CrossEncoderAsync instance
     ///
     /// Raises:
-    ///     RuntimeError: If the model cannot be loaded
-
-    #[new]
+    ///     RuntimeError: If the model cannot be loaded or the context cannot be created
+    #[staticmethod]
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "CrossEncoderAsync")]
-    pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
-        let nw_model = model.get_inner_model()?;
-        let crossencoder_handle = nobodywho::crossencoder::CrossEncoderAsync::new(nw_model, n_ctx);
+    pub async fn create(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
+        let worker = AsyncWorker::new();
+        let nw_model = worker.run(move || model.get_inner_model()).await?;
+        let crossencoder_handle = nobodywho::crossencoder::CrossEncoderAsync::new(nw_model, n_ctx)
+            .await
+            .map_err(err)?;
         Ok(Self {
             crossencoder_handle: Some(crossencoder_handle),
         })

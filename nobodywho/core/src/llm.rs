@@ -8,8 +8,7 @@ use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::LlamaModel;
 use std::pin::pin;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{LazyLock, Mutex};
 use tracing::{error, info, info_span, warn};
 
 // Back-compat re-exports: bindings (Python, Godot, Flutter) import these via
@@ -324,54 +323,11 @@ pub fn download_model_cancellable(
 pub type WriteOutput =
     crate::stream::StreamOutput<Box<dyn miette::Diagnostic + Send + Sync + 'static>>;
 
-/// Owns a background worker thread's resources and ensures clean shutdown.
-///
-/// When dropped: sets the optional stop flag, closes the message channel (causing the
-/// worker's `recv()` to return `Err`), then joins the thread. This ordering guarantees
-/// the worker has fully exited before any statics (e.g. `LLAMA_BACKEND`) are destroyed.
-pub(crate) struct WorkerGuard<T> {
-    pub(crate) msg_tx: Option<std::sync::mpsc::Sender<T>>,
-    join_handle: Option<std::thread::JoinHandle<()>>,
-    should_stop: Option<Arc<AtomicBool>>,
-}
-
-impl<T> WorkerGuard<T> {
-    pub(crate) fn new(
-        msg_tx: std::sync::mpsc::Sender<T>,
-        join_handle: std::thread::JoinHandle<()>,
-        should_stop: Option<Arc<AtomicBool>>,
-    ) -> Self {
-        Self {
-            msg_tx: Some(msg_tx),
-            join_handle: Some(join_handle),
-            should_stop,
-        }
-    }
-
-    /// Send a message to the worker. Returns false if the worker is gone.
-    pub(crate) fn send(&self, msg: T) -> bool {
-        self.msg_tx.as_ref().is_some_and(|tx| tx.send(msg).is_ok())
-    }
-}
-
-impl<T> Drop for WorkerGuard<T> {
-    fn drop(&mut self) {
-        if let Some(ref stop) = self.should_stop {
-            stop.store(true, Ordering::Relaxed);
-        }
-        drop(self.msg_tx.take());
-        if let Some(handle) = self.join_handle.take() {
-            if let Err(e) = handle.join() {
-                error!("Worker panicked: {:?}", e);
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
 
     #[test]
     fn model_keeps_its_source() {

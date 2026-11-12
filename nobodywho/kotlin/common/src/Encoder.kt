@@ -11,19 +11,20 @@ import uniffi.nobodywho.RustEncoder as InternalEncoder
  * val embedding = encoder.encode("Hello world")
  * ```
  */
-class Encoder(
-    model: Model,
-    contextSize: UInt? = null
+class Encoder private constructor(
+    private val inner: InternalEncoder
 ) : Closeable {
-    private val inner: InternalEncoder = InternalEncoder(model.inner, contextSize)
-
     companion object {
+        /** Create from a loaded model asynchronously. */
+        suspend fun create(model: Model, contextSize: UInt? = null): Encoder =
+            Encoder(InternalEncoder.create(model.inner, contextSize))
+
         /** Create an encoder directly from a model path. */
         suspend fun fromPath(
             modelPath: String,
             useGpu: Boolean = true,
             contextSize: UInt? = null
-        ): Encoder = Encoder(Model.load(modelPath, useGpu), contextSize)
+        ): Encoder = create(Model.load(modelPath, useGpu), contextSize)
     }
 
     suspend fun encode(text: String): List<Float> = inner.encode(text)

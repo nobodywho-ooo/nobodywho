@@ -1162,12 +1162,20 @@ pub struct RustEncoder {
 impl RustEncoder {
     /// Create a new encoder for generating text embeddings.
     #[uniffi::constructor]
-    pub fn new(model: &RustModel, context_size: Option<u32>) -> Arc<Self> {
+    // Named `create` because Kotlin doesn't support async constructors.
+    pub async fn create(
+        model: &RustModel,
+        context_size: Option<u32>,
+    ) -> Result<Arc<Self>, NobodyWhoError> {
         let handle = nobodywho::encoder::EncoderAsync::new(
             Arc::clone(&model.inner),
             context_size.unwrap_or(4096),
-        );
-        Arc::new(Self { inner: handle })
+        )
+        .await
+        .map_err(|e| NobodyWhoError::Error {
+            message: e.to_string(),
+        })?;
+        Ok(Arc::new(Self { inner: handle }))
     }
 
     /// Encode text into an embedding vector.
@@ -1461,12 +1469,20 @@ pub struct RustCrossEncoder {
 impl RustCrossEncoder {
     /// Create a new cross-encoder for ranking documents by relevance.
     #[uniffi::constructor]
-    pub fn new(model: &RustModel, context_size: Option<u32>) -> Arc<Self> {
+    // Named `create` because Kotlin doesn't support async constructors.
+    pub async fn create(
+        model: &RustModel,
+        context_size: Option<u32>,
+    ) -> Result<Arc<Self>, NobodyWhoError> {
         let handle = nobodywho::crossencoder::CrossEncoderAsync::new(
             Arc::clone(&model.inner),
             context_size.unwrap_or(4096),
-        );
-        Arc::new(Self { inner: handle })
+        )
+        .await
+        .map_err(|e| NobodyWhoError::Error {
+            message: e.to_string(),
+        })?;
+        Ok(Arc::new(Self { inner: handle }))
     }
 
     /// Rank documents by relevance to a query. Returns similarity scores.

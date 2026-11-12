@@ -1,142 +1,23 @@
-use crate::errors::{CrossEncoderWorkerError, InitWorkerError};
+use crate::errors::{CrossEncoderError, InitWorkerError};
 use crate::inference::{BatchedReadError, EngineContext, InferenceEngine};
 use crate::llm;
-use crate::llm::WorkerGuard;
+use crate::worker::AsyncWorker;
 use llama_cpp_2::context::params::LlamaPoolingType;
 use std::sync::Arc;
-use tracing::{error, warn};
+use tracing::warn;
 use yoke::Yoke;
 
-#[derive(Clone)]
+#[derive(Debug)]
 pub struct CrossEncoder {
-    async_handle: CrossEncoderAsync,
-}
-
-#[derive(Clone)]
-pub struct CrossEncoderAsync {
-    guard: Arc<WorkerGuard<CrossEncoderMsg>>,
+    engine: sync_wrapper::SyncWrapper<Yoke<InferenceEngine<'static>, Arc<llm::Model>>>,
 }
 
 impl CrossEncoder {
-    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
-        let async_handle = CrossEncoderAsync::new(model, n_ctx);
-        Self { async_handle }
-    }
-
-    pub fn rank(
-        &self,
-        query: String,
-        documents: Vec<String>,
-    ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
-        futures::executor::block_on(async { self.async_handle.rank(query, documents).await })
-    }
-
-    pub fn rank_and_sort(
-        &self,
-        query: String,
-        documents: Vec<String>,
-    ) -> Result<Vec<(String, f32)>, CrossEncoderWorkerError> {
-        futures::executor::block_on(async {
-            self.async_handle.rank_and_sort(query, documents).await
-        })
-    }
-}
-
-impl CrossEncoderAsync {
-    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
-        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
-
-        let join_handle = std::thread::spawn(move || {
-            let worker = CrossEncoderWorker::new(model, n_ctx);
-            let mut worker_state = match worker {
-                Ok(worker_state) => worker_state,
-                Err(errmsg) => {
-                    return error!(error=%errmsg, "Could not set up the worker initial state")
-                }
-            };
-
-            while let Ok(msg) = msg_rx.recv() {
-                process_worker_msg(&mut worker_state, msg);
-            }
-        });
-
-        Self {
-            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, None)),
-        }
-    }
-
-    pub async fn rank(
-        &self,
-        query: String,
-        documents: Vec<String>,
-    ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
-        let (scores_tx, mut scores_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(CrossEncoderMsg::Rank {
-            query,
-            documents,
-            output_tx: scores_tx,
-        });
-        scores_rx
-            .recv()
-            .await
-            .ok_or(CrossEncoderWorkerError::NoResponse)?
-    }
-
-    pub async fn rank_and_sort(
-        &self,
-        query: String,
-        documents: Vec<String>,
-    ) -> Result<Vec<(String, f32)>, CrossEncoderWorkerError> {
-        let scores = self.rank(query, documents.clone()).await?;
-
-        let mut docs_with_scores: Vec<(String, f32)> = documents
-            .iter()
-            .zip(scores.iter())
-            .map(|(doc, score)| (doc.clone(), *score))
-            .collect();
-
-        docs_with_scores.sort_by(|a, b| {
-            b.1.partial_cmp(&a.1).unwrap_or_else(|| {
-                warn!("Got NaN while sorting cross-encoded documents.");
-                std::cmp::Ordering::Equal
-            })
-        });
-        Ok(docs_with_scores)
-    }
-}
-
-enum CrossEncoderMsg {
-    Rank {
-        query: String,
-        documents: Vec<String>,
-        output_tx: tokio::sync::mpsc::Sender<Result<Vec<f32>, CrossEncoderWorkerError>>,
-    },
-}
-
-/// Handle one message, reporting success or failure on its reply channel.
-fn process_worker_msg(worker_state: &mut CrossEncoderWorker, msg: CrossEncoderMsg) {
-    match msg {
-        CrossEncoderMsg::Rank {
-            query,
-            documents,
-            output_tx,
-        } => {
-            let scores = worker_state.rank(query, documents);
-
-            let _ = output_tx.blocking_send(scores);
-        }
-    }
-}
-
-struct CrossEncoderWorker {
-    engine: Yoke<InferenceEngine<'static>, Arc<llm::Model>>,
-}
-
-impl CrossEncoderWorker {
     pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
         let engine = Yoke::try_attach_to_cart(model, |model| {
             InferenceEngine::new(model, n_ctx, true, None, None, LlamaPoolingType::Rank)
         })?;
+        let engine = sync_wrapper::SyncWrapper::new(engine);
         Ok(Self { engine })
     }
 
@@ -144,8 +25,8 @@ impl CrossEncoderWorker {
         &mut self,
         query: String,
         documents: Vec<String>,
-    ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
-        let vocab = self.engine.backing_cart().language_model.vocab();
+    ) -> Result<Vec<f32>, CrossEncoderError> {
+        let vocab = self.engine.get_mut().backing_cart().language_model.vocab();
 
         let bos = vocab.bos();
         let bos = if bos.0 != -1 {
@@ -171,24 +52,86 @@ impl CrossEncoderWorker {
             .collect();
 
         self.engine
+            .get_mut()
             .with_mut_return(|e| e.read_strings_batched(inputs, classification_score_for))
             .map_err(|error| match error {
-                BatchedReadError::Read(error) => CrossEncoderWorkerError::Read(error),
+                BatchedReadError::Read(error) => CrossEncoderError::Read(error),
                 BatchedReadError::Output(error) => error,
             })
+    }
+
+    pub fn rank_and_sort(
+        &mut self,
+        query: String,
+        documents: Vec<String>,
+    ) -> Result<Vec<(String, f32)>, CrossEncoderError> {
+        let scores = self.rank(query, documents.clone())?;
+
+        let mut docs_with_scores: Vec<(String, f32)> = documents
+            .iter()
+            .zip(scores.iter())
+            .map(|(doc, score)| (doc.clone(), *score))
+            .collect();
+
+        docs_with_scores.sort_by(|a, b| {
+            b.1.partial_cmp(&a.1).unwrap_or_else(|| {
+                warn!("Got NaN while sorting cross-encoded documents.");
+                std::cmp::Ordering::Equal
+            })
+        });
+        Ok(docs_with_scores)
     }
 }
 
 fn classification_score_for(
     ctx: &EngineContext<'_>,
     sequence_id: i32,
-) -> Result<f32, CrossEncoderWorkerError> {
+) -> Result<f32, CrossEncoderError> {
     // Rank pooling returns the classification head for each sequence.
     let embeddings = ctx.embeddings_seq_ith(sequence_id)?;
     embeddings
         .first()
         .copied()
-        .ok_or(CrossEncoderWorkerError::EmptyClassificationHead)
+        .ok_or(CrossEncoderError::EmptyClassificationHead)
+}
+
+#[derive(Debug, Clone)]
+pub struct CrossEncoderAsync {
+    encoder: Arc<tokio::sync::Mutex<CrossEncoder>>,
+    worker: Arc<AsyncWorker>,
+}
+
+impl CrossEncoderAsync {
+    pub async fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
+        let worker = AsyncWorker::new();
+        let encoder = worker.run(move || CrossEncoder::new(model, n_ctx)).await?;
+        Ok(Self {
+            encoder: Arc::new(tokio::sync::Mutex::new(encoder)),
+            worker: Arc::new(worker),
+        })
+    }
+
+    pub async fn rank(
+        &self,
+        query: String,
+        documents: Vec<String>,
+    ) -> Result<Vec<f32>, CrossEncoderError> {
+        let mut encoder = Arc::clone(&self.encoder).lock_owned().await;
+        self.worker
+            .run(move || encoder.rank(query, documents))
+            .await
+    }
+
+    pub async fn rank_and_sort(
+        &self,
+        query: String,
+        documents: Vec<String>,
+    ) -> Result<Vec<(String, f32)>, CrossEncoderError> {
+        let mut encoder = Arc::clone(&self.encoder).lock_owned().await;
+        self.worker
+            .run(move || encoder.rank_and_sort(query, documents))
+            .await
+    }
 }
 
 #[cfg(test)]
@@ -200,7 +143,7 @@ mod tests {
     #[tokio::test]
     async fn test_crossencoder_async() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_crossencoder_model();
-        let handle: CrossEncoderAsync = CrossEncoderAsync::new(model, 4096);
+        let handle = CrossEncoderAsync::new(model, 4096).await?;
 
         let query = "What is the capital of France?".to_string();
         let mut documents = vec![
@@ -241,7 +184,7 @@ mod tests {
     fn test_crossencoder_batch_matches_individual_scores() -> Result<(), Box<dyn std::error::Error>>
     {
         let model = test_utils::load_crossencoder_model();
-        let encoder = CrossEncoder::new(model, 48);
+        let mut encoder = CrossEncoder::new(model, 48)?;
         let query = "What is the capital of France?".to_string();
         let documents = vec![
             "Paris is the capital of France.".to_string(),
@@ -284,7 +227,7 @@ mod tests {
     #[ignore = "real-model benchmark; run with --ignored --nocapture"]
     fn benchmark_crossencoder_batching() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_crossencoder_model();
-        let encoder = CrossEncoder::new(model, 4096);
+        let mut encoder = CrossEncoder::new(model, 4096)?;
         let query = "What is the capital of France?".to_string();
         let documents = (0..40)
             .map(|index| {
@@ -334,7 +277,7 @@ mod tests {
     #[test]
     fn test_crossencoder_sync() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_crossencoder_model();
-        let encoder = CrossEncoder::new(model, 4096);
+        let mut encoder = CrossEncoder::new(model, 4096)?;
 
         let query = "What is the capital of France?".to_string();
         let documents = vec![
@@ -372,7 +315,7 @@ mod tests {
     #[test]
     fn test_oversized_input_keeps_crossencoder_alive() {
         let model = test_utils::load_crossencoder_model();
-        let crossencoder = CrossEncoder::new(model, 64);
+        let mut crossencoder = CrossEncoder::new(model, 64).unwrap();
 
         let err = crossencoder
             .rank("query".to_string(), vec!["word ".repeat(500)])
@@ -380,7 +323,7 @@ mod tests {
         assert!(
             matches!(
                 err,
-                CrossEncoderWorkerError::Read(crate::errors::ReadError::InputExceedsContext { .. })
+                CrossEncoderError::Read(crate::errors::ReadError::InputExceedsContext { .. })
             ),
             "the read error should reach the caller, got {err:?}"
         );

@@ -156,7 +156,7 @@ class IntegrationTest {
     fun testEncoderBatch() = runBlocking {
         val modelPath = requireEnv("TEST_EMBEDDINGS_MODEL")
         val model = Model.load(modelPath = modelPath, useGpu = false)
-        val encoder = Encoder(model = model, contextSize = 1024u)
+        val encoder = Encoder.create(model = model, contextSize = 1024u)
         val texts = listOf("Copenhagen is in Denmark.", "Berlin is in Germany.")
         val individual = texts.map { text -> encoder.encode(text = text) }
         val batched = encoder.encodeBatch(texts = texts)

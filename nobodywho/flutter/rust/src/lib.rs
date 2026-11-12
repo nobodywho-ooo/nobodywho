@@ -1061,14 +1061,20 @@ impl RustVoiceActivityDetection {
 
 #[flutter_rust_bridge::frb(opaque)]
 pub struct Encoder {
-    handle: nobodywho::encoder::EncoderAsync,
+    handle: nobodywho::encoder::Encoder,
 }
 
 impl Encoder {
-    #[flutter_rust_bridge::frb(sync)]
-    pub fn new(model: &Model, #[frb(default = 4096)] n_ctx: u32) -> Self {
-        let handle = nobodywho::encoder::EncoderAsync::new(Arc::clone(&model.model), n_ctx);
-        Self { handle }
+    /// Create an encoder from an already-loaded model.
+    ///
+    /// Args:
+    ///     model: A loaded model.
+    ///     n_ctx: Context size for the encoder. Defaults to 4096.
+    #[flutter_rust_bridge::frb]
+    pub fn create(model: &Model, #[frb(default = 4096)] n_ctx: u32) -> Result<Self, String> {
+        let handle = nobodywho::encoder::Encoder::new(Arc::clone(&model.model), n_ctx)
+            .map_err(|e| nobodywho::render_miette(&e))?;
+        Ok(Self { handle })
     }
 
     /// Load an embedding model from a local path, HuggingFace path, or HTTPS URL.
@@ -1098,38 +1104,43 @@ impl Encoder {
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;
-        let handle = nobodywho::encoder::EncoderAsync::new(Arc::new(model), n_ctx);
+        let handle = nobodywho::encoder::Encoder::new(Arc::new(model), n_ctx)
+            .map_err(|e| nobodywho::render_miette(&e))?;
 
         Ok(Self { handle })
     }
 
-    pub async fn encode(
-        &self,
-        text: String,
-    ) -> Result<Vec<f32>, nobodywho::errors::EncoderWorkerError> {
-        self.handle.encode(text).await
+    #[flutter_rust_bridge::frb]
+    pub fn encode(&mut self, text: String) -> Result<Vec<f32>, nobodywho::errors::EncoderError> {
+        self.handle.encode(text)
     }
 
     /// Encode multiple texts, preserving input order.
-    pub async fn encode_batch(
-        &self,
+    #[flutter_rust_bridge::frb]
+    pub fn encode_batch(
+        &mut self,
         texts: Vec<String>,
-    ) -> Result<Vec<Vec<f32>>, nobodywho::errors::EncoderWorkerError> {
-        self.handle.encode_batch(texts).await
+    ) -> Result<Vec<Vec<f32>>, nobodywho::errors::EncoderError> {
+        self.handle.encode_batch(texts)
     }
 }
 
 #[flutter_rust_bridge::frb(opaque)]
 pub struct CrossEncoder {
-    handle: nobodywho::crossencoder::CrossEncoderAsync,
+    handle: nobodywho::crossencoder::CrossEncoder,
 }
 
 impl CrossEncoder {
-    #[flutter_rust_bridge::frb(sync)]
-    pub fn new(model: &Model, #[frb(default = 4096)] n_ctx: u32) -> Self {
-        let handle =
-            nobodywho::crossencoder::CrossEncoderAsync::new(Arc::clone(&model.model), n_ctx);
-        Self { handle }
+    /// Create a cross-encoder from an already-loaded model.
+    ///
+    /// Args:
+    ///     model: A loaded model.
+    ///     n_ctx: Context size for the cross-encoder. Defaults to 4096.
+    #[flutter_rust_bridge::frb]
+    pub fn create(model: &Model, #[frb(default = 4096)] n_ctx: u32) -> Result<Self, String> {
+        let handle = nobodywho::crossencoder::CrossEncoder::new(Arc::clone(&model.model), n_ctx)
+            .map_err(|e| nobodywho::render_miette(&e))?;
+        Ok(Self { handle })
     }
 
     /// Load a cross-encoder model from a local path, HuggingFace path, or HTTPS URL.
@@ -1159,23 +1170,27 @@ impl CrossEncoder {
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;
-        let handle = nobodywho::crossencoder::CrossEncoderAsync::new(Arc::new(model), n_ctx);
+        let handle = nobodywho::crossencoder::CrossEncoder::new(Arc::new(model), n_ctx)
+            .map_err(|e| nobodywho::render_miette(&e))?;
         Ok(Self { handle })
     }
-    pub async fn rank(
-        &self,
+
+    #[flutter_rust_bridge::frb]
+    pub fn rank(
+        &mut self,
         query: String,
         documents: Vec<String>,
-    ) -> Result<Vec<f32>, nobodywho::errors::CrossEncoderWorkerError> {
-        self.handle.rank(query, documents).await
+    ) -> Result<Vec<f32>, nobodywho::errors::CrossEncoderError> {
+        self.handle.rank(query, documents)
     }
 
-    pub async fn rank_and_sort(
-        &self,
+    #[flutter_rust_bridge::frb]
+    pub fn rank_and_sort(
+        &mut self,
         query: String,
         documents: Vec<String>,
-    ) -> Result<Vec<(String, f32)>, nobodywho::errors::CrossEncoderWorkerError> {
-        self.handle.rank_and_sort(query, documents).await
+    ) -> Result<Vec<(String, f32)>, nobodywho::errors::CrossEncoderError> {
+        self.handle.rank_and_sort(query, documents)
     }
 }
 

@@ -575,18 +575,10 @@ pub enum DecisionError {
     WorkerTerminated,
 }
 
-// CrossEncoderWorker errors
-
 #[derive(Debug, thiserror::Error)]
-pub enum CrossEncoderWorkerError {
-    #[error("Error initializing worker: {0}")]
-    InitWorker(#[from] InitWorkerError),
-
+pub enum CrossEncoderError {
     #[error("Error reading string: {0}")]
     Read(#[from] ReadError),
-
-    #[error("Worker crashed while waiting for response. Enable logging for details.")]
-    NoResponse,
 
     #[error("Llama.cpp failed getting embeddings: {0}")]
     GettingEmbeddings(#[from] llama_cpp_2::EmbeddingsSeqError),
@@ -595,13 +587,8 @@ pub enum CrossEncoderWorkerError {
     EmptyClassificationHead,
 }
 
-// EncoderWorker errors
-
 #[derive(Debug, thiserror::Error)]
-pub enum EncoderWorkerError {
-    #[error("Error initializing worker: {0}")]
-    InitWorker(#[from] InitWorkerError),
-
+pub enum EncoderError {
     #[error("Error reading string: {0}")]
     Read(#[from] ReadError),
 
@@ -611,8 +598,8 @@ pub enum EncoderWorkerError {
     #[error("Error encoding text: {0}")]
     EmbeddingsSeq(#[from] llama_cpp_2::EmbeddingsSeqError),
 
-    #[error("Error encoding: {0}")]
-    Encode(String),
+    #[error("encoder returned no embedding")]
+    NoEmbedding,
 }
 
 // HuggingFace download errors

@@ -3998,30 +3998,66 @@ export class RustCrossEncoder
   readonly [uniffiTypeNameSymbol] = "RustCrossEncoder";
   readonly [destructorGuardSymbol]: UniffiGcObject;
   readonly [pointerLiteralSymbol]: UniffiHandle;
-  /**
-   * Create a new cross-encoder for ranking documents by relevance.
-   */
-  constructor(model: RustModelLike, contextSize: number | undefined) {
+  // No primary constructor declared for this class.
+  private constructor(pointer: UniffiHandle) {
     super();
-    const pointer = uniffiCaller.rustCall(
-      /*caller:*/ (callStatus) => {
-        return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
-          FfiConverterTypeRustModel.lower(
-            model,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalUInt32.lower(
-            contextSize,
-            nativeModule().rustbuffer_alloc,
-          ),
-          callStatus,
-        );
-      },
-      /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
-    );
     this[pointerLiteralSymbol] = pointer;
     this[destructorGuardSymbol] =
       uniffiTypeRustCrossEncoderObjectFactory.bless(pointer);
+  }
+
+  /**
+   * Create a new cross-encoder for ranking documents by relevance.
+   */
+  static async create(
+    model: RustModelLike,
+    contextSize: number | undefined,
+    asyncOpts_?: { signal: AbortSignal },
+  ): Promise<RustCrossEncoderLike> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+      return await uniffiRustCallAsync(
+        /*rustCaller:*/ uniffiCaller,
+        /*rustFutureFunc:*/ () => {
+          return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_create(
+            FfiConverterTypeRustModel.lower(
+              model,
+              nativeModule().rustbuffer_alloc,
+            ),
+            FfiConverterOptionalUInt32.lower(
+              contextSize,
+              nativeModule().rustbuffer_alloc,
+            ),
+          );
+        },
+        /*pollFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
+        /*cancelFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
+        /*completeFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
+        /*freeFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
+        // Async returns always go through the JS-side converter: the
+        // FFI symbol returns the future handle (u64), and the user-level
+        // RustBuffer comes back via the shared `rust_future_complete_*`
+        // export. The bytes the runtime hands back must be deserialized
+        // here using the per-callable return-type converter.
+        /*liftFunc:*/ FfiConverterTypeRustCrossEncoder.lift.bind(
+          FfiConverterTypeRustCrossEncoder,
+        ),
+        /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+        /*asyncOpts:*/ asyncOpts_,
+        /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+          FfiConverterTypeNobodyWhoError,
+        ),
+      );
+    } catch (__error: any) {
+      if (uniffiIsDebug && __error instanceof Error) {
+        __error.stack = __stack;
+      }
+      throw __error;
+    }
   }
 
   /**
@@ -4462,30 +4498,66 @@ export class RustEncoder
   readonly [uniffiTypeNameSymbol] = "RustEncoder";
   readonly [destructorGuardSymbol]: UniffiGcObject;
   readonly [pointerLiteralSymbol]: UniffiHandle;
-  /**
-   * Create a new encoder for generating text embeddings.
-   */
-  constructor(model: RustModelLike, contextSize: number | undefined) {
+  // No primary constructor declared for this class.
+  private constructor(pointer: UniffiHandle) {
     super();
-    const pointer = uniffiCaller.rustCall(
-      /*caller:*/ (callStatus) => {
-        return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
-          FfiConverterTypeRustModel.lower(
-            model,
-            nativeModule().rustbuffer_alloc,
-          ),
-          FfiConverterOptionalUInt32.lower(
-            contextSize,
-            nativeModule().rustbuffer_alloc,
-          ),
-          callStatus,
-        );
-      },
-      /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
-    );
     this[pointerLiteralSymbol] = pointer;
     this[destructorGuardSymbol] =
       uniffiTypeRustEncoderObjectFactory.bless(pointer);
+  }
+
+  /**
+   * Create a new encoder for generating text embeddings.
+   */
+  static async create(
+    model: RustModelLike,
+    contextSize: number | undefined,
+    asyncOpts_?: { signal: AbortSignal },
+  ): Promise<RustEncoderLike> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+      return await uniffiRustCallAsync(
+        /*rustCaller:*/ uniffiCaller,
+        /*rustFutureFunc:*/ () => {
+          return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_create(
+            FfiConverterTypeRustModel.lower(
+              model,
+              nativeModule().rustbuffer_alloc,
+            ),
+            FfiConverterOptionalUInt32.lower(
+              contextSize,
+              nativeModule().rustbuffer_alloc,
+            ),
+          );
+        },
+        /*pollFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
+        /*cancelFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
+        /*completeFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
+        /*freeFunc:*/ nativeModule()
+          .ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
+        // Async returns always go through the JS-side converter: the
+        // FFI symbol returns the future handle (u64), and the user-level
+        // RustBuffer comes back via the shared `rust_future_complete_*`
+        // export. The bytes the runtime hands back must be deserialized
+        // here using the per-callable return-type converter.
+        /*liftFunc:*/ FfiConverterTypeRustEncoder.lift.bind(
+          FfiConverterTypeRustEncoder,
+        ),
+        /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+        /*asyncOpts:*/ asyncOpts_,
+        /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
+          FfiConverterTypeNobodyWhoError,
+        ),
+      );
+    } catch (__error: any) {
+      if (uniffiIsDebug && __error instanceof Error) {
+        __error.stack = __stack;
+      }
+      throw __error;
+    }
   }
 
   /**
@@ -7065,11 +7137,11 @@ function uniffiEnsureInitialized() {
     );
   }
   if (
-    nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() !==
-    9022
+    nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_create() !==
+    59679
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
-      "uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new",
+      "uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_create",
     );
   }
   if (
@@ -7105,11 +7177,11 @@ function uniffiEnsureInitialized() {
     );
   }
   if (
-    nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() !==
-    27902
+    nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_create() !==
+    13139
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
-      "uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new",
+      "uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_create",
     );
   }
   if (

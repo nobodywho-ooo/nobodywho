@@ -1,4 +1,4 @@
-import { RustCrossEncoder } from "../generated";
+import { RustCrossEncoder, type RustCrossEncoderLike } from "../generated";
 import { Model } from "./model";
 
 /**
@@ -18,13 +18,16 @@ import { Model } from "./model";
  */
 export class CrossEncoder {
   /** @internal */
-  private readonly _inner: RustCrossEncoder;
+  private readonly _inner: RustCrossEncoderLike;
 
-  constructor(opts: { model: Model; contextSize?: number }) {
-    this._inner = new RustCrossEncoder(
-      opts.model._inner,
-      opts.contextSize ?? undefined,
-    );
+  private constructor(inner: RustCrossEncoderLike) {
+    this._inner = inner;
+  }
+
+  /** Create from a loaded model asynchronously. */
+  static async create(opts: { model: Model; contextSize?: number }): Promise<CrossEncoder> {
+    const inner = await RustCrossEncoder.create(opts.model._inner, opts.contextSize ?? undefined);
+    return new CrossEncoder(inner);
   }
 
   /**
@@ -42,7 +45,7 @@ export class CrossEncoder {
       useGpu: opts.useGpu,
       onDownloadProgress: opts.onDownloadProgress,
     });
-    return new CrossEncoder({ model, ...opts });
+    return CrossEncoder.create({ model, contextSize: opts.contextSize });
   }
 
   /** Rank documents by relevance to a query. Returns similarity scores. */
@@ -67,6 +70,6 @@ export class CrossEncoder {
    * After calling this, the CrossEncoder instance is no longer usable.
    */
   destroy(): void {
-    this._inner.uniffiDestroy();
+    (this._inner as any).uniffiDestroy();
   }
 }

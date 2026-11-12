@@ -71,12 +71,14 @@ impl NobodyWhoEncoder {
                 godot_error!("NobodyWhoEncoder.create() expects a NobodyWhoModel or a path String");
                 return Variant::nil();
             };
-            // EncoderAsync::new is non-blocking (spawns a worker thread).
-            Gd::from_init_fn(|base| Self {
-                handle: EncoderAsync::new(arc, n_ctx),
-                base,
-            })
-            .to_variant()
+            let result = EncoderAsync::new(arc, n_ctx).await;
+            match result {
+                Ok(handle) => Gd::from_init_fn(|base| Self { handle, base }).to_variant(),
+                Err(e) => {
+                    godot_error!("Failed to create encoder: {}", nobodywho::render_miette(&e));
+                    Variant::nil()
+                }
+            }
         })
         .bind()
         .wait()

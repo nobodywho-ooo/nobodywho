@@ -13,19 +13,20 @@ import uniffi.nobodywho.RustCrossEncoder as InternalCrossEncoder
  * val sorted = crossEncoder.rankAndSort("query", listOf("doc1", "doc2"))
  * ```
  */
-class CrossEncoder(
-    model: Model,
-    contextSize: UInt? = null
+class CrossEncoder private constructor(
+    private val inner: InternalCrossEncoder
 ) : Closeable {
-    private val inner: InternalCrossEncoder = InternalCrossEncoder(model.inner, contextSize)
-
     companion object {
+        /** Create from a loaded model asynchronously. */
+        suspend fun create(model: Model, contextSize: UInt? = null): CrossEncoder =
+            CrossEncoder(InternalCrossEncoder.create(model.inner, contextSize))
+
         /** Create a cross-encoder directly from a model path. */
         suspend fun fromPath(
             modelPath: String,
             useGpu: Boolean = true,
             contextSize: UInt? = null
-        ): CrossEncoder = CrossEncoder(Model.load(modelPath, useGpu), contextSize)
+        ): CrossEncoder = create(Model.load(modelPath, useGpu), contextSize)
     }
 
     suspend fun rank(query: String, documents: List<String>): List<Float> =

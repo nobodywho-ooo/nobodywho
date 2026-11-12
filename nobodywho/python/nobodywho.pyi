@@ -916,7 +916,7 @@ class CrossEncoder:
             A CrossEncoder instance
 
         Raises:
-            RuntimeError: If the model cannot be loaded
+            RuntimeError: If the model cannot be loaded or the context cannot be created
         """
     def rank(self, /, query: str, documents: Sequence[str]) -> list[float]:
         """
@@ -955,8 +955,9 @@ class CrossEncoderAsync:
     This is the async version of `CrossEncoder`.
     See the docs for `CrossEncoder` for more details.
     """
-    def __new__(
-        cls, /, model: "Model | os.PathLike | str", n_ctx: int = 4096
+    @staticmethod
+    async def create(
+        model: "Model | os.PathLike | str", n_ctx: int = 4096
     ) -> "CrossEncoderAsync":
         """
         Create a new async CrossEncoder for comparing text similarity.
@@ -969,7 +970,7 @@ class CrossEncoderAsync:
             A CrossEncoderAsync instance
 
         Raises:
-            RuntimeError: If the model cannot be loaded
+            RuntimeError: If the model cannot be loaded or the context cannot be created
         """
     async def rank(self, /, query: str, documents: Sequence[str]) -> list[float]:
         """
@@ -1045,7 +1046,7 @@ class Encoder:
             An Encoder instance
 
         Raises:
-            RuntimeError: If the model cannot be loaded
+            RuntimeError: If the model cannot be loaded or the context cannot be created
         """
     def encode(self, /, text: str) -> list[float]:
         """
@@ -1079,8 +1080,9 @@ class EncoderAsync:
     """
     This is the async version of the `Encoder` class. See the docs on `Encoder` for more detail.
     """
-    def __new__(
-        cls, /, model: "Model | os.PathLike | str", n_ctx: int = 4096
+    @staticmethod
+    async def create(
+        model: "Model | os.PathLike | str", n_ctx: int = 4096
     ) -> "EncoderAsync":
         """
         Create a new async Encoder for generating text embeddings.
@@ -1093,7 +1095,7 @@ class EncoderAsync:
             An EncoderAsync instance
 
         Raises:
-            RuntimeError: If the model cannot be loaded
+            RuntimeError: If the model cannot be loaded or the context cannot be created
         """
     async def encode(self, /, text: str) -> list[float]:
         """

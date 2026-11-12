@@ -222,9 +222,10 @@ def test_encoder_triggers_hf_download_path():
 
 
 @pytest.mark.network
-def test_encoder_async_triggers_hf_download_path():
+@pytest.mark.asyncio
+async def test_encoder_async_triggers_hf_download_path():
     with pytest.raises(RuntimeError) as exc_info:
-        nobodywho.EncoderAsync(HF_NONEXISTENT_MODEL)
+        await nobodywho.EncoderAsync.create(HF_NONEXISTENT_MODEL)
     _assert_triggers_hf_download_path(exc_info.value)
 
 
@@ -236,9 +237,10 @@ def test_crossencoder_triggers_hf_download_path():
 
 
 @pytest.mark.network
-def test_crossencoder_async_triggers_hf_download_path():
+@pytest.mark.asyncio
+async def test_crossencoder_async_triggers_hf_download_path():
     with pytest.raises(RuntimeError) as exc_info:
-        nobodywho.CrossEncoderAsync(HF_NONEXISTENT_MODEL)
+        await nobodywho.CrossEncoderAsync.create(HF_NONEXISTENT_MODEL)
     _assert_triggers_hf_download_path(exc_info.value)
 
 
