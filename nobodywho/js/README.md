@@ -5,7 +5,7 @@ NobodyWho is a React Native / Expo library for running large language models loc
 Free to use in commercial projects under the EUPL-1.2 license — no API key required. Supports text, vision, hearing, speech-to-text, text-to-speech, voice activity detection, decision models, embeddings, RAG & function calling.
 
 - [Documentation](https://docs.nobodywho.ooo) — React Native & other frameworks documentation
-- [RN starter example app](https://github.com/nobodywho-ooo/react-native-starter-example) / [Expo starter example app](https://github.com/nobodywho-ooo/expo-starter-example) — Test this library in 5 minutes
+- [RN starter example app](https://github.com/nobodywho-ooo/react-native-starter-example) / [Expo starter example app](https://github.com/nobodywho-ooo/expo-starter-example) / [React example app](https://github.com/nobodywho-ooo/javascript-starter-example) — Test this library in 5 minutes
 - [Discord](https://discord.gg/qhaMc2qCYB) — Get help, share ideas, and connect with other developers
 - [GitHub Issues](https://github.com/nobodywho-ooo/nobodywho/issues) — Report bugs
 - [GitHub Discussions](https://github.com/nobodywho-ooo/nobodywho/discussions) — Ask questions and request features
@@ -13,6 +13,7 @@ Free to use in commercial projects under the EUPL-1.2 license — no API key req
 ## How do I get started?
 
 First, install `react-native-nobodywho`.
+
 ```bash
 # React Native
 npm install react-native-nobodywho
@@ -51,11 +52,25 @@ Here `ios/` and `android/` are committed. Autolinking registers the module on yo
 
 You can also build with [EAS Build](https://docs.expo.dev/build/introduction/) instead of building locally. No config plugin is required.
 
+### Web / Node.js / Expo Web
+
+NobodyWho has experimental support for being compiled to WebAssembly and running in the browser.
+
+This functionality is automatically enabled, and should be usable, but it has a few limitations at the moment:
+
+- No WebGPU acceleration.
+- `async` tool calls don't work.
+- STT, TTS and VAD don't work.
+- Inference processes each token on the UI thread, so you might want to use it in a web worker to avoid frame hitches.
+- Node.js on Windows isn't supported yet. Use WSL instead.
+- In browsers, every file stored in `/tmp` and `/home` is loaded into memory when the page loads, so storing large models there uses a lot of memory.
+
 ## Supported Model Format
 
 This library uses the **GGUF format** — a binary format optimized for fast loading and efficient LLM inference. A wide selection of GGUF models is available on [Hugging Face](https://huggingface.co/models).
 
 **Compatibility notes:**
+
 - Most GGUF models will work, but some may fail due to formatting issues.
 - For mobile devices, models under 1 GB run smoothly. As a general rule, the device should have at least twice the available RAM as the model file size. Note that available RAM differs from total RAM — iOS typically reserves around 1–2 GB for the kernel and system processes, while Android overhead varies by manufacturer: roughly 2 GB on stock Android (e.g. Pixel devices), and between 2–4 GB on Samsung, Xiaomi, and Oppo devices due to additional services.
 

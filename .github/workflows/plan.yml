@@ -176,7 +176,7 @@ jobs:
           contains '^nobodywho/flutter/'     && out flutter      true || out flutter      false
           contains '^nobodywho/swift/'       && out swift        true || out swift        false
           contains '^nobodywho/(kotlin|testing-apps/kotlin)/' && out kotlin true || out kotlin false
-          contains '^nobodywho/js/' && out js true || out js false
+          contains '^nobodywho/(js|testing-apps/react-native)/' && out js true || out js false
           contains '^docs/'                  && out docs         true || out docs         false
           # regen-drift surface: anything that can change generated bindings/stubs.
           contains '^nobodywho/(core/|uniffi/|grammar/|Cargo\.(toml|lock)$|swift/generated/|swift/Package\.swift$|kotlin/common/generated/|kotlin/.*\.gradle\.kts$|js/src/generated/|js/cpp/generated/|js/package(-lock)?\.json$)' && out regen true || out regen false

@@ -280,15 +280,23 @@ jobs:
           node-version: 26
           registry-url: https://registry.npmjs.org
 
+      # Built and tested in release mode by js-ci.yml, earlier in this run.
+      - name: "Download package build"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho-js-dist
+          path: nobodywho/js/dist
+
       - name: "Verify Login"
         working-directory: ./nobodywho/js
         run: npm whoami
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      # `--ignore-scripts` skips `prepack`, which would build `dist/` again.
       - name: "Publish to npm"
         working-directory: ./nobodywho/js
-        run: npm publish --access public
+        run: npm publish --ignore-scripts --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

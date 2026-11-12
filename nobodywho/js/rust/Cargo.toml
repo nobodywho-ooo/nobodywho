@@ -1,0 +1,14 @@
+[package]
+name = "nobodywho-js"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+# FIXME(madsmtm): Split `nobodywho-uniffi` up such that we don't
+# build the unnecessary cdylib just by depending on it here.
+nobodywho-uniffi.path = "../../uniffi"
+
+[[bin]]
+name = "nobodywho_minimal"
+path = "src/minimal.rs"

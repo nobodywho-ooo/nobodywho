@@ -77,6 +77,11 @@ jobs:
       # /apple-extended-ci to compile-check just those targets.
       apple_extended:   ${{ needs.plan.outputs.run_apple_extended == 'true' }}
 
+  js-ci:
+    needs: plan
+    if: needs.plan.outputs.run_js == 'true'
+    uses: ./.github/workflows/js-ci.yml
+
   swift-ci:
     needs: [plan, build]
     if: needs.plan.outputs.run_swift == 'true'
@@ -113,7 +118,7 @@ jobs:
       GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
 
   release:
-    needs: [plan, linting, regen-checks, build, test, python-ci, swift-ci, kotlin-ci, mobile-device-tests]
+    needs: [plan, linting, regen-checks, build, test, python-ci, js-ci, swift-ci, kotlin-ci, mobile-device-tests]
     # always() so a *skipped* mobile-device-tests does not skip the release —
     # Swift/Python/Godot tags have no Android device tests. Failures and
     # cancellations still block, which is the point: a kotlin release cannot

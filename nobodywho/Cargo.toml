@@ -9,6 +9,7 @@ members = [
     "grammar/gbnf",
     "grammar/gbnf-macro",
     "uniffi",
+    "js/rust",
 ]
 default-members = [
     "core",

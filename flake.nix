@@ -11,6 +11,8 @@
     android-nixpkgs.url = "github:tadfisher/android-nixpkgs";
     crate2nix.url = "github:nix-community/crate2nix";
     crate2nix.inputs.nixpkgs.follows = "nixpkgs";
+    rust-overlay.url = "github:oxalica/rust-overlay";
+    rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
   };
   outputs =
     {
@@ -18,6 +20,7 @@
       flake-utils,
       android-nixpkgs,
       crate2nix,
+      rust-overlay,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -33,6 +36,17 @@
         );
 
         workspace = pkgs.callPackage ./nobodywho/workspace.nix { inherit crate2nix; };
+
+        # js stuff
+        workspace-emscripten = pkgs.callPackage ./nobodywho/workspace.nix {
+          inherit crate2nix;
+          # nixpkgs' rustc doesn't have the std for Emscripten.
+          emscriptenRustToolchain = (rust-overlay.lib.mkRustBin { } pkgs).stable.latest.minimal.override {
+            targets = [ "wasm32-unknown-emscripten" ];
+          };
+        };
+        # The Emscripten module that `npm run wasm` builds.
+        nobodywho-js = workspace-emscripten.workspaceMembers.nobodywho-js.build;
 
         # python stuff
         nobodywho-python = pkgs.callPackage ./nobodywho/python { inherit workspace; };
@@ -103,7 +117,14 @@
           npmDeps = pkgs.importNpmLock { npmRoot = ./nobodywho/js; };
           npmConfigHook = pkgs.importNpmLock.npmConfigHook;
           dontNpmBuild = true;
-          checkPhase = "npm test";
+          # `npm test`, but with the WASM module from nix instead of `npm run wasm`.
+          checkPhase = ''
+            cp ${nobodywho-js}/bin/*.js src/uniffi.js
+            cp ${nobodywho-js}/bin/*.wasm src/nobodywho_minimal.wasm
+            npm run typecheck
+            npm run build
+            TEST_MODEL=${test-models.TEST_MODEL} node --test
+          '';
           doCheck = true;
           installPhase = "touch $out";
         };

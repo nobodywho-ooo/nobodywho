@@ -61,6 +61,7 @@ const bindings: {
     links: [
       {text: 'React Native starter app', url: 'https://github.com/nobodywho-ooo/react-native-starter-example'},
       {text: 'Expo starter app', url: 'https://github.com/nobodywho-ooo/expo-starter-example'},
+      {text: 'React starter app', url: 'https://github.com/nobodywho-ooo/javascript-starter-example'},
     ],
   },
   {

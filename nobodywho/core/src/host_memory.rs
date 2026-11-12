@@ -355,6 +355,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(target_os = "emscripten", ignore = "platform_memory is unimplemented")]
     fn detects_available_host_memory() {
         let memory = available().unwrap();
         assert!(memory.available_bytes > 0);

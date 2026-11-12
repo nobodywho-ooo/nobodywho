@@ -86,9 +86,6 @@ ort = { version = "=2.0.0-rc.15", default-features = false, features = [
     "std",
     "ndarray",
     "tracing",
-    "download-binaries",
-    "tls-rustls",
-    "copy-dylibs",
     "api-20",
 ] }
 
@@ -141,6 +138,12 @@ dirs = "7.0.0"
 [target.'cfg(not(target_os = "emscripten"))'.dependencies]
 tokio = { version = "1.43.0", features = ["rt-multi-thread"] }
 ureq = { version = "3", features = ["rustls"] }
+# Emscripten uses `alternative-backend`, so it has no ONNX Runtime to download.
+ort = { version = "=2.0.0-rc.15", default-features = false, features = [
+    "download-binaries",
+    "tls-rustls",
+    "copy-dylibs",
+] }
 
 [target.'cfg(target_os = "emscripten")'.dependencies]
 # FIXME(madsmtm): Use `ort-web` or compile ONNX for Emscripten (possibly pre-compiled by ort-sys too?)
