@@ -134,6 +134,8 @@ let
     nobodywho-uniffi = attrs: {
       type = [ "lib" ];
       crateBin = [ ];
+      # uniffi's macros read this, and buildRustCrate doesn't set it.
+      env.CARGO_CRATE_NAME = "nobodywho_uniffi";
     };
 
     # Only used as rlibs; their cdylibs would link with the host cc.
