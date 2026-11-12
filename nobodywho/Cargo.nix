@@ -10821,7 +10821,7 @@ rec {
             name = "ort";
             packageId = "ort";
             usesDefaultFeatures = false;
-            features = [ "std" "ndarray" "tracing" "download-binaries" "tls-rustls" "copy-dylibs" "api-20" ];
+            features = [ "std" "ndarray" "tracing" "api-20" ];
           }
           {
             name = "ort";
@@ -10829,6 +10829,13 @@ rec {
             usesDefaultFeatures = false;
             target = { target, features }: ((("linux" == target."os" or null) || ("windows" == target."os" or null)) && ("x86_64" == target."arch" or null));
             features = [ "cuda" ];
+          }
+          {
+            name = "ort";
+            packageId = "ort";
+            usesDefaultFeatures = false;
+            target = { target, features }: (!("emscripten" == target."os" or null));
+            features = [ "download-binaries" "tls-rustls" "copy-dylibs" ];
           }
           {
             name = "ort";
