@@ -1,0 +1,10 @@
+[package]
+name = "nobodywho-emscripten"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "EUPL-1.2"
+
+[dependencies]
+bitflags = "2"
+log = "0.4.34"

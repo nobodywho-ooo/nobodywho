@@ -37,6 +37,12 @@ fn main() {
         // And store in persistent storage when running in the browser.
         println!("cargo:rustc-link-arg-bins=-lidbfs.js");
 
+        // Enable the fetch API.
+        println!("cargo:rustc-link-arg-bins=-sFETCH=1");
+        println!("cargo:rustc-link-arg-bins=-sFETCH_DEBUG=1");
+        // Required for EMSCRIPTEN_FETCH_STREAM_DATA.
+        println!("cargo:rustc-link-arg-bins=-sFETCH_STREAMING=1");
+
         // Tell emscripten to invoke wasm-bindgen on the linked .wasm, which
         // auto-exports all #[wasm_bindgen] symbols and generates JS bindings.
         // Not needed currently, but might be needed in the future?
