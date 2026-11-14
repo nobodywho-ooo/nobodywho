@@ -116,7 +116,7 @@ final class NobodyWhoTests: XCTestCase {
         XCTAssertTrue(response.contains("1969"), "Model did not read the supplied history: \(response)")
 
         // The supplied messages replace the history, with the reply appended
-        let history = try await chat.getChatHistory()
+        let history = await chat.getChatHistory()
         XCTAssertEqual(history.count, messages.count + 1)
 
         // An invalid conversation is rejected at the call site
@@ -135,11 +135,11 @@ final class NobodyWhoTests: XCTestCase {
             [.user("Say hi.")],
             options: Options(templateVariables: ["enable_thinking": true])
         ).completed()
-        let after = try await chat.getTemplateVariables()
+        let after = await chat.getTemplateVariables()
         XCTAssertEqual(after, ["enable_thinking": true])
 
         _ = try await chat.complete([.user("Say hi again.")]).completed()
-        let unchanged = try await chat.getTemplateVariables()
+        let unchanged = await chat.getTemplateVariables()
         XCTAssertEqual(
             unchanged, ["enable_thinking": true],
             "An empty Options should leave the template variables alone")
@@ -184,7 +184,7 @@ final class NobodyWhoTests: XCTestCase {
         let model = try await Model.load(modelPath: modelPath)
         let chat = try Chat(model: model, templateVariables: ["enable_thinking": false])
         try await chat.ask("What is the capital of Denmark?").completed()
-        let stats = try await chat.getStats()
+        let stats = await chat.getStats()
         XCTAssertGreaterThan(stats.contextUsed, 0)
         XCTAssertLessThanOrEqual(stats.contextUsed, stats.contextSize)
     }

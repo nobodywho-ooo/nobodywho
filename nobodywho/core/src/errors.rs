@@ -495,12 +495,6 @@ pub enum SetterError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum GetterError {
-    #[error("Worker terminated before processing getter: {0}")]
-    GetterError(String),
-}
-
-#[derive(Debug, thiserror::Error)]
 pub enum TokenizeError {
     #[error("Tokenization error: {0}")]
     Tokenization(#[from] TokenizationError),
