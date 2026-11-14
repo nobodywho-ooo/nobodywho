@@ -14,6 +14,12 @@ pkgs.mkShell {
       pkgs.vulkan-loader
       pkgs.gcc.cc.lib
     ];
+    # Scoped to the Emscripten target, so they take precedence over mkShell's CC/CXX/AR there and leave native builds alone.
+    CC_wasm32_unknown_emscripten = "emcc";
+    CXX_wasm32_unknown_emscripten = "em++";
+    AR_wasm32_unknown_emscripten = "emar";
+    # em++ rather than emcc so llama.cpp's C++ standard library gets linked
+    CARGO_TARGET_WASM32_UNKNOWN_EMSCRIPTEN_LINKER = "em++";
   }
   // (removeAttrs test-models [ "override" "overrideDerivation" ]);
 

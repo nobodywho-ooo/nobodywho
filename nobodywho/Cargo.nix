@@ -63,10 +63,10 @@ rec {
       # File a bug if you depend on any for non-debug work!
       debug = internal.debugCrate { inherit packageId; };
     };
-    "make_stubs" = rec {
-      packageId = "make_stubs";
+    "make-stubs" = rec {
+      packageId = "make-stubs";
       build = internal.buildRustCrateWithFeatures {
-        packageId = "make_stubs";
+        packageId = "make-stubs";
       };
 
       # Debug support which might change between releases.
@@ -9481,13 +9481,13 @@ rec {
         features = {
         };
       };
-      "make_stubs" = rec {
-        crateName = "make_stubs";
+      "make-stubs" = rec {
+        crateName = "make-stubs";
         version = "0.1.0";
         edition = "2021";
         crateBin = [
           {
-            name = "make_stubs";
+            name = "make-stubs";
             path = "src/main.rs";
             requiredFeatures = [ ];
           }
