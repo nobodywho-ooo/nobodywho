@@ -1636,9 +1636,12 @@ impl Chat {
         // If the model supports checkpoints, we save a checkpoint at this position
         // in sync_context: after the user message, before the generation prompt ("<im_start>assistant", etc.)
         let checkpoint_at = self.checkpoint_index(&chunks)?;
+        // And one before the conversation, which a reset history or a new chat
+        // with the same system prompt (and tools) can rewind to.
+        let prefix_at = self.prefix_checkpoint_index(&chunks)?;
 
         // Diff against the KV mirror and load only the new tail.
-        self.engine_mut(move |e| e.sync_context(chunks, checkpoint_at))?;
+        self.engine_mut(move |e| e.sync_context(chunks, checkpoint_at, prefix_at))?;
         self.media.retain_referenced(&self.messages);
 
         Ok(render)
@@ -1655,6 +1658,29 @@ impl Chat {
         let history = self.render_as_chunks(&self.messages, false)?;
         // Tokens can merge across the generation prompt, so take the shared prefix, instead of history.n_tokens() - 1.
         Ok(Some(find_chunks_prefix_difference(&history, chunks)))
+    }
+
+    /// Where a recurrent model should keep its prefix checkpoint in `render`: where the
+    /// first message's content starts, i.e. after the system prompt and the template's
+    /// preamble. Found by rendering the history with that content swapped out, so it
+    /// works for any template, including ones that refuse to render without a user turn.
+    fn prefix_checkpoint_index(
+        &self,
+        chunks: &TokenizerChunks,
+    ) -> Result<Option<usize>, RenderError> {
+        if !self.engine().needs_checkpoints()
+            || !self.messages.first().is_some_and(Message::is_user)
+        {
+            return Ok(None);
+        }
+        let mut probe = self.messages.clone().into_vec();
+        probe[0] = Message::new_user("\u{2400}");
+        let Ok(probe) = History::new(probe) else {
+            return Ok(None);
+        };
+        let probe = self.render_as_chunks(&probe, false)?;
+        let at = find_chunks_prefix_difference(&probe, chunks);
+        Ok((at > 0).then_some(at))
     }
 
     /// Drop the fewest whole turns after the kept first ones for the render, plus
@@ -5224,6 +5250,45 @@ mod tests {
                 assert!(decoded < cached, "{prompt:?} re-read the whole chat");
             }
         }
+    }
+
+    /// A new conversation with the same system prompt rewinds a recurrent model to
+    /// the prefix checkpoint, instead of re-reading the system prompt.
+    #[test]
+    fn test_recurrent_reset_history_keeps_system_prompt() {
+        let Some(model) = test_utils::load_model_from_env("TEST_RECURRENT_MODEL", None) else {
+            return;
+        };
+        let system_prompt = "You are a terse assistant. ".repeat(20);
+        let mut chat = Chat::new(
+            model,
+            ChatConfig {
+                system_prompt: Some(system_prompt),
+                template_variables: [("enable_thinking".to_string(), false)].into(),
+                sampler_config: Some(SamplerPresets::greedy()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut decoded = Vec::new();
+        for prompt in ["What is the capital of France?", "Name a primary color."] {
+            chat.set_chat_history(Vec::new()).unwrap();
+            decoded.push(prompt_tokens_decoded(&mut chat, |chat| {
+                chat.ask(prompt.into())
+                    .unwrap()
+                    .response(chat, Some(8), true)
+                    .unwrap();
+            }));
+        }
+        let system_tokens = chat
+            .engine()
+            .tokenize("You are a terse assistant. ".repeat(20), Vec::new())
+            .unwrap()
+            .n_tokens() as i32;
+        assert!(
+            decoded[1] < system_tokens,
+            "the second conversation re-read the system prompt: {decoded:?} tokens decoded, system prompt is {system_tokens}"
+        );
     }
 
     // Template rendering tests have been moved to template.rs module

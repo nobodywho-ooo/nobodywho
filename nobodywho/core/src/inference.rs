@@ -222,6 +222,10 @@ const CHECKPOINT_FLAGS: LlamaStateSeqFlags = LlamaStateSeqFlags::from_bits(
     LlamaStateSeqFlags::PARTIAL_ONLY.bits() | LlamaStateSeqFlags::ON_DEVICE.bits(),
 );
 
+/// The prefix checkpoint is copied to host memory, so it survives the on-device
+/// snapshots taken for each turn.
+const PREFIX_CHECKPOINT_FLAGS: LlamaStateSeqFlags = LlamaStateSeqFlags::PARTIAL_ONLY;
+
 #[derive(Debug)]
 pub(crate) struct BatchCapacity {
     pub(crate) tokens: usize,
@@ -251,6 +255,10 @@ pub(crate) struct InferenceEngine<'a> {
     needs_checkpoints: bool,
     /// Always covers a prefix of `kv_mirror` that hasn't changed since it was taken.
     checkpoint: Option<Checkpoint>,
+    /// A second checkpoint at a prefix that many prompts share, such as the end of the
+    /// system prompt, so a new conversation with the same prompt doesn't re-read it.
+    /// Same invariant as `checkpoint`.
+    prefix_checkpoint: Option<Checkpoint>,
 }
 
 impl<'a> InferenceEngine<'a> {
@@ -397,6 +405,7 @@ impl<'a> InferenceEngine<'a> {
             pending_generated: Vec::new(),
             needs_checkpoints,
             checkpoint: None,
+            prefix_checkpoint: None,
         }
     }
 
@@ -423,13 +432,11 @@ impl<'a> InferenceEngine<'a> {
     fn truncate_mirror(&mut self, n_tokens: usize) {
         self.flush_generated();
         self.kv_mirror.truncate(n_tokens);
-        // If we go back before the checkpoint, it is no longer valid.
-        if self
-            .checkpoint
-            .as_ref()
-            .is_some_and(|c| n_tokens < c.n_tokens)
-        {
-            self.checkpoint = None;
+        // If we go back before a checkpoint, it is no longer valid.
+        for checkpoint in [&mut self.checkpoint, &mut self.prefix_checkpoint] {
+            if checkpoint.as_ref().is_some_and(|c| n_tokens < c.n_tokens) {
+                *checkpoint = None;
+            }
         }
     }
 
@@ -438,12 +445,24 @@ impl<'a> InferenceEngine<'a> {
         self.kv_mirror = TokenizerChunks::new();
         self.pending_generated.clear();
         self.checkpoint = None;
+        self.prefix_checkpoint = None;
     }
 
     /// Snapshot the recurrent state at the current end of the KV cache.
     #[tracing::instrument(level = "trace", skip(self))]
     fn save_checkpoint(&mut self) {
-        match self.ctx.state_seq_get(0, CHECKPOINT_FLAGS) {
+        // A failed snapshot already invalidated the previous on-device one.
+        self.checkpoint = self.snapshot(CHECKPOINT_FLAGS);
+    }
+
+    /// Snapshot the recurrent state at the current end of the KV cache, as the prefix checkpoint.
+    #[tracing::instrument(level = "trace", skip(self))]
+    fn save_prefix_checkpoint(&mut self) {
+        self.prefix_checkpoint = self.snapshot(PREFIX_CHECKPOINT_FLAGS);
+    }
+
+    fn snapshot(&mut self, flags: LlamaStateSeqFlags) -> Option<Checkpoint> {
+        match self.ctx.state_seq_get(0, flags) {
             Ok(state) => {
                 let n_tokens = self.kv_mirror().n_tokens();
                 trace!(
@@ -452,12 +471,11 @@ impl<'a> InferenceEngine<'a> {
                     bytes = state.byte_len(),
                     "Saved checkpoint"
                 );
-                self.checkpoint = Some(Checkpoint { state, n_tokens });
+                Some(Checkpoint { state, n_tokens })
             }
             Err(error) => {
-                // The failed snapshot already invalidated the previous on-device one.
                 warn!(%error, "Failed to save checkpoint");
-                self.checkpoint = None;
+                None
             }
         }
     }
@@ -466,19 +484,17 @@ impl<'a> InferenceEngine<'a> {
     /// the tokens kept. `None` means the caller has to reset the whole context.
     #[tracing::instrument(level = "trace", skip(self))]
     fn restore_checkpoint(&mut self, index: usize) -> Option<usize> {
-        let Some(checkpoint) = self.checkpoint.as_ref() else {
-            trace!("No checkpoint to restore from");
+        // The latest checkpoint at or before `index`: the turn's, else the prefix's.
+        let Some(checkpoint) = [self.checkpoint.as_ref(), self.prefix_checkpoint.as_ref()]
+            .into_iter()
+            .flatten()
+            .filter(|c| c.n_tokens <= index)
+            .max_by_key(|c| c.n_tokens)
+        else {
+            trace!(index, "No checkpoint at or before the rewind target");
             return None;
         };
         let n_tokens = checkpoint.n_tokens;
-        if index < n_tokens {
-            trace!(
-                n_tokens,
-                index,
-                "Checkpoint is past the rewind target; cannot use"
-            );
-            return None;
-        }
         if let Err(error) = self.ctx.state_seq_set(&checkpoint.state, 0) {
             warn!(%error, "Failed to restore checkpoint");
             return None;
@@ -778,10 +794,13 @@ impl<'a> InferenceEngine<'a> {
     ///
     /// `checkpoint_at` is a token index in `target` to save a checkpoint at, if the cache
     /// isn't already past it; only pass it if [`Self::needs_checkpoints`].
+    /// `prefix_at` is the same for the prefix checkpoint, which a later target that only
+    /// shares that prefix (e.g. a new chat with the same system prompt) rewinds to.
     pub(crate) fn sync_context(
         &mut self,
         target: TokenizerChunks,
         checkpoint_at: Option<usize>,
+        prefix_at: Option<usize>,
     ) -> Result<(), ContextSyncError> {
         if let EngineContext::Speculative(spec) = &mut self.ctx {
             // Clear draft state.
@@ -803,6 +822,22 @@ impl<'a> InferenceEngine<'a> {
             // The target ends inside the cache, whose logits are for a token we just
             // removed. Read the last token again to get its logits.
             kept = self.remove_kv_cache_suffix(end - 1)?;
+        }
+
+        // Same rules as below. A prefix checkpoint already at `prefix_at` is kept, since
+        // everything before it still matches.
+        let prefix_at = prefix_at.filter(|&at| {
+            0 < at
+                && kept <= at
+                && at < end
+                && self
+                    .prefix_checkpoint
+                    .as_ref()
+                    .is_none_or(|c| c.n_tokens != at)
+        });
+        if let Some(at) = prefix_at {
+            self.read_until(&target, at)?;
+            self.save_prefix_checkpoint();
         }
 
         // The cache can't be saved at a point it is already past, and an older checkpoint
@@ -1093,7 +1128,7 @@ mod tests {
         let sync = |engine: &mut InferenceEngine, tokens: &[LlamaToken]| {
             let mut chunks = TokenizerChunks::new();
             chunks.append(TokenizerChunk::new_text(tokens.to_vec()));
-            engine.sync_context(chunks, None).unwrap();
+            engine.sync_context(chunks, None, None).unwrap();
         };
 
         let tokens =
