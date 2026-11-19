@@ -1636,8 +1636,7 @@ impl Chat {
         // If the model supports checkpoints, we save a checkpoint at this position
         // in sync_context: after the user message, before the generation prompt ("<im_start>assistant", etc.)
         let checkpoint_at = self.checkpoint_index(&chunks)?;
-        // And one before the conversation, which a reset history or a new chat
-        // with the same system prompt (and tools) can rewind to.
+        // And one before the conversation, for a new chat with the same system prompt.
         let prefix_at = self.prefix_checkpoint_index(&chunks);
 
         // Diff against the KV mirror and load only the new tail.
@@ -5244,9 +5243,7 @@ mod tests {
         }
     }
 
-    /// A new conversation with the same system prompt rewinds a recurrent model to
-    /// the prefix checkpoint, instead of re-reading the system prompt. A changed system
-    /// prompt invalidates the checkpoint.
+    /// A new conversation with the same system prompt doesn't re-read it; a changed one does.
     #[test]
     fn test_recurrent_reset_history_keeps_system_prompt() {
         let Some(model) = test_utils::load_model_from_env("TEST_RECURRENT_MODEL", None) else {
