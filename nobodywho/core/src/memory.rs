@@ -112,13 +112,13 @@ fn select_gpu_from(
 
 fn gpu_shares_host_memory(
     device_type: llama_cpp_2::LlamaBackendDeviceType,
-    backend: &str,
     apple_unified_memory: bool,
 ) -> bool {
-    matches!(
-        device_type,
-        llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
-    ) || (apple_unified_memory && backend.eq_ignore_ascii_case("metal"))
+    apple_unified_memory
+        || matches!(
+            device_type,
+            llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
+        )
 }
 
 fn available_model_memory_from(
@@ -158,7 +158,6 @@ pub(crate) fn available_model_memory(
             total_bytes: device.memory_total as u64,
             shares_host_memory: gpu_shares_host_memory(
                 device.device_type,
-                &device.backend,
                 cfg!(all(target_vendor = "apple", target_arch = "aarch64")),
             ),
         })
@@ -404,7 +403,8 @@ mod tests {
 
     #[test]
     fn treats_apple_metal_gpu_as_unified_memory() {
-        assert!(gpu_shares_host_memory(Gpu, "Metal", true));
+        // llama.cpp's Metal device reports type Gpu (backend "MTL"), not IntegratedGpu.
+        assert!(gpu_shares_host_memory(Gpu, true));
         let memory = available_model_memory_from(
             host(6 * GIB, 8 * GIB),
             &[gpu(6 * GIB, 8 * GIB, true)],
@@ -414,9 +414,23 @@ mod tests {
     }
 
     #[test]
-    fn does_not_treat_discrete_metal_gpu_as_unified_memory() {
-        assert!(!gpu_shares_host_memory(Gpu, "Metal", false));
-        assert!(gpu_shares_host_memory(IntegratedGpu, "Vulkan", false));
+    fn only_integrated_gpus_share_memory_off_apple_silicon() {
+        assert!(!gpu_shares_host_memory(Gpu, false));
+        assert!(gpu_shares_host_memory(IntegratedGpu, false));
+    }
+
+    #[test]
+    fn does_not_double_count_mac_memory() {
+        // Measured on a 24 GiB M4 Pro Mac mini: 19.18 GiB host available,
+        // Metal working set 17.76 GiB. Before the fix this summed to 36.99 GiB.
+        let gpus = [gpu(
+            17_760 * GIB / 1000,
+            17_760 * GIB / 1000,
+            gpu_shares_host_memory(Gpu, true),
+        )];
+        let memory = available_model_memory_from(host(19_180 * GIB / 1000, 24 * GIB), &gpus, true);
+        assert_eq!(memory.free_bytes, 19_180 * GIB / 1000);
+        assert_eq!(memory.usable_bytes, 18 * GIB);
     }
 
     #[test]
