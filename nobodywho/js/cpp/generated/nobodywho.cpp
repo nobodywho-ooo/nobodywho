@@ -377,12 +377,14 @@ void uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(
 float uniffi_nobodywho_uniffi_fn_func_cosine_similarity(
     RustBuffer a, RustBuffer b, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_download_model(
-    RustBuffer model_path, RustBuffer headers, RustBuffer on_download_progress);
+    RustBuffer remote, RustBuffer headers, RustBuffer on_download_progress);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_download_models(
+    RustBuffer sources, RustBuffer on_download_progress);
 RustBuffer uniffi_nobodywho_uniffi_fn_func_get_cached_models(
     RustCallStatus *uniffi_out_err);
-/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(
-    RustBuffer model_path, int8_t use_gpu, RustBuffer projection_model_path,
-    RustBuffer draft_model_path, RustBuffer on_download_progress);
+/*handle*/ uint64_t
+uniffi_nobodywho_uniffi_fn_func_load_model(RustBuffer source, RustBuffer paths,
+                                           int8_t use_gpu);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_load_speech_to_text(
     RustBuffer source, RustBuffer language, RustBuffer quantization);
 /*handle*/ uint64_t
@@ -390,6 +392,11 @@ uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(
     RustBuffer source, uint32_t sample_rate, RustBuffer threshold,
     RustBuffer min_silence_duration_ms, RustBuffer min_speech_duration_ms,
     RustBuffer preroll_duration_ms, RustBuffer device);
+RustBuffer uniffi_nobodywho_uniffi_fn_func_parse_model_path(
+    RustBuffer path, RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_parse_model_paths(
+    RustBuffer model_path, RustBuffer projection_model_path,
+    RustBuffer draft_model_path, int8_t use_gpu);
 /*handle*/ uint64_t
 uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(
     RustBuffer grammar, RustCallStatus *uniffi_out_err);
@@ -534,10 +541,13 @@ void ffi_nobodywho_uniffi_rust_future_complete_void(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
 uint16_t uniffi_nobodywho_uniffi_checksum_func_cosine_similarity();
 uint16_t uniffi_nobodywho_uniffi_checksum_func_download_model();
+uint16_t uniffi_nobodywho_uniffi_checksum_func_download_models();
 uint16_t uniffi_nobodywho_uniffi_checksum_func_get_cached_models();
 uint16_t uniffi_nobodywho_uniffi_checksum_func_load_model();
 uint16_t uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text();
 uint16_t uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection();
+uint16_t uniffi_nobodywho_uniffi_checksum_func_parse_model_path();
+uint16_t uniffi_nobodywho_uniffi_checksum_func_parse_model_paths();
 uint16_t
 uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar();
 uint16_t
@@ -4121,6 +4131,17 @@ NativeNobodywho::NativeNobodywho(
             return this->cpp_uniffi_nobodywho_uniffi_fn_func_download_model(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_func_download_models"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_func_download_models"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_nobodywho_uniffi_fn_func_download_models(
+                rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_nobodywho_uniffi_fn_func_get_cached_models"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -4137,7 +4158,7 @@ NativeNobodywho::NativeNobodywho(
           rt,
           jsi::PropNameID::forAscii(
               rt, "ubrn_uniffi_nobodywho_uniffi_fn_func_load_model"),
-          5,
+          3,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this->cpp_uniffi_nobodywho_uniffi_fn_func_load_model(
@@ -4166,6 +4187,28 @@ NativeNobodywho::NativeNobodywho(
             return this
                 ->cpp_uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(
                     rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_func_parse_model_path"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_func_parse_model_path"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_nobodywho_uniffi_fn_func_parse_model_path(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_func_parse_model_paths"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_func_parse_model_paths"),
+          4,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_nobodywho_uniffi_fn_func_parse_model_paths(
+                rt, thisVal, args, count);
           });
   props["ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_"
         "grammar"] = jsi::Function::createFromHostFunction(
@@ -4843,6 +4886,18 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_checksum_func_download_model(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_func_download_models"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_checksum_func_download_models"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_checksum_func_download_models(
+                    rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_func_get_cached_models"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -4892,6 +4947,32 @@ NativeNobodywho::NativeNobodywho(
             ->cpp_uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(
                 rt, thisVal, args, count);
       });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_func_parse_model_path"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_nobodywho_uniffi_checksum_func_parse_model_path"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_checksum_func_parse_model_path(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_func_parse_model_paths"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_nobodywho_uniffi_checksum_func_parse_model_paths"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_checksum_func_parse_model_paths(
+                    rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_"
         "with_grammar"] = jsi::Function::createFromHostFunction(
       rt,
@@ -8097,6 +8178,17 @@ jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_func_download_model(
   return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
                                                          value);
 }
+jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_func_download_models(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_func_download_models(
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                      args[1]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
 jsi::Value
 NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_func_get_cached_models(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
@@ -8114,11 +8206,8 @@ jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_func_load_model(
     size_t count) {
   auto value = uniffi_nobodywho_uniffi_fn_func_load_model(
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]),
-      uniffi_jsi::Bridging<int8_t>::fromJs(rt, callInvoker, args[1]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[3]),
-      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
-                                                      args[4]));
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+      uniffi_jsi::Bridging<int8_t>::fromJs(rt, callInvoker, args[2]));
 
   return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
                                                          value);
@@ -8149,6 +8238,33 @@ jsi::Value NativeNobodywho::
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[5]),
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
                                                       args[6]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_func_parse_model_path(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_nobodywho_uniffi_fn_func_parse_model_path(
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi::nobodywho::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_func_parse_model_paths(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_func_parse_model_paths(
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]),
+      uniffi_jsi::Bridging<int8_t>::fromJs(rt, callInvoker, args[3]));
 
   return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
                                                          value);
@@ -8859,6 +8975,14 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_func_download_model(
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_func_download_models(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_checksum_func_download_models();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
 NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_func_get_cached_models(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
@@ -8888,6 +9012,22 @@ jsi::Value NativeNobodywho::
         size_t count) {
   auto value =
       uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_func_parse_model_path(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_checksum_func_parse_model_path();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_func_parse_model_paths(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_checksum_func_parse_model_paths();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

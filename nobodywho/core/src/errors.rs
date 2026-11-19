@@ -303,6 +303,10 @@ impl LoadModelError {
     pub fn validate_model_file(fs_path: &std::path::Path) -> Result<(), Self> {
         use std::io::Read;
 
+        if !fs_path.exists() {
+            return Err(LoadModelError::from_missing_path(&fs_path));
+        }
+
         if fs_path.is_dir() {
             return Err(LoadModelError::IsADirectory {
                 path: fs_path.to_string_lossy().into_owned(),

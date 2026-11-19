@@ -2,6 +2,10 @@ package ai.nobodywho
 
 import java.io.Closeable
 import uniffi.nobodywho.RustModel as InternalModel
+import uniffi.nobodywho.parseModelPath
+import uniffi.nobodywho.parseModelPaths
+import uniffi.nobodywho.GgufSource
+import uniffi.nobodywho.downloadModels
 import uniffi.nobodywho.loadModel
 import uniffi.nobodywho.downloadModel as internalDownloadModel
 import uniffi.nobodywho.RustDownloadProgressCallback
@@ -41,7 +45,10 @@ class Model internal constructor(
                     override fun onDownloadProgress(downloaded: ULong, total: ULong) = cb(downloaded, total)
                 }
             }
-            return Model(loadModel(modelPath, useGpu, projectionModelPath, draftModelPath, callback))
+            val sources = parseModelPaths(modelPath, projectionModelPath, draftModelPath, useGpu)
+            val paths = downloadModels(sources, callback)
+            val inner = loadModel(modelPath, paths, useGpu)
+            return Model(inner)
         }
 
         /**
@@ -64,7 +71,10 @@ class Model internal constructor(
                     override fun onDownloadProgress(downloaded: ULong, total: ULong) = cb(downloaded, total)
                 }
             }
-            return internalDownloadModel(modelPath, headers, callback)
+            return when (val source = parseModelPath(modelPath)) {
+                is GgufSource.Local -> source.v1
+                is GgufSource.Remote -> internalDownloadModel(source.v1, headers, callback)
+            }
         }
     }
 

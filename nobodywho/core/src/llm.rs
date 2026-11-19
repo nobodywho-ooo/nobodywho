@@ -1,5 +1,5 @@
 use crate::errors::LoadModelError;
-use crate::huggingface::{download_gguf, parse_model_path};
+use crate::huggingface::{default_progress_callback, ModelCache};
 use crate::memory;
 use crate::model_selection;
 use crate::tokenizer::ProjectionModel;
@@ -7,15 +7,15 @@ use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::LlamaModel;
-use std::pin::pin;
+use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex};
 use tracing::{error, info, info_span, warn};
 
 // Back-compat re-exports: bindings (Python, Godot, Flutter) import these via
 // `nobodywho::llm::*`. The implementations now live in `crate::huggingface`.
 pub use crate::huggingface::{
-    default_progress_callback, get_cached_models, throttled_progress_callback,
-    DownloadCancellationCallback, DownloadProgressCallback,
+    get_cached_models, parse_model_path, throttled_progress_callback, DownloadCancellationCallback,
+    DownloadProgressCallback, GgufSource, RemoteFile,
 };
 
 pub(crate) static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
@@ -100,100 +100,149 @@ pub fn has_gpu_backend() -> bool {
     memory::select_best_gpu().is_some()
 }
 
-/// Load a GGUF model from disk.
+/// Helper for parsing, downloading and loading models.
 ///
-/// # Arguments
-///
-/// * `model_path` - `auto` for memory-based LLM selection, or a path to a GGUF model
-/// * `use_gpu_if_available` - Whether to attempt GPU acceleration if a discrete GPU is available
-///
-/// # Returns
-///
-/// Returns a `Model` on success, or a `LoadModelError` on failure.
-///
-/// # Errors
-///
-/// This function will return an error if:
-/// * The model file is not found (`LoadModelError::ModelNotFound`)
-/// * The model file is invalid or unsupported (`LoadModelError::InvalidModel`)
-/// * The communication channel closes unexpectedly (`LoadModelError::ModelChannelError`)
-#[tracing::instrument(level = "info", skip(progress))]
+/// This is split into three steps internally, which allows downloading to be
+/// done by the language bindings instead of Rust.
 pub fn get_model(
     model_path: &str,
     use_gpu_if_available: bool,
-    mmproj_path: Option<&str>,
+    projection_model_path: Option<&str>,
     draft_model_path: Option<&str>,
     progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
-    get_model_cancellable(
+    let sources = parse_model_paths(
         model_path,
-        use_gpu_if_available,
-        mmproj_path,
+        projection_model_path,
         draft_model_path,
-        progress,
-        None,
-    )
+        use_gpu_if_available,
+    )?;
+    let paths = download_models(&sources, progress, None)?;
+    let model = load_model(model_path.to_string(), &paths, use_gpu_if_available)?;
+    Ok(model)
 }
 
-#[tracing::instrument(level = "info", skip(progress, cancellation))]
-pub fn get_model_cancellable(
-    model_path: &str,
-    use_gpu_if_available: bool,
-    mmproj_path: Option<&str>,
+/// Parse model paths such that they are ready to be downloaded (if necessary).
+///
+/// If `model_path` is `auto`, this will attempt to figure out the model based
+/// for memory-based LLM selection.
+#[tracing::instrument(level = "debug")]
+pub fn parse_model_paths(
+    language_model_path: &str,
+    projection_model_path: Option<&str>,
     draft_model_path: Option<&str>,
-    progress: Option<DownloadProgressCallback>,
-    cancellation: Option<DownloadCancellationCallback>,
-) -> Result<Model, LoadModelError> {
-    if model_path == "auto" && mmproj_path.is_some() {
-        return Err(LoadModelError::InvalidModel(
-            "Automatic model selection does not support projection models; pass an explicit multimodal model path"
-                .to_string(),
-        ));
+    use_gpu_if_available: bool,
+) -> Result<ModelSources, LoadModelError> {
+    if language_model_path == "auto" && projection_model_path.is_some() {
+        let msg = "Automatic model selection does not support projection models; pass an explicit multimodal model path";
+        return Err(LoadModelError::InvalidModel(msg.to_string()));
     }
 
-    let source = model_path.to_owned();
     let use_gpu = use_gpu_if_available && has_gpu_backend();
-    let model_path = model_selection::resolve_model_path(model_path, use_gpu)?;
-    let model_progress = progress
-        .clone()
-        .unwrap_or_else(|| default_progress_callback(model_path));
-    let real_model_path = download_gguf(
-        parse_model_path(model_path)?,
-        &model_progress,
-        &[],
-        cancellation.as_ref(),
-    )?;
-    let real_mmproj_path = match mmproj_path {
-        Some(p) => {
-            let mmproj_progress = progress
-                .clone()
-                .unwrap_or_else(|| default_progress_callback(p));
-            Some(download_gguf(
-                parse_model_path(p)?,
-                &mmproj_progress,
-                &[],
-                cancellation.as_ref(),
-            )?)
-        }
-        None => None,
-    };
-    let real_draft_model_path = match draft_model_path {
-        Some(p) => {
-            let draft_progress = progress
-                .clone()
-                .unwrap_or_else(|| default_progress_callback(p));
-            Some(download_gguf(
-                parse_model_path(p)?,
-                &draft_progress,
-                &[],
-                cancellation.as_ref(),
-            )?)
-        }
-        None => None,
-    };
+    let language_model_path = model_selection::resolve_model_path(language_model_path, use_gpu)?;
 
-    let loading_plan =
-        memory::plan_model_loading(&real_model_path, real_mmproj_path.as_deref(), use_gpu);
+    let language_model = parse_model_path(language_model_path)?;
+    let projection_model = projection_model_path.map(parse_model_path).transpose()?;
+    let draft_model = draft_model_path.map(parse_model_path).transpose()?;
+
+    Ok(ModelSources {
+        language_model,
+        projection_model,
+        draft_model,
+    })
+}
+
+/// Sources for a model and its associated projection and draft models.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ModelSources {
+    pub language_model: GgufSource,
+    pub projection_model: Option<GgufSource>,
+    pub draft_model: Option<GgufSource>,
+}
+
+/// Download models into the cache (if necessary).
+#[tracing::instrument(level = "debug", skip(progress, cancellation))]
+pub fn download_models(
+    sources: &ModelSources,
+    progress: Option<DownloadProgressCallback>,
+    cancellation: Option<DownloadCancellationCallback>,
+) -> Result<ModelPaths, LoadModelError> {
+    let progress = progress.unwrap_or_else(default_progress_callback);
+    let language_model = match &sources.language_model {
+        GgufSource::Remote(remote) => {
+            let cache = ModelCache::open()?;
+            cache.download_file(remote, &progress, &[], cancellation.as_ref())?
+        }
+        GgufSource::Local(path) => path.to_owned(),
+    };
+    let projection_model = match &sources.projection_model {
+        Some(GgufSource::Remote(remote)) => {
+            let cache = ModelCache::open()?;
+            Some(cache.download_file(remote, &progress, &[], cancellation.as_ref())?)
+        }
+        Some(GgufSource::Local(path)) => Some(path.to_owned()),
+        None => None,
+    };
+    let draft_model = match &sources.draft_model {
+        Some(GgufSource::Remote(remote)) => {
+            let cache = ModelCache::open()?;
+            Some(cache.download_file(remote, &progress, &[], cancellation.as_ref())?)
+        }
+        Some(GgufSource::Local(path)) => Some(path.to_owned()),
+        None => None,
+    };
+    Ok(ModelPaths {
+        language_model,
+        projection_model,
+        draft_model,
+    })
+}
+
+/// Paths to a model and its associated projection and draft models.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ModelPaths {
+    pub language_model: PathBuf,
+    pub projection_model: Option<PathBuf>,
+    pub draft_model: Option<PathBuf>,
+}
+
+/// Load a [`Model`] from files on disk.
+///
+/// Set `use_gpu_if_available` to attempt GPU acceleration if a discrete GPU
+/// is available.
+///
+/// # MTP speculative decoding
+///
+/// Pass `paths.draft_model` pointing to a compatible MTP heads gguf (e.g.
+/// `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) to enable MTP speculative
+/// decoding on chats built from this model.
+///
+/// For models that bundle MTP layers (e.g. Qwen3.5), pass the model file
+/// itself; it is only loaded once. Whether MTP is actually used is a per-chat
+/// decision — pass it through `Chat`-level config on the wrapping binding.
+///
+/// # Errors
+///
+/// Returns an error if the model is not found, is invalid or is unsupported.
+pub fn load_model(
+    source: String,
+    paths: &ModelPaths,
+    use_gpu_if_available: bool,
+) -> Result<Model, LoadModelError> {
+    LoadModelError::validate_model_file(&paths.language_model)?;
+    if let Some(path) = &paths.projection_model {
+        LoadModelError::validate_model_file(path)?;
+    }
+    if let Some(path) = &paths.draft_model {
+        LoadModelError::validate_model_file(path)?;
+    }
+
+    let use_gpu = use_gpu_if_available && has_gpu_backend();
+    let loading_plan = memory::plan_model_loading(
+        &paths.language_model,
+        paths.projection_model.as_deref(),
+        use_gpu,
+    );
     let gpu_layers = loading_plan.gpu_layers;
     for warning in &loading_plan.warnings {
         warn!("{}", warning);
@@ -202,9 +251,10 @@ pub fn get_model_cancellable(
     info!(use_gpu = use_gpu, gpu_layers = gpu_layers, "Loading model");
 
     // llama.cpp skips bundled MTP layers unless asked, so load them with the target instead of twice.
-    let mtp_bundled = real_draft_model_path
+    let mtp_bundled = paths
+        .draft_model
         .as_deref()
-        .is_some_and(|p| same_file(p, &real_model_path));
+        .is_some_and(|p| same_file(p, &paths.language_model));
     let mut model_params = LlamaModelParams::default()
         .with_n_gpu_layers(gpu_layers)
         .with_load_mtp(mtp_bundled);
@@ -232,34 +282,35 @@ pub fn get_model_cancellable(
         })?;
     }
 
-    let model_params = pin!(model_params);
-    let load_span = info_span!("model_load", path = %real_model_path.display());
-    let _guard = load_span.enter();
-
+    let span = info_span!("load model", path = ?paths.language_model).entered();
     let language_model =
-        LlamaModel::load_from_file(&LLAMA_BACKEND, &real_model_path, &model_params).map_err(
+        LlamaModel::load_from_file(&LLAMA_BACKEND, &paths.language_model, &model_params).map_err(
             |e| {
                 if e.to_string().contains("null result") {
                     return LoadModelError::ModelLoadFailed {
-                        path: real_model_path.display().to_string(),
+                        path: paths.language_model.display().to_string(),
                     };
                 }
                 let error_msg = format!(
                     "Bad model path: {} - Llama.cpp error: {}",
-                    real_model_path.display(),
+                    paths.language_model.display(),
                     e
                 );
                 error!(error = %error_msg, "Failed to load model");
                 LoadModelError::InvalidModel(error_msg)
             },
         )?;
+    drop(span);
 
     info!("Model loaded successfully");
     // mtmd's current API chooses its own GPU; retain CPU projection on Android
     // until it can use the text model's selected device too.
-    let projection_model = real_mmproj_path
-        .as_ref()
+    let projection_model = paths
+        .projection_model
+        .as_deref()
         .map(|path| {
+            let _span =
+                info_span!("load projection model", path = ?paths.projection_model).entered();
             ProjectionModel::from_path(
                 path,
                 &language_model,
@@ -269,17 +320,17 @@ pub fn get_model_cancellable(
         .transpose()?
         .map(Mutex::new);
 
-    let draft_model = match real_draft_model_path.as_ref() {
+    let draft_model = match &paths.draft_model {
         None => None,
         Some(_) if mtp_bundled => {
             info!("Using MTP layers bundled in the target model");
             Some(DraftModel::Bundled)
         }
         Some(path) => {
-            info!(path = %path.display(), "Loading MTP draft model");
-            let draft_params = pin!(LlamaModelParams::default()
+            let _span = info_span!("load draft model", path = ?paths.draft_model).entered();
+            let draft_params = LlamaModelParams::default()
                 .with_n_gpu_layers(gpu_layers)
-                .with_load_mtp(true));
+                .with_load_mtp(true);
             let draft =
                 LlamaModel::load_from_file(&LLAMA_BACKEND, path, &draft_params).map_err(|e| {
                     let error_msg = format!(
@@ -302,24 +353,16 @@ pub fn get_model_cancellable(
     })
 }
 
+/// Helper to allow downloading and caching models with custom headers.
 pub fn download_model(
-    model_path: &str,
-    headers: Vec<(String, String)>,
-    progress: Option<DownloadProgressCallback>,
-) -> Result<std::path::PathBuf, LoadModelError> {
-    download_model_cancellable(model_path, headers, progress, None)
-}
-
-pub fn download_model_cancellable(
-    model_path: &str,
+    remote: &RemoteFile,
     headers: Vec<(String, String)>,
     progress: Option<DownloadProgressCallback>,
     cancellation: Option<DownloadCancellationCallback>,
-) -> Result<std::path::PathBuf, LoadModelError> {
-    let progress = progress.unwrap_or_else(|| default_progress_callback(model_path));
-    download_gguf(
-        parse_model_path(model_path)?,
-        &progress,
+) -> Result<PathBuf, LoadModelError> {
+    ModelCache::open()?.download_file(
+        &remote,
+        &progress.unwrap_or_else(default_progress_callback),
         &headers,
         cancellation.as_ref(),
     )
@@ -343,7 +386,7 @@ mod tests {
 
     #[test]
     fn rejects_projection_model_with_auto_selection() {
-        let result = get_model("auto", true, Some("projection.gguf"), None, None);
+        let result = parse_model_paths("auto", Some("projection.gguf"), None, true);
         assert!(matches!(result, Err(LoadModelError::InvalidModel(_))));
     }
 
@@ -357,7 +400,7 @@ mod tests {
 
         // First call always emits; subsequent calls within 100ms are dropped.
         for i in 0..1000 {
-            cb(i, 10_000);
+            cb("https://example.com/example.gguf", i, 10_000);
         }
         let n = count.load(Ordering::Relaxed);
         assert!((1..=5).contains(&n), "expected 1–5 emits, got {}", n);
@@ -372,8 +415,8 @@ mod tests {
         });
 
         // First call: emits. Second call inside the window but is_done=true: emits.
-        cb(50, 100);
-        cb(100, 100);
+        cb("https://example.com/example.gguf", 50, 100);
+        cb("https://example.com/example.gguf", 100, 100);
         assert_eq!(count.load(Ordering::Relaxed), 2);
     }
 }

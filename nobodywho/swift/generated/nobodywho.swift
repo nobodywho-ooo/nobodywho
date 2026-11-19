@@ -3826,6 +3826,128 @@ public func FfiConverterTypeContextShiftOptions_lower(_ value: ContextShiftOptio
 
 
 /**
+ * Paths to a model and its associated projection and draft models.
+ */
+public struct ModelPaths: Equatable, Hashable {
+    public var languageModel: PathBuf
+    public var projectionModel: PathBuf?
+    public var draftModel: PathBuf?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(languageModel: PathBuf, projectionModel: PathBuf?, draftModel: PathBuf?) {
+        self.languageModel = languageModel
+        self.projectionModel = projectionModel
+        self.draftModel = draftModel
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension ModelPaths: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeModelPaths: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ModelPaths {
+        return
+            try ModelPaths(
+                languageModel: FfiConverterTypePathBuf.read(from: &buf), 
+                projectionModel: FfiConverterOptionTypePathBuf.read(from: &buf), 
+                draftModel: FfiConverterOptionTypePathBuf.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ModelPaths, into buf: inout [UInt8]) {
+        FfiConverterTypePathBuf.write(value.languageModel, into: &buf)
+        FfiConverterOptionTypePathBuf.write(value.projectionModel, into: &buf)
+        FfiConverterOptionTypePathBuf.write(value.draftModel, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeModelPaths_lift(_ buf: RustBuffer) throws -> ModelPaths {
+    return try FfiConverterTypeModelPaths.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeModelPaths_lower(_ value: ModelPaths) -> RustBuffer {
+    return FfiConverterTypeModelPaths.lower(value)
+}
+
+
+/**
+ * Sources for a model and its associated projection and draft models.
+ */
+public struct ModelSources: Equatable, Hashable {
+    public var languageModel: GgufSource
+    public var projectionModel: GgufSource?
+    public var draftModel: GgufSource?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(languageModel: GgufSource, projectionModel: GgufSource?, draftModel: GgufSource?) {
+        self.languageModel = languageModel
+        self.projectionModel = projectionModel
+        self.draftModel = draftModel
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension ModelSources: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeModelSources: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ModelSources {
+        return
+            try ModelSources(
+                languageModel: FfiConverterTypeGgufSource.read(from: &buf), 
+                projectionModel: FfiConverterOptionTypeGgufSource.read(from: &buf), 
+                draftModel: FfiConverterOptionTypeGgufSource.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ModelSources, into buf: inout [UInt8]) {
+        FfiConverterTypeGgufSource.write(value.languageModel, into: &buf)
+        FfiConverterOptionTypeGgufSource.write(value.projectionModel, into: &buf)
+        FfiConverterOptionTypeGgufSource.write(value.draftModel, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeModelSources_lift(_ buf: RustBuffer) throws -> ModelSources {
+    return try FfiConverterTypeModelSources.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeModelSources_lower(_ value: ModelSources) -> RustBuffer {
+    return FfiConverterTypeModelSources.lower(value)
+}
+
+
+/**
  * Tuning for MTP speculative decoding. Passing one to `RustChat::new`
  * enables MTP; `null` runs the solo decode path. Requires the model to
  * have been loaded with a compatible `draft_model_path`.
@@ -4032,6 +4154,75 @@ public func FfiConverterTypePendingToolCall_lift(_ buf: RustBuffer) throws -> Pe
 #endif
 public func FfiConverterTypePendingToolCall_lower(_ value: PendingToolCall) -> RustBuffer {
     return FfiConverterTypePendingToolCall.lower(value)
+}
+
+
+/**
+ * A GGUF file to fetch over HTTP(s).
+ */
+public struct RemoteFile: Equatable, Hashable {
+    /**
+     * The URL where the file can be downloaded from.
+     */
+    public var url: String
+    /**
+     * Path of the file relative to the model cache root.
+     */
+    public var cachePath: PathBuf
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The URL where the file can be downloaded from.
+         */url: String, 
+        /**
+         * Path of the file relative to the model cache root.
+         */cachePath: PathBuf) {
+        self.url = url
+        self.cachePath = cachePath
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension RemoteFile: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRemoteFile: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RemoteFile {
+        return
+            try RemoteFile(
+                url: FfiConverterString.read(from: &buf), 
+                cachePath: FfiConverterTypePathBuf.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RemoteFile, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.url, into: &buf)
+        FfiConverterTypePathBuf.write(value.cachePath, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRemoteFile_lift(_ buf: RustBuffer) throws -> RemoteFile {
+    return try FfiConverterTypeRemoteFile.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRemoteFile_lower(_ value: RemoteFile) -> RustBuffer {
+    return FfiConverterTypeRemoteFile.lower(value)
 }
 
 
@@ -4326,6 +4517,88 @@ public func FfiConverterTypeContentPart_lift(_ buf: RustBuffer) throws -> Conten
 #endif
 public func FfiConverterTypeContentPart_lower(_ value: ContentPart) -> RustBuffer {
     return FfiConverterTypeContentPart.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Where a single GGUF model file comes from.
+ */
+
+public enum GgufSource: Equatable, Hashable {
+    
+    /**
+     * A file already on the local filesystem.
+     */
+    case local(PathBuf
+    )
+    /**
+     * A file that has to be downloaded first.
+     */
+    case remote(RemoteFile
+    )
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension GgufSource: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeGgufSource: FfiConverterRustBuffer {
+    typealias SwiftType = GgufSource
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> GgufSource {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .local(try FfiConverterTypePathBuf.read(from: &buf)
+        )
+        
+        case 2: return .remote(try FfiConverterTypeRemoteFile.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: GgufSource, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .local(v1):
+            writeInt(&buf, Int32(1))
+            FfiConverterTypePathBuf.write(v1, into: &buf)
+            
+        
+        case let .remote(v1):
+            writeInt(&buf, Int32(2))
+            FfiConverterTypeRemoteFile.write(v1, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeGgufSource_lift(_ buf: RustBuffer) throws -> GgufSource {
+    return try FfiConverterTypeGgufSource.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeGgufSource_lower(_ value: GgufSource) -> RustBuffer {
+    return FfiConverterTypeGgufSource.lower(value)
 }
 
 
@@ -5232,6 +5505,30 @@ fileprivate struct FfiConverterOptionTypePendingToolCall: FfiConverterRustBuffer
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeGgufSource: FfiConverterRustBuffer {
+    typealias SwiftType = GgufSource?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeGgufSource.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeGgufSource.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeShiftTarget: FfiConverterRustBuffer {
     typealias SwiftType = ShiftTarget?
 
@@ -5368,6 +5665,30 @@ fileprivate struct FfiConverterOptionDictionaryStringString: FfiConverterRustBuf
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterDictionaryStringString.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypePathBuf: FfiConverterRustBuffer {
+    typealias SwiftType = PathBuf?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypePathBuf.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypePathBuf.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -5750,6 +6071,50 @@ fileprivate struct FfiConverterDictionaryStringString: FfiConverterRustBuffer {
         return dict
     }
 }
+
+
+/**
+ * Typealias from the type name used in the UDL file to the builtin type.  This
+ * is needed because the UDL type name is used in function/method signatures.
+ */
+public typealias PathBuf = String
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypePathBuf: FfiConverter {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PathBuf {
+        return try FfiConverterString.read(from: &buf)
+    }
+
+    public static func write(_ value: PathBuf, into buf: inout [UInt8]) {
+        return FfiConverterString.write(value, into: &buf)
+    }
+
+    public static func lift(_ value: RustBuffer) throws -> PathBuf {
+        return try FfiConverterString.lift(value)
+    }
+
+    public static func lower(_ value: PathBuf) -> RustBuffer {
+        return FfiConverterString.lower(value)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePathBuf_lift(_ value: RustBuffer) throws -> PathBuf {
+    return try FfiConverterTypePathBuf.lift(value)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePathBuf_lower(_ value: PathBuf) -> RustBuffer {
+    return FfiConverterTypePathBuf.lower(value)
+}
+
 private let UNIFFI_RUST_FUTURE_POLL_READY: Int8 = 0
 private let UNIFFI_RUST_FUTURE_POLL_WAKE: Int8 = 1
 
@@ -5815,17 +6180,31 @@ public func cosineSimilarity(a: [Float], b: [Float]) -> Float  {
  * Use this when you need custom headers, e.g. for gated models that require authentication.
  * For unauthenticated downloads, pass the URL directly to `load_model`.
  */
-public func downloadModel(modelPath: String, headers: [String: String]?, onDownloadProgress: RustDownloadProgressCallback?)async throws  -> String  {
+public func downloadModel(remote: RemoteFile, headers: [String: String]?, onDownloadProgress: RustDownloadProgressCallback?)async throws  -> String  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_nobodywho_uniffi_fn_func_download_model(FfiConverterString.lower(modelPath),FfiConverterOptionDictionaryStringString.lower(headers),FfiConverterOptionCallbackInterfaceRustDownloadProgressCallback.lower(onDownloadProgress)
+                uniffi_nobodywho_uniffi_fn_func_download_model(FfiConverterTypeRemoteFile_lower(remote),FfiConverterOptionDictionaryStringString.lower(headers),FfiConverterOptionCallbackInterfaceRustDownloadProgressCallback.lower(onDownloadProgress)
                 )
             },
             pollFunc: ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
             completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
+}
+public func downloadModels(sources: ModelSources, onDownloadProgress: RustDownloadProgressCallback?)async throws  -> ModelPaths  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_func_download_models(FfiConverterTypeModelSources_lower(sources),FfiConverterOptionCallbackInterfaceRustDownloadProgressCallback.lower(onDownloadProgress)
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeModelPaths_lift,
             errorHandler: FfiConverterTypeNobodyWhoError_lift
         )
 }
@@ -5838,27 +6217,11 @@ public func getCachedModels()throws  -> [CachedModel]  {
     )
 })
 }
-/**
- * Load a GGUF model from a local path or remote URL.
- *
- * Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
- * or `auto` for memory-based selection. Downloaded models are cached automatically.
- *
- * # MTP speculative decoding
- *
- * Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
- * `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) to enable MTP
- * speculative decoding on chats built from this model. For models that
- * bundle MTP layers (e.g. Qwen3.5), pass the model file itself; it is only
- * loaded once. Whether MTP is
- * actually used is a per-chat decision — pass it through
- * `Chat`-level config on the wrapping binding.
- */
-public func loadModel(modelPath: String, useGpu: Bool, projectionModelPath: String?, draftModelPath: String?, onDownloadProgress: RustDownloadProgressCallback?)async throws  -> RustModel  {
+public func loadModel(source: String, paths: ModelPaths, useGpu: Bool)async throws  -> RustModel  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionString.lower(projectionModelPath),FfiConverterOptionString.lower(draftModelPath),FfiConverterOptionCallbackInterfaceRustDownloadProgressCallback.lower(onDownloadProgress)
+                uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(source),FfiConverterTypeModelPaths_lower(paths),FfiConverterBool.lower(useGpu)
                 )
             },
             pollFunc: ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -5911,6 +6274,33 @@ public func loadVoiceActivityDetection(source: String?, sampleRate: UInt32, thre
             completeFunc: ffi_nobodywho_uniffi_rust_future_complete_u64,
             freeFunc: ffi_nobodywho_uniffi_rust_future_free_u64,
             liftFunc: FfiConverterTypeRustVoiceActivityDetection_lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
+}
+/**
+ * Parse and prepare a model path such that it's ready to be downloaded (if necessary).
+ */
+public func parseModelPath(path: String)throws  -> GgufSource  {
+    return try  FfiConverterTypeGgufSource_lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
+    uniffi_nobodywho_uniffi_fn_func_parse_model_path(
+        FfiConverterString.lower(path),$0
+    )
+})
+}
+/**
+ * Parse model paths such that they are ready to be downloaded (if necessary).
+ */
+public func parseModelPaths(modelPath: String, projectionModelPath: String?, draftModelPath: String?, useGpu: Bool)async throws  -> ModelSources  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_func_parse_model_paths(FfiConverterString.lower(modelPath),FfiConverterOptionString.lower(projectionModelPath),FfiConverterOptionString.lower(draftModelPath),FfiConverterBool.lower(useGpu)
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeModelSources_lift,
             errorHandler: FfiConverterTypeNobodyWhoError_lift
         )
 }
@@ -6029,19 +6419,28 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_func_cosine_similarity() != 63439) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_func_download_model() != 31331) {
+    if (uniffi_nobodywho_uniffi_checksum_func_download_model() != 48764) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_func_download_models() != 19790) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_get_cached_models() != 12002) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 30733) {
+    if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 39079) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text() != 3224) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection() != 42331) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_func_parse_model_path() != 57785) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_func_parse_model_paths() != 2050) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() != 13698) {
