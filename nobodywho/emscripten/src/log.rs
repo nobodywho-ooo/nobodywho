@@ -110,3 +110,14 @@ unsafe extern "C" {
     /// ...: A ``printf``-style "..." parameter list that is parsed according to the ``printf`` formatting rules.
     unsafe fn emscripten_log(flags: c_int, format: *const c_char, ...);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_log() {
+        log("test", EM_LOG_CONSOLE | EM_LOG_DEBUG);
+        log("test\0test", EM_LOG_CONSOLE | EM_LOG_DEBUG);
+    }
+}
