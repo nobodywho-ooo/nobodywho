@@ -13,10 +13,13 @@ use nom::combinator::{cut, map, rest, verify};
 use nom::error::{ErrorKind, ParseError};
 use nom::sequence::{preceded, terminated};
 use nom::{IResult, Parser};
-use std::io::{Read, Write};
+#[cfg(not(target_os = "emscripten"))]
+use std::io::Read;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
+#[cfg(not(target_os = "emscripten"))]
 use std::time::Duration;
 use tracing::{info, warn};
 // =========================================================================
@@ -72,6 +75,9 @@ pub fn default_progress_callback(path: &str) -> DownloadProgressCallback {
             let bar = ProgressBar::new(total);
             bar.set_style(style.clone());
             bar.set_message(name.clone());
+            // The steady tick spawns a background thread, which isn't supported
+            // on Emscripten. The bar still redraws on every `set_position`.
+            #[cfg(not(target_os = "emscripten"))]
             bar.enable_steady_tick(Duration::from_millis(100));
             s.0 = Some(bar);
             s.1 = total;
@@ -136,6 +142,12 @@ pub(crate) fn resolve_token(token: Option<&str>) -> Result<Option<String>, std::
 // =========================================================================
 // ModelCache — shared cache root + low-level file download
 // =========================================================================
+
+/// Why [`ModelCache::fetch_text`] failed.
+enum TextFetchError {
+    Request(ureq::Error),
+    Read(ureq::Error),
+}
 
 /// Root directory all downloaded models are cached under, shared by both
 /// [`GgufSource`] and [`OnnxSource`]. Cheap to construct — open a fresh one
@@ -202,7 +214,7 @@ impl ModelCache {
     /// persists it on success. Unlike a hand-rolled temp path, this cleans itself
     /// up on any early return — including a panic mid-download — rather than only
     /// on an explicit `Err` we remembered to handle.
-    fn fetch_to_path(
+    async fn fetch_to_path(
         &self,
         url: &str,
         target_path: &Path,
@@ -221,19 +233,18 @@ impl ModelCache {
         Self::ensure_parent_dir(target_path)?;
         info!("Downloading {} -> {}", url, target_path.display());
 
-        let (mut reader, content_length) = Self::open_http_stream(url, headers)?;
         let mut tmp_file = Self::create_temp_file(target_path)?;
         let tmp_path = tmp_file.path().to_path_buf();
 
-        Self::stream_to_file(
-            &mut reader,
+        Self::download_into(
             url,
+            headers,
             tmp_file.as_file_mut(),
             &tmp_path,
-            content_length,
             progress,
             cancellation,
-        )?;
+        )
+        .await?;
 
         tmp_file
             .persist(target_path)
@@ -245,6 +256,142 @@ impl ModelCache {
 
         info!("Download complete: {}", target_path.display());
         Ok(())
+    }
+
+    /// Download `url` into `file`, reporting progress and honoring cancellation.
+    #[cfg(not(target_os = "emscripten"))]
+    async fn download_into(
+        url: &str,
+        headers: &[(String, String)],
+        file: &mut std::fs::File,
+        tmp_path: &Path,
+        progress: &DownloadProgressCallback,
+        cancellation: Option<&DownloadCancellationCallback>,
+    ) -> Result<(), LoadModelError> {
+        let (mut reader, content_length) = Self::open_http_stream(url, headers)?;
+        Self::stream_to_file(
+            &mut reader,
+            url,
+            file,
+            tmp_path,
+            content_length,
+            progress,
+            cancellation,
+        )
+    }
+
+    /// Download `url` into `file` using the browser's `fetch`, streaming chunks
+    /// to the file as they arrive.
+    #[cfg(target_os = "emscripten")]
+    async fn download_into(
+        url: &str,
+        headers: &[(String, String)],
+        file: &mut std::fs::File,
+        tmp_path: &Path,
+        progress: &DownloadProgressCallback,
+        cancellation: Option<&DownloadCancellationCallback>,
+    ) -> Result<(), LoadModelError> {
+        use std::cell::{Cell, RefCell};
+        use std::rc::Rc;
+
+        let error: Rc<RefCell<Option<LoadModelError>>> = Rc::new(RefCell::new(None));
+        let downloaded = Rc::new(Cell::new(0u64));
+
+        let mut file = file
+            .try_clone()
+            .map_err(|source| LoadModelError::WriteDownload {
+                path: tmp_path.to_path_buf(),
+                source,
+            })?;
+        let on_chunk = {
+            let error = error.clone();
+            let downloaded = downloaded.clone();
+            let progress = progress.clone();
+            let cancellation = cancellation.cloned();
+            let tmp_path = tmp_path.to_path_buf();
+            move |chunk: &[u8], _offset: u64, total: u64| {
+                if let Err(e) = check_download_cancellation(cancellation.as_ref()) {
+                    *error.borrow_mut() = Some(e);
+                    return false;
+                }
+                if let Err(source) = file.write_all(chunk) {
+                    *error.borrow_mut() = Some(LoadModelError::WriteDownload {
+                        path: tmp_path.clone(),
+                        source,
+                    });
+                    return false;
+                }
+                downloaded.set(downloaded.get() + chunk.len() as u64);
+                progress(downloaded.get(), total);
+                true
+            }
+        };
+
+        let mut builder = nobodywho_emscripten::FetchBuilder::new("GET").stream(on_chunk);
+        for (name, value) in headers {
+            builder = builder.header(name, value);
+        }
+        let response = match builder.send(url).await {
+            Ok(response) => response,
+            Err(nobodywho_emscripten::FetchError::Aborted) => {
+                return Err(error
+                    .borrow_mut()
+                    .take()
+                    .unwrap_or(LoadModelError::DownloadCancelled));
+            }
+            Err(nobodywho_emscripten::FetchError::Http { status, .. }) => {
+                return Err(LoadModelError::from_http_status(url, status));
+            }
+            Err(e @ nobodywho_emscripten::FetchError::Network { .. }) => {
+                return Err(LoadModelError::HttpRequest {
+                    url: url.to_owned(),
+                    source: ureq::Error::Io(std::io::Error::other(e)),
+                });
+            }
+        };
+
+        let downloaded = downloaded.get();
+        let expected = response.total_bytes;
+        if expected > 0 && downloaded != expected {
+            return Err(LoadModelError::IncompleteDownload {
+                url: url.to_owned(),
+                got: downloaded,
+                expected,
+            });
+        }
+        if expected == 0 {
+            progress(downloaded, downloaded);
+        }
+        Ok(())
+    }
+
+    /// GET `url` and return the body as text.
+    #[cfg(not(target_os = "emscripten"))]
+    async fn fetch_text(url: &str, headers: &[(String, String)]) -> Result<String, TextFetchError> {
+        let mut request = ureq::get(url);
+        for (name, value) in headers {
+            request = request.header(name, value);
+        }
+        request
+            .call()
+            .map_err(TextFetchError::Request)?
+            .body_mut()
+            .read_to_string()
+            .map_err(TextFetchError::Read)
+    }
+
+    #[cfg(target_os = "emscripten")]
+    async fn fetch_text(url: &str, headers: &[(String, String)]) -> Result<String, TextFetchError> {
+        let mut builder = nobodywho_emscripten::FetchBuilder::new("GET");
+        for (name, value) in headers {
+            builder = builder.header(name, value);
+        }
+        let response = builder
+            .send(url)
+            .await
+            .map_err(|e| TextFetchError::Request(ureq::Error::Io(std::io::Error::other(e))))?;
+        String::from_utf8(response.data)
+            .map_err(|e| TextFetchError::Read(ureq::Error::Io(std::io::Error::other(e))))
     }
 
     fn validate_no_traversal(path: &Path) -> Result<(), LoadModelError> {
@@ -269,6 +416,7 @@ impl ModelCache {
     }
 
     /// Returned `u64` is the parsed `Content-Length`; 0 means unknown (see below).
+    #[cfg(not(target_os = "emscripten"))]
     fn open_http_stream(
         url: &str,
         headers: &[(String, String)],
@@ -327,6 +475,7 @@ impl ModelCache {
             })
     }
 
+    #[cfg(not(target_os = "emscripten"))]
     fn stream_to_file(
         reader: &mut dyn Read,
         url: &str,
@@ -446,7 +595,7 @@ enum GgufSource {
 impl ModelCache {
     /// Resolve a [`GgufSource`] to a local file, downloading it first unless
     /// it's already cached.
-    fn download_file(
+    async fn download_file(
         &self,
         source: &GgufSource,
         progress: &DownloadProgressCallback,
@@ -466,7 +615,8 @@ impl ModelCache {
             }
         };
 
-        self.fetch_to_path(&url, &target, progress, headers, cancellation)?;
+        self.fetch_to_path(&url, &target, progress, headers, cancellation)
+            .await?;
         Ok(target)
     }
 
@@ -640,7 +790,10 @@ pub(crate) fn parse_model_path(model_path: &str) -> Result<ParsedModelPath, Load
 
 /// Takes a fancy path (possibly with `hf:` or `https://` in front) and resolves
 /// it to a realized path on the filesystem, downloading it first if needed.
-pub(crate) fn download_gguf(
+///
+/// On Emscripten the download is driven by the browser's event loop, so the
+/// returned future must be awaited from it (not blocked on).
+pub(crate) async fn download_gguf_async(
     parsed_path: ParsedModelPath,
     progress: &DownloadProgressCallback,
     headers: &[(String, String)],
@@ -654,17 +807,25 @@ pub(crate) fn download_gguf(
                 repo: HfRepo::main(owner, repo),
                 filename,
             };
-            cache.download_file(&source, progress, headers, cancellation)?
+            cache
+                .download_file(&source, progress, headers, cancellation)
+                .await?
         }
-        ParsedModelPath::LlamaCppUrl(llama_cpp_url) => cache.download_file(
-            &llama_cpp_url.resolve_source(),
-            progress,
-            headers,
-            cancellation,
-        )?,
+        ParsedModelPath::LlamaCppUrl(llama_cpp_url) => {
+            cache
+                .download_file(
+                    &llama_cpp_url.resolve_source(),
+                    progress,
+                    headers,
+                    cancellation,
+                )
+                .await?
+        }
         ParsedModelPath::FilesystemPath(path) => path,
         ParsedModelPath::HttpUrl(url) => {
-            cache.download_file(&GgufSource::Url(url), progress, headers, cancellation)?
+            cache
+                .download_file(&GgufSource::Url(url), progress, headers, cancellation)
+                .await?
         }
     };
 
@@ -792,7 +953,7 @@ impl ModelCache {
     /// Resolve an [`OnnxSource`] to a local directory. An existing local
     /// directory is returned as-is; a HuggingFace repo is downloaded (or
     /// verified already-cached) first.
-    fn download_repo(
+    async fn download_repo(
         &self,
         source: &OnnxSource,
         progress: &DownloadProgressCallback,
@@ -824,21 +985,17 @@ impl ModelCache {
             }
         }
 
-        let mut request = ureq::get(&repo.tree_url());
-        for (name, value) in headers {
-            request = request.header(name, value);
-        }
-        let body = request
-            .call()
-            .map_err(|source| HuggingFaceError::ListRepoTree {
-                repo: repo.id(),
-                source,
-            })?
-            .body_mut()
-            .read_to_string()
-            .map_err(|source| HuggingFaceError::ReadRepoTree {
-                repo: repo.id(),
-                source,
+        let body = Self::fetch_text(&repo.tree_url(), headers)
+            .await
+            .map_err(|e| match e {
+                TextFetchError::Request(source) => HuggingFaceError::ListRepoTree {
+                    repo: repo.id(),
+                    source,
+                },
+                TextFetchError::Read(source) => HuggingFaceError::ReadRepoTree {
+                    repo: repo.id(),
+                    source,
+                },
             })?;
         let entries: Vec<HfTreeEntry> =
             serde_json::from_str(&body).map_err(|source| HuggingFaceError::ParseRepoTree {
@@ -883,6 +1040,7 @@ impl ModelCache {
                 progress(downloaded, total);
             });
             self.fetch_to_path(&url, &target, &file_progress, headers, None)
+                .await
                 .map_err(|source| HuggingFaceError::DownloadEntry {
                     path: path.clone(),
                     source: Box::new(source),
@@ -955,6 +1113,19 @@ pub(crate) fn download_onnx(
     required_files: &[String],
     huggingface_token: Option<&str>,
 ) -> Result<PathBuf, HuggingFaceError> {
+    futures::executor::block_on(download_onnx_async(
+        source,
+        required_files,
+        huggingface_token,
+    ))
+}
+
+/// Async version of [`download_onnx`].
+pub(crate) async fn download_onnx_async(
+    source: &str,
+    required_files: &[String],
+    huggingface_token: Option<&str>,
+) -> Result<PathBuf, HuggingFaceError> {
     let cache = ModelCache::open()?;
     // No caller threads a custom callback through yet, so there's nothing
     // meaningful to forward here — `download_repo` labels its own per-file bars.
@@ -974,7 +1145,7 @@ pub(crate) fn download_onnx(
     let headers = huggingface_token
         .map(|token| vec![("Authorization".into(), format!("Bearer {token}"))])
         .unwrap_or_default();
-    cache.download_repo(&source, &progress, &headers)
+    cache.download_repo(&source, &progress, &headers).await
 }
 
 #[cfg(test)]
@@ -1014,13 +1185,13 @@ mod tests {
         let cancellation: DownloadCancellationCallback =
             Arc::new(move || cancelled.load(Ordering::Relaxed));
 
-        let result = cache.fetch_to_path(
+        let result = futures::executor::block_on(cache.fetch_to_path(
             &format!("http://{address}/model.gguf"),
             &target,
             &progress,
             &[],
             Some(&cancellation),
-        );
+        ));
 
         assert!(matches!(result, Err(LoadModelError::DownloadCancelled)));
         assert!(!target.exists());

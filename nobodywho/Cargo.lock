@@ -3395,6 +3395,7 @@ dependencies = [
  "monty",
  "monty-types",
  "ndarray 0.17.2",
+ "nobodywho-emscripten",
  "nom 8.0.0",
  "ort",
  "rand 0.10.3",
@@ -3421,6 +3422,14 @@ dependencies = [
  "walkdir",
  "windows-sys 0.61.2",
  "yoke",
+]
+
+[[package]]
+name = "nobodywho-emscripten"
+version = "0.1.0"
+dependencies = [
+ "bitflags 2.13.2",
+ "log",
 ]
 
 [[package]]
@@ -3501,6 +3510,7 @@ dependencies = [
  "env_logger",
  "log",
  "nobodywho",
+ "nobodywho-emscripten",
  "oslog",
  "serde_json",
  "thiserror 2.0.21",
