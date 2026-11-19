@@ -255,9 +255,11 @@ pub(crate) struct InferenceEngine<'a> {
     needs_checkpoints: bool,
     /// Always covers a prefix of `kv_mirror` that hasn't changed since it was taken.
     checkpoint: Option<Checkpoint>,
-    /// A second checkpoint at a prefix that many prompts share, such as the end of the
-    /// system prompt, so a new conversation with the same prompt doesn't re-read it.
-    /// Same invariant as `checkpoint`.
+    /// A second checkpoint at a prefix that many prompts share: where the first message's
+    /// content starts, after the system prompt, the tools and the role header. A new
+    /// conversation with the same prompt rewinds here instead of re-reading it. It is a
+    /// host-memory copy of the whole recurrent state (about 19 MiB for Qwen3.5-2B), taken
+    /// only when that position changes. Same invariant as `checkpoint`.
     prefix_checkpoint: Option<Checkpoint>,
 }
 
@@ -825,7 +827,9 @@ impl<'a> InferenceEngine<'a> {
         }
 
         // Same rules as below. A prefix checkpoint already at `prefix_at` is kept, since
-        // everything before it still matches.
+        // everything before it still matches. If the cache is already past `prefix_at`
+        // without one (a failed snapshot, or a chat that didn't start with a user turn),
+        // none is taken until a later cut lands at or before it.
         let prefix_at = prefix_at.filter(|&at| {
             0 < at
                 && kept <= at

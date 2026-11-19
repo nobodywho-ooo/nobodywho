@@ -1638,7 +1638,7 @@ impl Chat {
         let checkpoint_at = self.checkpoint_index(&chunks)?;
         // And one before the conversation, which a reset history or a new chat
         // with the same system prompt (and tools) can rewind to.
-        let prefix_at = self.prefix_checkpoint_index(&chunks)?;
+        let prefix_at = self.prefix_checkpoint_index(&chunks);
 
         // Diff against the KV mirror and load only the new tail.
         self.engine_mut(move |e| e.sync_context(chunks, checkpoint_at, prefix_at))?;
@@ -1661,26 +1661,26 @@ impl Chat {
     }
 
     /// Where a recurrent model should keep its prefix checkpoint in `render`: where the
-    /// first message's content starts, i.e. after the system prompt and the template's
-    /// preamble. Found by rendering the history with that content swapped out, so it
-    /// works for any template, including ones that refuse to render without a user turn.
-    fn prefix_checkpoint_index(
-        &self,
-        chunks: &TokenizerChunks,
-    ) -> Result<Option<usize>, RenderError> {
+    /// first message's content starts, i.e. after the system prompt, the tools and the
+    /// role header of the first user turn. Found by rendering a one-message history with
+    /// that content swapped out, so it works for any template. Templates can't make the
+    /// text before the first message depend on later turns, and if one did, the position
+    /// would only come out earlier, which is still a valid prefix.
+    ///
+    /// Best effort: `None` if the probe doesn't render. The position is only exact for
+    /// templates that end the role header with a special token or a newline (ChatML,
+    /// Qwen3.5, LFM2, ...). Where BPE can merge the header with the content (`"User: "`),
+    /// the next conversation may diverge before it, which costs the speed-up but never
+    /// correctness, because the checkpoint is then dropped.
+    fn prefix_checkpoint_index(&self, chunks: &TokenizerChunks) -> Option<usize> {
         if !self.engine().needs_checkpoints()
             || !self.messages.first().is_some_and(Message::is_user)
         {
-            return Ok(None);
+            return None;
         }
-        let mut probe = self.messages.clone().into_vec();
-        probe[0] = Message::new_user("\u{2400}");
-        let Ok(probe) = History::new(probe) else {
-            return Ok(None);
-        };
-        let probe = self.render_as_chunks(&probe, false)?;
-        let at = find_chunks_prefix_difference(&probe, chunks);
-        Ok((at > 0).then_some(at))
+        let probe = History(vec![Message::new_user("\u{2400}")]);
+        let probe = self.render_as_chunks(&probe, false).ok()?;
+        Some(find_chunks_prefix_difference(&probe, chunks))
     }
 
     /// Drop the fewest whole turns after the kept first ones for the render, plus
@@ -5253,7 +5253,8 @@ mod tests {
     }
 
     /// A new conversation with the same system prompt rewinds a recurrent model to
-    /// the prefix checkpoint, instead of re-reading the system prompt.
+    /// the prefix checkpoint, instead of re-reading the system prompt. A changed system
+    /// prompt invalidates the checkpoint.
     #[test]
     fn test_recurrent_reset_history_keeps_system_prompt() {
         let Some(model) = test_utils::load_model_from_env("TEST_RECURRENT_MODEL", None) else {
@@ -5263,31 +5264,52 @@ mod tests {
         let mut chat = Chat::new(
             model,
             ChatConfig {
-                system_prompt: Some(system_prompt),
+                system_prompt: Some(system_prompt.clone()),
                 template_variables: [("enable_thinking".to_string(), false)].into(),
                 sampler_config: Some(SamplerPresets::greedy()),
                 ..Default::default()
             },
         )
         .unwrap();
-        let mut decoded = Vec::new();
-        for prompt in ["What is the capital of France?", "Name a primary color."] {
+        let system_tokens = |chat: &Chat, prompt: &str| {
+            chat.engine()
+                .tokenize(prompt.to_string(), Vec::new())
+                .unwrap()
+                .n_tokens() as i32
+        };
+        // Starts a new conversation and checks that the cache holds exactly its render.
+        let new_conversation = |chat: &mut Chat, prompt: &str| {
             chat.set_chat_history(Vec::new()).unwrap();
-            decoded.push(prompt_tokens_decoded(&mut chat, |chat| {
-                chat.ask(prompt.into())
-                    .unwrap()
-                    .response(chat, Some(8), true)
-                    .unwrap();
-            }));
-        }
-        let system_tokens = chat
-            .engine()
-            .tokenize("You are a terse assistant. ".repeat(20), Vec::new())
-            .unwrap()
-            .n_tokens() as i32;
+            chat.add_user_message(prompt.to_string());
+            let render = render(chat, &chat.messages).unwrap();
+            let decoded = prompt_tokens_decoded(chat, |chat| {
+                chat.sync_context_with_render().unwrap();
+            });
+            assert_eq!(
+                chat.engine().ctx.kv_cache_seq_pos_max(0) + 1,
+                render.n_positions() as i32
+            );
+            TurnGenerator::new(chat)
+                .unwrap()
+                .response(chat, Some(8), true)
+                .unwrap();
+            decoded
+        };
+
+        let first = new_conversation(&mut chat, "What is the capital of France?");
+        assert!(first >= system_tokens(&chat, &system_prompt));
+        let second = new_conversation(&mut chat, "Name a primary color.");
         assert!(
-            decoded[1] < system_tokens,
-            "the second conversation re-read the system prompt: {decoded:?} tokens decoded, system prompt is {system_tokens}"
+            second < system_tokens(&chat, &system_prompt),
+            "the second conversation re-read the system prompt: {second} tokens decoded"
+        );
+
+        let other_prompt = "You are a helpful assistant. ".repeat(20);
+        chat.set_system_prompt(Some(other_prompt.clone()));
+        let third = new_conversation(&mut chat, "Name a primary color.");
+        assert!(
+            third >= system_tokens(&chat, &other_prompt),
+            "a changed system prompt reused the old checkpoint: {third} tokens decoded"
         );
     }
 

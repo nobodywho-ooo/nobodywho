@@ -1,12 +1,12 @@
 ---
-section: fixed
+section: changed
 bindings:
-  python: patch
-  godot: patch
-  flutter: patch
-  kotlin: patch
-  react-native: patch
-  swift: patch
+  python: minor
+  godot: minor
+  flutter: minor
+  kotlin: minor
+  react-native: minor
+  swift: minor
 ---
 
-Hybrid and recurrent models such as Qwen3.5 and LFM2 no longer read the whole system prompt again after `reset_history()` or when a new conversation starts with the same system prompt.
+Hybrid and recurrent models such as Qwen3.5 and LFM2 no longer read the system prompt again after `reset_history()`, or when the chat history is replaced with a new conversation, as long as the system prompt, tools and template variables are unchanged.
