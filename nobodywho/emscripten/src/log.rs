@@ -51,8 +51,10 @@ impl log::Log for ConsoleLogger {
 }
 
 fn log(message: &str, flags: c_int) {
-    let c_message = CString::new(message.replace('\0', "[NUL]"))
-        .expect("message without NUL bytes is always valid CString");
+    let c_message = CString::new(message).unwrap_or_else(|_| {
+        CString::new(message.replace('\0', "[NUL]"))
+            .expect("message without NUL bytes is always valid CString")
+    });
     // SAFETY:
     // - The format string is a valid `printf`-style C-string, which
     //   specifies one C-string argument.
