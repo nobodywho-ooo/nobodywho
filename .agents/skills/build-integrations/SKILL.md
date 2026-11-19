@@ -94,11 +94,11 @@ Add a `#[pyclass]` struct to `nobodywho/python/src/lib.rs` following existing Py
 
 ```bash
 cargo build
-cargo run -p make_stubs
+cargo run -p make-stubs
 uv run ruff format nobodywho.pyi
 ```
 
-`make_stubs` introspects the built `target/debug/libnobodywho_python` library, so build it first (`cargo build` or `maturin develop`).
+`make-stubs` introspects the built `target/debug/libnobodywho_python` library, so build it first (`cargo build` or `maturin develop`).
 
 ### 3e. Flutter
 

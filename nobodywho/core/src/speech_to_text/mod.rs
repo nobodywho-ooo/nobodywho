@@ -70,13 +70,10 @@ impl SpeechToText {
         config: SpeechToTextConfig,
         device: Device,
     ) -> Result<Self, SpeechToTextError> {
-        // FIXME(madsmtm): ONNX Runtime is not yet available on Emscripten.
-        if cfg!(target_os = "emscripten") {
-            return Err(SpeechToTextError::WasmUnsupported);
-        }
         let mut architecture = architecture::load_architecture(config, device)?;
         let (msg_tx, msg_rx) = mpsc::channel::<SpeechToTextRequest>();
-        let join = std::thread::spawn(move || {
+        // FIXME: Emscripten has no threads, so this fails there; run on an `AsyncWorker` like TextToSpeech.
+        let spawned = std::thread::Builder::new().spawn(move || {
             while let Ok((input, response)) = msg_rx.recv() {
                 match response {
                     SpeechToTextResponseChannel::Full(tx) => {
@@ -93,6 +90,11 @@ impl SpeechToText {
                 }
             }
         });
+        let join = spawned.map_err(|e| {
+            SpeechToTextError::Init(format!(
+                "failed to start the SpeechToText worker thread: {e}"
+            ))
+        })?;
         Ok(Self {
             worker: Arc::new(Worker {
                 msg_tx,

@@ -169,10 +169,6 @@ impl TextToSpeech {
         config: TextToSpeechConfig,
         device: TextToSpeechDevice,
     ) -> Result<Self, TextToSpeechError> {
-        // FIXME(madsmtm): ONNX Runtime is not yet available on Emscripten.
-        if cfg!(target_os = "emscripten") {
-            return Err(TextToSpeechError::WasmUnsupported);
-        }
         let architecture = architecture::load_architecture(config, device)?;
         Ok(Self {
             architecture: Arc::new(tokio::sync::Mutex::new(architecture)),
@@ -258,8 +254,7 @@ mod tests {
         assert!(TextToSpeechConfig::from_source("hf://random/repo", None).is_none());
     }
 
-    // On Emscripten, `TextToSpeech::new` fails earlier with `WasmUnsupported`.
-    #[cfg(all(not(feature = "kokoro"), not(target_os = "emscripten")))]
+    #[cfg(not(feature = "kokoro"))]
     #[test]
     fn kokoro_without_feature_errors_before_downloading() {
         let result = TextToSpeech::new(TextToSpeechConfig::kokoro("hf://NobodyWho/Kokoro-82M"));
