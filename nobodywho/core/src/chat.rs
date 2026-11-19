@@ -1660,18 +1660,10 @@ impl Chat {
         Ok(Some(find_chunks_prefix_difference(&history, chunks)))
     }
 
-    /// Where a recurrent model should keep its prefix checkpoint in `render`: where the
-    /// first message's content starts, i.e. after the system prompt, the tools and the
-    /// role header of the first user turn. Found by rendering a one-message history with
-    /// that content swapped out, so it works for any template. Templates can't make the
-    /// text before the first message depend on later turns, and if one did, the position
-    /// would only come out earlier, which is still a valid prefix.
-    ///
-    /// Best effort: `None` if the probe doesn't render. The position is only exact for
-    /// templates that end the role header with a special token or a newline (ChatML,
-    /// Qwen3.5, LFM2, ...). Where BPE can merge the header with the content (`"User: "`),
-    /// the next conversation may diverge before it, which costs the speed-up but never
-    /// correctness, because the checkpoint is then dropped.
+    /// Where a recurrent model should keep its prefix checkpoint: where the first message's
+    /// content starts. Found by rendering a one-message history with that content swapped
+    /// out, so it works for any template. Best effort: a wrong position only costs the
+    /// speed-up, e.g. where BPE merges the role header with the content (`"User: "`).
     fn prefix_checkpoint_index(&self, chunks: &TokenizerChunks) -> Option<usize> {
         if !self.engine().needs_checkpoints()
             || !self.messages.first().is_some_and(Message::is_user)
