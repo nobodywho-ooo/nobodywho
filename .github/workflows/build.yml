@@ -83,7 +83,7 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
     env:
-      RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3' || '' }}
+      RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v2' || '' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -153,7 +153,7 @@ jobs:
     env:
       RUSTFLAGS: >-
         -l Advapi32
-        -C target-cpu=x86-64-v3
+        -C target-cpu=x86-64-v2
       # Fetch git deps + submodules with the git CLI instead of libgit2. libgit2
       # ignores core.longpaths, so the deeply nested llama.cpp tools/ui/ paths
       # blow past Windows' 260-char MAX_PATH during the submodule checkout. The
