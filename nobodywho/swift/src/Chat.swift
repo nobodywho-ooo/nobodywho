@@ -135,8 +135,8 @@ public class Chat {
     }
 
     /// Get the current chat history as a list of messages.
-    public func getChatHistory() async throws -> [Message] {
-        return try await inner.getChatHistory()
+    public func getChatHistory() async -> [Message] {
+        return await inner.getChatHistory()
     }
 
     /// Set the chat history from a list of messages.
@@ -145,13 +145,13 @@ public class Chat {
     }
 
     /// Get the current system prompt.
-    public func getSystemPrompt() async throws -> String? {
-        return try await inner.getSystemPrompt()
+    public func getSystemPrompt() async -> String? {
+        return await inner.getSystemPrompt()
     }
 
     /// Set the system prompt.
-    public func setSystemPrompt(_ systemPrompt: String?) async throws {
-        try await inner.setSystemPrompt(systemPrompt: systemPrompt)
+    public func setSystemPrompt(_ systemPrompt: String?) async {
+        await inner.setSystemPrompt(systemPrompt: systemPrompt)
     }
 
     /// Set how old turns are forgotten when the context is full.
@@ -165,13 +165,13 @@ public class Chat {
     }
 
     /// Set a template variable.
-    public func setTemplateVariable(name: String, value: Bool) async throws {
-        try await inner.setTemplateVariable(name: name, value: value)
+    public func setTemplateVariable(name: String, value: Bool) async {
+        await inner.setTemplateVariable(name: name, value: value)
     }
 
     /// Get all template variables.
-    public func getTemplateVariables() async throws -> [String: Bool] {
-        return try await inner.getTemplateVariables()
+    public func getTemplateVariables() async -> [String: Bool] {
+        return await inner.getTemplateVariables()
     }
 
     /// Set the sampler configuration.
@@ -185,13 +185,13 @@ public class Chat {
     }
 
     /// Get context usage statistics.
-    public func getStats() async throws -> ChatStats {
-        return try await inner.getStats()
+    public func getStats() async -> ChatStats {
+        return await inner.getStats()
     }
 
     /// MTP draft acceptance rate for the most recent generation, or nil if unavailable.
-    public func mtpAcceptanceRate() async throws -> Float? {
-        return try await inner.mtpAcceptanceRate()
+    public func mtpAcceptanceRate() async -> Float? {
+        return await inner.mtpAcceptanceRate()
     }
 
     /// Tokenize a message using the model's tokenizer.

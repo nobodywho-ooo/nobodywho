@@ -2686,9 +2686,7 @@ export interface RustChatLike {
   /**
    * Get the current chat history as a list of messages.
    */
-  getChatHistory(asyncOpts_?: {
-    signal: AbortSignal;
-  }) /*throws*/ : Promise<Array<Message>>;
+  getChatHistory(asyncOpts_?: { signal: AbortSignal }): Promise<Array<Message>>;
   /**
    * Get the current sampler configuration as a JSON string.
    */
@@ -2698,21 +2696,19 @@ export interface RustChatLike {
   /**
    * Get context usage statistics.
    */
-  getStats(asyncOpts_?: {
-    signal: AbortSignal;
-  }) /*throws*/ : Promise<ChatStats>;
+  getStats(asyncOpts_?: { signal: AbortSignal }): Promise<ChatStats>;
   /**
    * Get the current system prompt.
    */
   getSystemPrompt(asyncOpts_?: {
     signal: AbortSignal;
-  }) /*throws*/ : Promise<string | undefined>;
+  }): Promise<string | undefined>;
   /**
    * Get all template variables.
    */
   getTemplateVariables(asyncOpts_?: {
     signal: AbortSignal;
-  }) /*throws*/ : Promise<Map<string, boolean>>;
+  }): Promise<Map<string, boolean>>;
   /**
    * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
    *
@@ -2720,7 +2716,7 @@ export interface RustChatLike {
    */
   mtpAcceptanceRate(asyncOpts_?: {
     signal: AbortSignal;
-  }) /*throws*/ : Promise<number | undefined>;
+  }): Promise<number | undefined>;
   /**
    * Reset the chat context with a new system prompt and tools.
    */
@@ -2760,7 +2756,7 @@ export interface RustChatLike {
   setSystemPrompt(
     systemPrompt: string | undefined,
     asyncOpts_?: { signal: AbortSignal },
-  ) /*throws*/ : Promise<void>;
+  ): Promise<void>;
   /**
    * Set a template variable.
    */
@@ -2768,7 +2764,7 @@ export interface RustChatLike {
     name: string,
     value: boolean,
     asyncOpts_?: { signal: AbortSignal },
-  ) /*throws*/ : Promise<void>;
+  ): Promise<void>;
   /**
    * Set the tools available to the model.
    */
@@ -3104,7 +3100,7 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
    */
   async getChatHistory(asyncOpts_?: {
     signal: AbortSignal;
-  }): Promise<Array<Message>> /*throws*/ {
+  }): Promise<Array<Message>> {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
       return await uniffiRustCallAsync(
@@ -3139,9 +3135,6 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
         },
         /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
         /*asyncOpts:*/ asyncOpts_,
-        /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
-          FfiConverterTypeNobodyWhoError,
-        ),
       );
     } catch (__error: any) {
       if (uniffiIsDebug && __error instanceof Error) {
@@ -3206,9 +3199,7 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
   /**
    * Get context usage statistics.
    */
-  async getStats(asyncOpts_?: {
-    signal: AbortSignal;
-  }): Promise<ChatStats> /*throws*/ {
+  async getStats(asyncOpts_?: { signal: AbortSignal }): Promise<ChatStats> {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
       return await uniffiRustCallAsync(
@@ -3243,9 +3234,6 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
         },
         /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
         /*asyncOpts:*/ asyncOpts_,
-        /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
-          FfiConverterTypeNobodyWhoError,
-        ),
       );
     } catch (__error: any) {
       if (uniffiIsDebug && __error instanceof Error) {
@@ -3260,7 +3248,7 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
    */
   async getSystemPrompt(asyncOpts_?: {
     signal: AbortSignal;
-  }): Promise<string | undefined> /*throws*/ {
+  }): Promise<string | undefined> {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
       return await uniffiRustCallAsync(
@@ -3295,9 +3283,6 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
         },
         /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
         /*asyncOpts:*/ asyncOpts_,
-        /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
-          FfiConverterTypeNobodyWhoError,
-        ),
       );
     } catch (__error: any) {
       if (uniffiIsDebug && __error instanceof Error) {
@@ -3312,7 +3297,7 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
    */
   async getTemplateVariables(asyncOpts_?: {
     signal: AbortSignal;
-  }): Promise<Map<string, boolean>> /*throws*/ {
+  }): Promise<Map<string, boolean>> {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
       return await uniffiRustCallAsync(
@@ -3347,9 +3332,6 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
         },
         /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
         /*asyncOpts:*/ asyncOpts_,
-        /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
-          FfiConverterTypeNobodyWhoError,
-        ),
       );
     } catch (__error: any) {
       if (uniffiIsDebug && __error instanceof Error) {
@@ -3366,7 +3348,7 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
    */
   async mtpAcceptanceRate(asyncOpts_?: {
     signal: AbortSignal;
-  }): Promise<number | undefined> /*throws*/ {
+  }): Promise<number | undefined> {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
       return await uniffiRustCallAsync(
@@ -3401,9 +3383,6 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
         },
         /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
         /*asyncOpts:*/ asyncOpts_,
-        /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
-          FfiConverterTypeNobodyWhoError,
-        ),
       );
     } catch (__error: any) {
       if (uniffiIsDebug && __error instanceof Error) {
@@ -3634,7 +3613,7 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
   async setSystemPrompt(
     systemPrompt: string | undefined,
     asyncOpts_?: { signal: AbortSignal },
-  ): Promise<void> /*throws*/ {
+  ): Promise<void> {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
       return await uniffiRustCallAsync(
@@ -3659,9 +3638,6 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
         /*liftFunc:*/ (_v) => {},
         /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
         /*asyncOpts:*/ asyncOpts_,
-        /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
-          FfiConverterTypeNobodyWhoError,
-        ),
       );
     } catch (__error: any) {
       if (uniffiIsDebug && __error instanceof Error) {
@@ -3678,7 +3654,7 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
     name: string,
     value: boolean,
     asyncOpts_?: { signal: AbortSignal },
-  ): Promise<void> /*throws*/ {
+  ): Promise<void> {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
       return await uniffiRustCallAsync(
@@ -3701,9 +3677,6 @@ export class RustChat extends UniffiAbstractObject implements RustChatLike {
         /*liftFunc:*/ (_v) => {},
         /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
         /*asyncOpts:*/ asyncOpts_,
-        /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(
-          FfiConverterTypeNobodyWhoError,
-        ),
       );
     } catch (__error: any) {
       if (uniffiIsDebug && __error instanceof Error) {
@@ -7002,7 +6975,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() !==
-    12722
+    18792
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history",
@@ -7018,7 +6991,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats() !==
-    59932
+    357
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats",
@@ -7026,7 +6999,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt() !==
-    57727
+    1030
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt",
@@ -7034,7 +7007,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() !==
-    19616
+    1114
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables",
@@ -7042,7 +7015,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() !==
-    727
+    6312
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate",
@@ -7090,7 +7063,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt() !==
-    31690
+    30912
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt",
@@ -7098,7 +7071,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable() !==
-    64000
+    12690
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable",
