@@ -222,9 +222,6 @@ const CHECKPOINT_FLAGS: LlamaStateSeqFlags = LlamaStateSeqFlags::from_bits(
     LlamaStateSeqFlags::PARTIAL_ONLY.bits() | LlamaStateSeqFlags::ON_DEVICE.bits(),
 );
 
-/// In host memory, so it survives the on-device snapshot taken for each turn.
-const PREFIX_CHECKPOINT_FLAGS: LlamaStateSeqFlags = LlamaStateSeqFlags::PARTIAL_ONLY;
-
 #[derive(Debug)]
 pub(crate) struct BatchCapacity {
     pub(crate) tokens: usize,
@@ -456,7 +453,7 @@ impl<'a> InferenceEngine<'a> {
     /// Snapshot the recurrent state at the current end of the KV cache, as the prefix checkpoint.
     #[tracing::instrument(level = "trace", skip(self))]
     fn save_prefix_checkpoint(&mut self) {
-        self.prefix_checkpoint = self.snapshot(PREFIX_CHECKPOINT_FLAGS);
+        self.prefix_checkpoint = self.snapshot(LlamaStateSeqFlags::PARTIAL_ONLY);
     }
 
     fn snapshot(&mut self, flags: LlamaStateSeqFlags) -> Option<Checkpoint> {
